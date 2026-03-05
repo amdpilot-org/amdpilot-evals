@@ -1,52 +1,72 @@
 # amdpilot-evals
 
-Evaluation instances for the [amdpilot](https://github.com/Arist12/amdpilot) agentic system. Each instance represents a real-world AMD GPU workload derived from actual issues and PRs in production open-source projects.
+Evaluation instances for [amdpilot](https://github.com/Arist12/amdpilot). Each instance is a real-world AMD GPU task derived from actual GitHub PRs/issues.
 
-## Instance Categories
+## Data Curation Pipeline
 
-| Category | Description | Example |
-|----------|-------------|---------|
-| **Bug Fix** | Fix AMD/ROCm-specific bugs | Missing import guards, hardware detection |
-| **Feature** | Implement AMD-specific functionality | New kernels, operator support |
-| **Performance** | Optimize for AMD GPUs | Kernel tuning, tile-size selection |
+### Automated (recommended)
 
-## Instance Structure
+Use the curation script to generate an eval instance from a merged GitHub PR:
 
-Each instance under `instances/` contains:
+```bash
+# Basic — generates task description, Dockerfile, YAML; test harness is a stub
+python scripts/curate_eval.py --pr https://github.com/sgl-project/sglang/pull/18903
 
+# With LLM-generated test harness (requires model endpoint)
+python scripts/curate_eval.py --pr sgl-project/sglang/18903 --generate-test
 ```
-instances/<name>/
-├── task.yaml              # amdpilot job config
-├── task_description.md    # Human-readable task description (injected into agent prompt)
-├── Dockerfile             # Docker environment setup
-├── test_harness.py        # Verification script (exit 0 = pass, exit 1 = fail)
-├── metadata.json          # Category, difficulty, source PR, expected LOC
-└── setup.sh               # (optional) Additional setup commands
-```
+
+The script:
+1. Fetches PR metadata (title, body, files, merge commit) via `gh`
+2. Determines the "before" state: `merge_commit~1` (the fix does NOT exist)
+3. Generates `task_description.md` from the PR body, stripping solution code
+4. Generates `Dockerfile` using the appropriate ROCm base image
+5. Generates `task.yaml` with `stages: auto` (supervisor plans at runtime)
+6. Optionally generates `test_harness.py` via LLM (or creates a stub for manual authoring)
+
+### Manual
+
+Create `evals/instances/<name>/` with these files:
+
+| File | Purpose | Required |
+|------|---------|----------|
+| `metadata.json` | Category, difficulty, source PR | Yes |
+| `task_description.md` | Bug symptom / feature spec (NO solution code) | Yes |
+| `test_harness.py` | Verification script (SCORE: 0-100 output) | Yes |
+| `Dockerfile` | Build eval Docker image | Yes |
+| `task.yaml` | amdpilot job config | Yes |
+
+## Data Leak Prevention
+
+Every eval instance MUST follow these rules:
+
+1. **Repo checked out at `merge_commit~1`** — the fix does not exist in the codebase
+2. **task_description.md describes the SYMPTOM** — never include the solution code or diff
+3. **test_harness.py tests BEHAVIOR** — check expected outcomes (no crash, correct output), not specific code patterns (no AST matching for the exact fix)
+
+## Base Image Conventions
+
+All evals default to `rocm/sgl-dev:v0.5.9-rocm720-mi35x-20260226` which provides:
+- `/opt/venv/bin/python3` with ROCm PyTorch, triton, aiter, composable kernel
+- `/sgl-workspace/aiter` — aiter source and compiled kernels
+- `/dev/kfd`, `/dev/dri` — AMD GPU access
+- **Critical**: never `pip install -e .` on target repos
+
+## Available Instances
+
+| Instance | Category | Difficulty | Source |
+|----------|----------|------------|--------|
+| `sglang-fused-moe-fix` | Bug Fix | Easy | [sglang #19840](https://github.com/sgl-project/sglang/pull/19840) |
+| `aiter-mla-nhead8` | Feature | Medium | [aiter #2138](https://github.com/ROCm/aiter/pull/2138) |
+| `aiter-flash-attn-overhead` | Performance | Medium-Hard | [aiter #2129](https://github.com/ROCm/aiter/issues/2129) |
 
 ## Running an Eval
 
 ```bash
-# 1. Build the Docker image for the instance
-cd instances/<name>
+# 1. Build the Docker image
+cd evals/instances/<name>
 docker build -t amdpilot-eval-<name> .
 
-# 2. Run with amdpilot
-cd /path/to/amdpilot
-uv run amdpilot run /path/to/amdpilot-evals/instances/<name>/task.yaml
+# 2. Run with amdpilot (fully autonomous)
+uv run amdpilot run evals/instances/<name>/task.yaml
 ```
-
-## Available Instances
-
-| Instance | Category | Source | Difficulty | LOC |
-|----------|----------|--------|------------|-----|
-| `sglang-fused-moe-fix` | Bug Fix | [sglang PR #19840](https://github.com/sgl-project/sglang/pull/19840) | Easy | ~3 |
-| `aiter-mla-nhead8` | Feature | [aiter PR #2138](https://github.com/ROCm/aiter/pull/2138) | Medium | ~36 |
-| `vllm-fp4-hwdetect` | Bug Fix | [vllm PR #34647](https://github.com/vllm-project/vllm/pull/34647) | Medium | ~39 |
-
-## Design Principles
-
-1. **Derived from real PRs** — every instance is based on an actual merged or open PR
-2. **Programmatic verification** — `test_harness.py` gives a binary pass/fail, no human judgment
-3. **Self-contained Docker env** — each instance ships its own Dockerfile
-4. **Agent-agnostic** — instances work with amdpilot but the task/test are decoupled
