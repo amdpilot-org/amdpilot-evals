@@ -61,8 +61,7 @@ def check_rope_config():
         # The fix should preserve rope_parameters or rope_scaling
         has_rope = (hasattr(config, 'rope_scaling') and config.rope_scaling is not None) or \
                    (hasattr(config, 'rope_parameters') and config.rope_parameters is not None)
-        check("RoPE config preserved from text_config",
-              has_rope or True,  # If config init succeeds without ValueError, that's the fix
+        check("RoPE config preserved from text_config", has_rope,
               "rope_parameters/rope_scaling not preserved")
     except ValueError as e:
         if "Unknown RoPE scaling type" in str(e):
