@@ -1,5 +1,5 @@
 name: vllm-encoder-rocm
-type: fix
+type: bugfix
 repo: https://github.com/vllm-project/vllm.git
 base_image: amdpilot-eval-vllm-encoder-rocm
 
