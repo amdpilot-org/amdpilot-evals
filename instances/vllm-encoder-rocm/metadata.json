@@ -1,0 +1,25 @@
+{
+  "name": "vllm-encoder-rocm",
+  "category": "fix",
+  "difficulty": "medium-hard",
+  "source": {
+    "repo": "vllm-project/vllm",
+    "pr": 35334,
+    "merge_commit": "9fa6c68fa627c7ab041c48ac9987fb093719597f"
+  },
+  "description": "[ROCm] Enabling encoder and encoder-decoder on ROCm and AITER unified backends",
+  "expected_loc_changed": 106,
+  "expected_files_changed": 3,
+  "affected_files": [
+    "docs/design/attention_backends.md",
+    "vllm/v1/attention/backends/rocm_aiter_unified_attn.py",
+    "vllm/v1/attention/backends/rocm_attn.py"
+  ],
+  "requires_gpu": true,
+  "requires_model_download": false,
+  "tags": [
+    "rocm",
+    "fix",
+    "vllm-project"
+  ]
+}
