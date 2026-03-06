@@ -86,8 +86,8 @@ def classify_pr(data: dict) -> str:
     if any(w in text for w in ["feature", "add", "enable", "support", "implement"]):
         return "feature"
     if any(w in text for w in ["port", "rocm", "hip", "amd"]):
-        return "fix"
-    return "fix"
+        return "bugfix"
+    return "bugfix"
 
 
 def estimate_difficulty(data: dict) -> str:
@@ -195,7 +195,6 @@ def generate_task_yaml(name: str, repo: str, task_type: str,
         base_image: amdpilot-eval-{name}
 
         model_endpoint:
-          model: "qwen-3.5"
           base_url: "{url}"
           api_key: "sk-dummy"
 

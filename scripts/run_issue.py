@@ -76,7 +76,7 @@ def classify_issue(data: dict) -> str:
         return "optimize"
     if any(w in text for w in ["feature", "add", "enable", "implement", "support"]):
         return "feature"
-    return "fix"
+    return "bugfix"
 
 
 def build_task_description(data: dict, repo: str) -> str:
@@ -135,7 +135,6 @@ def build_yaml(name: str, repo: str, task_type: str, base_image: str,
         base_image: {name}:base
 
         model_endpoint:
-          model: "qwen-3.5"
           base_url: "{url}"
           api_key: "sk-dummy"
 
