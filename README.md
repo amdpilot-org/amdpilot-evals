@@ -23,6 +23,43 @@ python evals/scripts/run_issue.py https://github.com/sgl-project/sglang/issues/1
 amdpilot issue https://github.com/sgl-project/sglang/issues/12345
 ```
 
+### `scripts/enrich_registry.py` -- PR Registry Enrichment
+
+Enriches lightweight PR rows into task-plane registry entries with replay and diff metadata:
+
+```bash
+python scripts/enrich_registry.py \
+  --source /path/to/pr_rows.json \
+  --output registry/enriched/sample.json \
+  --diff-dir registry/ground_truth_diffs \
+  --apply-check
+```
+
+Adds:
+
+- canonical PR metadata from GitHub
+- deterministic `replay_base_sha`
+- normalized test commands
+- optional ground-truth `.diff` export
+- optional `git apply --check` verification
+
+### `scripts/extract_validation_specs.py` -- Validation Spec Extraction
+
+Builds task-plane validation specs from enriched PR rows:
+
+```bash
+python scripts/extract_validation_specs.py \
+  --batch registry/enriched/sample.json \
+  --output registry/enriched/sample.with_validation.json
+```
+
+Adds:
+
+- validation tier (`1` / `2` / `3`)
+- normalized runnable validation commands
+- deterministic fallback checks for tier-2/3 tasks
+- model-server bootstrap hints for serving workloads when recognized
+
 ## Data Curation Pipeline
 
 ### From a Merged PR
@@ -33,6 +70,15 @@ amdpilot issue https://github.com/sgl-project/sglang/issues/12345
 4. Generate `Dockerfile` using the ROCm base image + repo at parent commit
 5. Generate `test_harness.py` (LLM-generated or manual)
 6. Generate `task.yaml` with `stages: auto`
+
+### From a PR Registry
+
+For larger-scale task curation, the recommended flow is:
+
+1. Prepare lightweight rows with at least `repo` and `pr_number`
+2. Run `scripts/enrich_registry.py` to derive replay metadata and diffs
+3. Run `scripts/extract_validation_specs.py` to attach validation contracts
+4. Materialize selected rows into `instances/` as needed
 
 ### Data Leak Prevention
 
@@ -82,4 +128,12 @@ cd evals/instances/<name> && docker build -t amdpilot-eval-<name> .
 
 # Run (fully autonomous)
 uv run amdpilot run evals/instances/<name>/task.yaml
+```
+
+## Testing
+
+The repo's task-plane helper scripts have unit coverage:
+
+```bash
+python -m unittest discover -s tests -v
 ```
