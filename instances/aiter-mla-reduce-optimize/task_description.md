@@ -11,10 +11,15 @@ The kernel performs reduction of partial attention outputs across splits. Key bo
 
 The kernel source is at: `/sgl-workspace/aiter/csrc/kernels/mla/reduce.cu`
 
-After making changes, rebuild aiter:
+After making changes, rebuild the kernel:
 ```bash
-cd /sgl-workspace/aiter && /opt/venv/bin/python3 setup.py develop
+cd /sgl-workspace/aiter && \
+  rm -rf aiter/jit/module_mla_reduce.so aiter/jit/build/module_mla_reduce && \
+  /opt/venv/bin/python3 setup.py develop
 ```
+**Important**: AITER uses JIT compilation. Editing `.cu` files does NOT
+automatically rebuild the cached `.so` module. You MUST delete the cached
+module before running the test, or your changes will have no effect.
 
 ## Environment
 

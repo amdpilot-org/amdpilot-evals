@@ -12,10 +12,15 @@ For tensor sizes commonly used in LLM inference (e.g., 4096x4096 bfloat16), the 
 The kernel source is at: `/sgl-workspace/aiter/csrc/kernels/unary_operator.cu`
 The test file is at: `/sgl-workspace/aiter/op_tests/test_unary_operator.py` (if it exists)
 
-After making changes, rebuild aiter:
+After making changes, rebuild the kernel:
 ```bash
-cd /sgl-workspace/aiter && /opt/venv/bin/python3 setup.py develop
+cd /sgl-workspace/aiter && \
+  rm -rf aiter/jit/module_aiter_unary.so aiter/jit/build/module_aiter_unary && \
+  /opt/venv/bin/python3 setup.py develop
 ```
+**Important**: AITER uses JIT compilation. Editing `.cu` files does NOT
+automatically rebuild the cached `.so` module. You MUST delete the cached
+module before running the test, or your changes will have no effect.
 
 ## Environment
 
