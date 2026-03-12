@@ -5,7 +5,8 @@ repo_branch: main
 base_image: amdpilot-eval-sglang-glm5-optimize
 
 model_endpoint:
-  base_url: "http://10.235.27.218:30000/v1"
+  model: "Qwen/Qwen3.5-397B-A17B"
+  base_url: "http://10.235.24.154:30000/v1"
   api_key: "EMPTY"
 
 container:
