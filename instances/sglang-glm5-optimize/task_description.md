@@ -4,33 +4,60 @@ Optimize the decode latency of the GLM-5-FP8 model on 8× AMD MI355X GPUs using 
 
 ## Environment (read carefully)
 
-- **Installed SGLang runtime**: `/sgl-workspace/sglang/` — this is on `sys.path` and is what `python3 -m sglang.*` uses. If you need to modify SGLang source, edit files here.
-- **SGLang reference checkout**: `/workspace/sglang/` — a fresh `git clone` for reference. Changes here do NOT affect the runtime.
+- **Installed SGLang runtime**: `/sgl-workspace/sglang/` — this is on `sys.path` and is what `python3 -m sglang.*` uses. **Edit files HERE to modify SGLang behavior.**
+- **SGLang reference checkout**: `/workspace/sglang/` — a fresh `git clone` for reference only. Changes here do NOT affect the runtime.
 - **Model weights**: `zai-org/GLM-5-FP8` cached at `/root/.cache/huggingface`.
 - **Benchmark script**: `/workspace/bench_glm5.sh` — pre-built and working. Run it first to establish a baseline.
 
-## Step 1 — Establish Baseline
+## Step 1 — Establish Baseline (do this FIRST)
 
-Run the benchmark immediately:
 ```bash
 bash /workspace/bench_glm5.sh
 ```
-This loads the model with TP=8, runs decode, and prints `Decode median (ms): <value> | tp=8 batch=1`.
-Update `/workspace/optimization_state.json` with the baseline result.
+This prints `Decode median (ms): <value> | tp=8 batch=1`. Update optimization_state.json.
 
-## Step 2 — Profile and Optimize
+## Step 2 — Profile to Find Bottlenecks
 
-After the baseline, focus on reducing decode latency through:
-1. **Configuration tuning**: environment variables (`GPU_MAX_HW_QUEUES`, `PYTORCH_TUNABLEOP_ENABLED`, `HSA_ENABLE_SDMA`), `--mem-fraction-static`, torch.compile flags.
-2. **Kernel-level profiling**: use `rpd` or `torch.profiler` to find hot kernels. Look at attention, MoE dispatch, all-reduce.
-3. **Source-level changes in `/sgl-workspace/sglang/`**: optimize attention backends, fused MoE kernels, reduce synchronization, improve CUDA graph capture.
+Use `torch.profiler` or `rpd` to identify the top GPU kernels by time. Example:
+```python
+import torch
+from torch.profiler import profile, ProfilerActivity
+with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA]) as prof:
+    # run a few decode steps
+    pass
+print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=20))
+```
+Classify bottlenecks: attention kernels, MoE dispatch/fused_moe, all-reduce, GEMM, other.
 
-After each optimization attempt, re-run `bash /workspace/bench_glm5.sh` to measure the effect.
+## Step 3 — Source-Level Optimizations (REQUIRED)
+
+Config tuning alone (env vars, mem-fraction) yields marginal gains. You MUST attempt
+source-level changes in `/sgl-workspace/sglang/`. Concrete targets:
+
+1. **Attention backend** (`/sgl-workspace/sglang/python/sglang/srt/layers/attention/`):
+   - Check the tilelang NSA decode kernel for unnecessary synchronization
+   - Look at `nsa_backend.py` `_forward_tilelang` — can the tiling be improved?
+
+2. **MoE kernels** (`/sgl-workspace/sglang/python/sglang/srt/layers/moe/`):
+   - Profile `fused_moe` dispatch — is expert routing efficient?
+   - Check if `aiter` fused_moe is being used (preferred on AMD)
+
+3. **All-reduce** (`/sgl-workspace/sglang/python/sglang/srt/layers/`):
+   - With TP=8, all-reduce is on the critical path
+   - Check if custom all-reduce (AiterCustomAllReduce) is active
+
+4. **CUDA graph capture** — check if all decode layers are captured in the graph.
+   Any graph breaks force CPU-GPU synchronization.
+
+5. **Scheduling / batching** — for batch=1 decode, check if there's overhead from
+   dynamic batching logic that can be bypassed.
+
+After EACH change, re-run `bash /workspace/bench_glm5.sh` and compare.
 
 ## Rules
 
-- Do NOT use `pkill -f` — it kills your own shell. Use `pgrep ... | xargs kill`.
+- Do NOT use `pkill -f` — it kills your own shell. Use targeted `kill <PID>`.
 - Read error messages carefully and fix the root cause.
 - Final metrics must use CUDA graphs (no `--disable-cuda-graph`).
 - Run `bench_glm5.sh` as your LAST command.
-- Do NOT modify the benchmark script's immutable parameters (model, tp, batch, input/output lengths).
+- Do NOT modify benchmark parameters (model, tp, batch, input/output lengths).
