@@ -16,10 +16,24 @@ bash /workspace/bench_glm5.sh
 ```
 This prints `Decode median (ms): <value> | tp=8 batch=1`. Update optimization_state.json.
 
+**IMPORTANT**: The benchmark uses SGLang auto-detection for attention backend, MoE
+implementation, and all-reduce. Read the benchmark output logs carefully to determine
+which backends are ACTUALLY active before optimizing. Look for lines like:
+- `Use nsa attention backend` / `Use flashinfer attention backend`
+- `NSA backends: prefill=..., decode=...`
+- `[AR] Using AiterCustomAllreduce` / `[AR] Using NCCL`
+- `[aiter] [fused_moe] using 1stage default` / `using Triton fused_moe`
+
+Only optimize the backends that are actually in use.
+
 ## Step 2 — Profile to Find Bottlenecks
 
-Use `torch.profiler` or `rpd` to identify the top GPU kernels by time. Example:
+Use `torch.profiler` to identify the top GPU kernels by time. **CUDA graphs hide
+individual kernel timings** — profile with `--disable-cuda-graph` to see the real
+breakdown, then apply optimizations and measure with CUDA graphs re-enabled.
+
 ```python
+# Example: profile SGLang decode steps
 import torch
 from torch.profiler import profile, ProfilerActivity
 with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA]) as prof:
@@ -28,19 +42,23 @@ with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA]) as prof:
 print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=20))
 ```
 Classify bottlenecks: attention kernels, MoE dispatch/fused_moe, all-reduce, GEMM, other.
+Focus optimization on the kernel category that takes the most GPU time.
 
 ## Step 3 — Source-Level Optimizations (REQUIRED)
 
 Config tuning alone (env vars, mem-fraction) yields marginal gains. You MUST attempt
-source-level changes in `/sgl-workspace/sglang/`. Concrete targets:
+source-level changes in `/sgl-workspace/sglang/`. First check the benchmark logs to
+determine which backends are active, then target those specific implementations.
+
+Potential targets (check benchmark logs to confirm which are active):
 
 1. **Attention backend** (`/sgl-workspace/sglang/python/sglang/srt/layers/attention/`):
-   - Check the tilelang NSA decode kernel for unnecessary synchronization
-   - Look at `nsa_backend.py` `_forward_tilelang` — can the tiling be improved?
+   - Check which backend is active (tilelang, aiter, flashmla, etc.)
+   - For tilelang: check NSA decode kernel tiling and synchronization
 
 2. **MoE kernels** (`/sgl-workspace/sglang/python/sglang/srt/layers/moe/`):
-   - Profile `fused_moe` dispatch — is expert routing efficient?
-   - Check if `aiter` fused_moe is being used (preferred on AMD)
+   - Check if aiter or Triton fused_moe is active (check benchmark logs)
+   - Profile fused_moe dispatch — is expert routing efficient?
 
 3. **All-reduce** (`/sgl-workspace/sglang/python/sglang/srt/layers/`):
    - With TP=8, all-reduce is on the critical path
