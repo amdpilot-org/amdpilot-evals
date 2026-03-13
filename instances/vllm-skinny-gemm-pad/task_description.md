@@ -76,7 +76,6 @@ from the optimized kernel path.
 
    A = torch.randn(4, 4096, dtype=torch.bfloat16, device='cuda')
    B = torch.randn(4096, 4096, dtype=torch.bfloat16, device='cuda')
-   # Pad to make non-contiguous
    A_padded = F.pad(A, (0, 128), "constant", 0)[..., :-128]
    print(f"A contiguous: {A.is_contiguous()}, A_padded contiguous: {A_padded.is_contiguous()}")
    print(f"A stride: {A.stride()}, A_padded stride: {A_padded.stride()}")
@@ -95,8 +94,9 @@ from the optimized kernel path.
 
 4. **Rebuild after each change**:
    ```bash
-   cd /workspace/vllm && pip install -e . --no-build-isolation
+   cd /workspace/vllm && VLLM_TARGET_DEVICE=rocm pip install -e . --no-build-isolation
    ```
+   This compiles the C++ extensions. It takes 10-30 minutes on the first build.
 
 5. **Remove the guard**: Once the kernel handles strides correctly, remove the
    `is_contiguous()` check from `utils.py` so padded tensors use the optimized
@@ -105,14 +105,14 @@ from the optimized kernel path.
 ## Environment
 
 - Repository: `/workspace/vllm`
-- Use `python` or `/opt/venv/bin/python3` for running scripts
+- Use `python` for running scripts (Python 3.12 with torch pre-installed)
 - ROCm GPU available with `rocprof` for profiling
-- After modifying C++ files, rebuild with:
-  `cd /workspace/vllm && pip install -e . --no-build-isolation`
+- After modifying C++ kernel files, rebuild with:
+  `cd /workspace/vllm && VLLM_TARGET_DEVICE=rocm pip install -e . --no-build-isolation`
 
 ## Verification
 
 Run the test harness after applying your fix:
 ```bash
-python /workspace/test_harness.py
+cd /workspace/vllm && python /workspace/test_harness.py
 ```
