@@ -11,9 +11,23 @@ Optimize the decode latency of the GLM-5-FP8 model on 8× AMD MI355X GPUs using 
 
 ## Step 1 — Establish Baseline (do this FIRST)
 
+**NOTE**: The benchmark loads a large TP=8 model and takes 10-15 minutes on first run.
+Your shell timeout is 300 seconds. Run the benchmark like this:
+
 ```bash
-bash /workspace/bench_glm5.sh
+# Run in background, then poll for completion:
+nohup bash /workspace/bench_glm5.sh > /tmp/bench_output.txt 2>&1 &
+BENCH_PID=$!
+# Wait and check periodically:
+sleep 300 && tail -20 /tmp/bench_output.txt
+# If not done yet, wait more:
+sleep 300 && tail -20 /tmp/bench_output.txt
 ```
+
+Alternatively, just run `bash /workspace/bench_glm5.sh` — if it times out at 300s,
+the server stays running in the background. Run it AGAIN and it will connect to the
+already-loaded server and complete instantly.
+
 This prints `Decode median (ms): <value> | tp=8 batch=1`. Update optimization_state.json.
 
 **IMPORTANT**: The benchmark uses SGLang auto-detection for attention backend, MoE
