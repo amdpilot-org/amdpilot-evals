@@ -20,8 +20,12 @@ Set `timeout: 1800` when running it. If it times out, kill leftover sglang proce
 
 `bench_one_batch` supports backend selection flags such as `--attention-backend`,
 `--decode-attention-backend`, `--fp8-gemm-backend`, etc. The benchmark script uses
-defaults. To experiment with backends, modify the runtime source code or configuration
-rather than the benchmark script.
+defaults but sources `/workspace/bench_config.env` if it exists. To set environment
+variables that configure backends, write them to that file:
+```bash
+echo 'export SGLANG_ATTENTION_BACKEND=aiter' > /workspace/bench_config.env
+```
+This ensures the verification run uses the same configuration as your run.
 
 Read the benchmark output logs carefully to identify which backends are active (attention,
 MoE, all-reduce) before optimizing. Only optimize backends that are actually in use.
