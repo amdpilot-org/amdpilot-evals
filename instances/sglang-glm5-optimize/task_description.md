@@ -14,8 +14,8 @@ Optimize the decode latency of the GLM-5-FP8 model on 8× AMD MI355X GPUs using 
 The benchmark runs `sglang.bench_one_batch` and prints:
   `Decode median (ms): <value> | tp=8 batch=1`
 
-First run takes ~25 minutes (model loading + CUDA graph compilation).
-Set `timeout: 1800` when running it. If it times out, kill leftover sglang processes
+First run takes ~5 minutes (model loading from local NVMe + CUDA graph compilation).
+Set `timeout: 600` when running it. If it times out, kill leftover sglang processes
 (`ps aux | grep sglang | grep -v grep | awk '{print $2}' | xargs -r kill -9`) before retrying.
 
 `bench_one_batch` supports backend selection flags such as `--attention-backend`,
