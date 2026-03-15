@@ -30,7 +30,6 @@ workload:
 
 benchmark:
   command: "bash /workspace/bench_glm5.sh"
-  fast_profile_command: "bash /workspace/bench_glm5_fast.sh"
   metric_name: decode_median_ms
   metric_pattern: 'Decode median \(ms\):\s+([\d.]+)'
   metric_direction: lower
