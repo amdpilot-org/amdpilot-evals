@@ -29,11 +29,17 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent
 
-BASE_IMAGES = {
-    "sgl-project/sglang": "rocm/sgl-dev:v0.5.9-rocm720-mi35x-20260226",
-    "ROCm/aiter": "rocm/sgl-dev:v0.5.9-rocm720-mi35x-20260226",
-    "vllm-project/vllm": "rocm/sgl-dev:v0.5.9-rocm720-mi35x-20260226",
-}
+# Add the project source to the path so we can use platform detection
+sys.path.insert(0, str(PROJECT_ROOT.parent / "src"))
+
+
+def _get_base_image() -> str:
+    """Auto-detect the appropriate base image for the current platform."""
+    try:
+        from amdpilot.orchestrator.platform import resolve_base_image
+        return resolve_base_image()
+    except ImportError:
+        return "rocm/sgl-dev:v0.5.9-rocm720-mi35x-20260306"
 
 WORKSPACE_MAP = {
     "sgl-project/sglang": "/workspace/sglang",
@@ -76,7 +82,7 @@ def classify_issue(data: dict) -> str:
         return "optimize"
     if any(w in text for w in ["feature", "add", "enable", "implement", "support"]):
         return "feature"
-    return "fix"
+    return "bugfix"
 
 
 def build_task_description(data: dict, repo: str) -> str:
@@ -125,7 +131,9 @@ def build_dockerfile(repo: str, base_image: str) -> str:
 
 
 def build_yaml(name: str, repo: str, task_type: str, base_image: str,
-               task_desc_path: str, hours: int) -> str:
+               task_desc_path: str, hours: int,
+               model_url: str = "") -> str:
+    url = model_url or os.environ.get("AMDPILOT_MODEL_URL", "http://localhost:30000/v1")
     return textwrap.dedent(f"""\
         name: {name}
         type: {task_type}
@@ -133,8 +141,7 @@ def build_yaml(name: str, repo: str, task_type: str, base_image: str,
         base_image: {name}:base
 
         model_endpoint:
-          model: "qwen-3.5"
-          base_url: "http://10.235.24.154:30000/v1"
+          base_url: "{url}"
           api_key: "sk-dummy"
 
         container:
@@ -175,6 +182,9 @@ def main():
     parser = argparse.ArgumentParser(description="Resolve a GitHub issue autonomously")
     parser.add_argument("issue", help="Issue URL or owner/repo/issues/NUMBER")
     parser.add_argument("--hours", type=int, default=2, help="Max runtime hours")
+    parser.add_argument("--model-url",
+                        default=os.environ.get("AMDPILOT_MODEL_URL", ""),
+                        help="LLM endpoint URL (or set AMDPILOT_MODEL_URL)")
     parser.add_argument("--results-dir", default=None, help="Results directory")
     parser.add_argument("--dry-run", action="store_true", help="Generate config only")
     args = parser.parse_args()
@@ -192,7 +202,7 @@ def main():
     print(f"  Type:  {task_type}")
     print(f"  Name:  {name}")
 
-    base_image = BASE_IMAGES.get(repo, BASE_IMAGES["sgl-project/sglang"])
+    base_image = _get_base_image()
 
     # Create workspace
     work_dir = Path(args.results_dir or f"results/{name}")
@@ -207,7 +217,8 @@ def main():
     dockerfile_path.write_text(dockerfile)
 
     yaml_content = build_yaml(name, repo, task_type, base_image,
-                               str(task_desc_path), args.hours)
+                               str(task_desc_path), args.hours,
+                               model_url=args.model_url)
     yaml_path = work_dir / "task.yaml"
     yaml_path.write_text(yaml_content)
 

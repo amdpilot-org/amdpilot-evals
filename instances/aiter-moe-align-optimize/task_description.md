@@ -10,10 +10,16 @@ The kernel is at: `/sgl-workspace/aiter/csrc/kernels/moe_align_block_size_kernel
 The Python wrapper is at: `/sgl-workspace/aiter/aiter/ops/moe_op.py` (or similar)
 Tests: `/sgl-workspace/aiter/op_tests/test_moe.py` (if exists)
 
-After making changes, rebuild aiter with:
+After making changes, rebuild the kernel:
 ```bash
-cd /sgl-workspace/aiter && /opt/venv/bin/python3 setup.py develop
+cd /sgl-workspace/aiter && \
+  rm -rf aiter/jit/module_moe_asm.so aiter/jit/build/module_moe_asm && \
+  /opt/venv/bin/python3 setup.py develop
 ```
+**Important**: AITER uses JIT compilation. Editing `.cu` files does NOT
+automatically rebuild the cached `.so` module. You MUST delete the cached
+module (`rm -rf aiter/jit/module_moe_asm.so aiter/jit/build/module_moe_asm`)
+before running the test, or your changes will have no effect.
 
 ## Environment
 

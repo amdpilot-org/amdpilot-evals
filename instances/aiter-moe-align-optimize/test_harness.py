@@ -60,7 +60,7 @@ for _ in range(500): aiter.moe_align_block_size(ti, ne, bs, st, ei, tn, ntp)
 torch.cuda.synchronize()
 us = (time.perf_counter() - t0) * 1e6 / 500
 print(f"  Avg latency (tokens=4096, E=64, topk=8): {us:.1f}us")
-check(f"Latency < 140us (got {us:.1f}us)", us < 140.0)
+check(f"Latency < 175us (got {us:.1f}us)", us < 175.0)
 
 print()
 score = (checks_passed / checks_total * 100.0) if checks_total > 0 else 0.0

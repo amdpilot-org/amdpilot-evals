@@ -1,11 +1,11 @@
 FROM rocm/sgl-dev:v0.5.9-rocm720-mi35x-20260226
 WORKDIR /workspace
 
-# Revert the moe_align_block_size kernel to pre-optimization version,
+# Revert the MLA reduce kernel to the pre-optimization version,
 # force JIT rebuild, and prevent solution leak via git history
 RUN cd /sgl-workspace/aiter && \
-    git checkout 2d76e1812385b7688f938120ea86f8a70778dfdb -- csrc/kernels/moe_align_block_size_kernels.cu && \
-    rm -rf aiter/jit/module_moe_asm.so aiter/jit/build/module_moe_asm && \
+    git checkout 9f8ef5a5dd429ef24227cc8c97306a5ff912d604 -- csrc/kernels/mla/reduce.cu && \
+    rm -rf aiter/jit/module_mla_reduce.so aiter/jit/build/module_mla_reduce && \
     /opt/venv/bin/python3 setup.py develop 2>&1 | tail -5 && \
     git config user.email "build@eval" && git config user.name "eval" && \
     git add -A && \

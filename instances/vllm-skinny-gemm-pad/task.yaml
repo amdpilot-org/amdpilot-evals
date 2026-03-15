@@ -1,0 +1,93 @@
+name: vllm-skinny-gemm-pad
+type: optimize
+repo: https://github.com/vllm-project/vllm.git
+base_image: amdpilot-eval-vllm-skinny-gemm-pad
+
+model_endpoint:
+  model: "Qwen3.5-397B-A17B"
+  base_url: "http://10.235.27.218:30000/v1"
+  api_key: "sk-dummy"
+
+supervisor_model_endpoint:
+  model: "claude-opus-4-6"
+  base_url: "http://localhost:8083/v1"
+  api_key: "not-needed"
+
+container:
+  name: amdpilot_eval_vllm_skinny_gemm_pad
+  gpu: "0"
+  shm_size: 16g
+  devices: [/dev/kfd, /dev/dri]
+
+workload:
+  description: "wvSplitK skinny GEMM kernel lacks padding support for non-contiguous tensors"
+  framework: PyTorch
+
+benchmark:
+  command: "cd /workspace/vllm && python /workspace/test_harness.py"
+  metric_name: score
+  metric_pattern: 'SCORE:\s+([\d.]+)'
+  metric_direction: higher
+
+task:
+  description_file: evals/instances/vllm-skinny-gemm-pad/task_description.md
+
+stages:
+  - name: stage1_profile_and_diagnose
+    start_image: amdpilot-eval-vllm-skinny-gemm-pad
+    duration_minutes: 50
+    target: 25
+    description: >
+      FIRST: Read /workspace/task_description.md.
+      Profile the skinny GEMM kernel with rocprof --stats to understand the
+      dispatch flow and which kernels are called.
+      Understand why padded tensors bypass the optimized kernel by reading
+      vllm/model_executor/layers/utils.py (find the is_contiguous() guard).
+      Create a padded tensor and verify it produces wrong results with
+      ops.wvSplitK. Read csrc/rocm/skinny_gemms.cu to understand memory
+      access patterns. Run the test harness for baseline.
+      IMPORTANT: Use `python` (not /opt/venv/bin/python3) for all commands.
+
+  - name: stage2_implement_and_build
+    start_image: auto
+    duration_minutes: 60
+    target: 60
+    description: >
+      Implement padding support in the CUDA kernel. Add stride parameters
+      to kernel signatures and modify memory access patterns to use strides.
+      Update dispatch macros to extract strides from tensor arguments.
+      CRITICAL: After modifying C++ code, you MUST rebuild:
+      cd /workspace/vllm && VLLM_TARGET_DEVICE=rocm pip install -e . --no-build-isolation
+      The first build takes 10-30 minutes. Be patient with compilation.
+      After rebuild, run the test harness to verify improvement.
+
+  - name: stage3_edge_cases_and_integration
+    start_image: auto
+    duration_minutes: 50
+    target: 85
+    description: >
+      Fix remaining edge cases: ensure bounds checking in the kernel
+      write-back section prevents out-of-bounds writes when M is not a
+      multiple of YTILE. Fix bias indexing. Verify LDS usage calculation
+      uses the correct stride variable. Remove the is_contiguous() check
+      from utils.py. Rebuild, run the full test harness. All padding
+      combinations, bias modes, and regression tests should pass.
+
+nudge_config:
+  poll_interval: 10
+  profiling_check_after_s: 300
+  benchmark_check_after_s: 180
+  kimi_status_interval: 15
+
+kimi_cli:
+  repo_url: "https://github.com/Arist12/kimi-cli.git"
+  branch: amd-dev
+  install_dir: "/sgl-workspace/kimi-cli"
+  provider: "sglang"
+  provider_type: "openai_legacy"
+  thinking: false
+  yolo: true
+  ralph_iterations: -1
+
+max_retries_per_stage: 5
+max_total_hours: 4

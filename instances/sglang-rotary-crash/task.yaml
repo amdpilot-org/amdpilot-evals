@@ -4,13 +4,11 @@ repo: https://github.com/sgl-project/sglang.git
 base_image: amdpilot-eval-sglang-rotary-crash
 
 model_endpoint:
-  model: "qwen-3.5"
-  base_url: "http://10.235.24.154:30000/v1"
+  base_url: "http://localhost:30000/v1"
   api_key: "sk-dummy"
 
 container:
   name: amdpilot_eval_rotary
-  gpu: "0"
   shm_size: 16g
   devices: [/dev/kfd, /dev/dri]
 

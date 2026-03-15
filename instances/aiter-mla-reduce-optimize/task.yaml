@@ -1,19 +1,19 @@
-name: sglang-fused-moe-fix
-type: bugfix
-repo: https://github.com/sgl-project/sglang.git
-base_image: amdpilot-eval-sglang-fused-moe-fix
+name: aiter-mla-reduce-optimize
+type: optimize
+repo: https://github.com/ROCm/aiter.git
+base_image: amdpilot-eval-aiter-mla-reduce-optimize
 
 model_endpoint:
   base_url: "http://localhost:30000/v1"
   api_key: "sk-dummy"
 
 container:
-  name: amdpilot_eval_moe
+  name: amdpilot_eval_mla_reduce
   shm_size: 16g
   devices: [/dev/kfd, /dev/dri]
 
 workload:
-  description: "MoE models crash on ROCm with NameError in fused_moe.py"
+  description: "Optimize MLA reduce kernel to reduce attention decode latency"
   framework: PyTorch
 
 benchmark:
@@ -23,9 +23,9 @@ benchmark:
   metric_direction: higher
 
 task:
-  description_file: evals/instances/sglang-fused-moe-fix/task_description.md
+  description_file: evals/instances/aiter-mla-reduce-optimize/task_description.md
 
 stages: auto
 
 max_retries_per_stage: 3
-max_total_hours: 1
+max_total_hours: 3

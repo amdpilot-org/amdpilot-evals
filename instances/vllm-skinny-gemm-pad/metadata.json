@@ -1,0 +1,27 @@
+{
+  "name": "vllm-skinny-gemm-pad",
+  "category": "optimize",
+  "difficulty": "expert",
+  "source": {
+    "repo": "vllm-project/vllm",
+    "parent_commit": "9251ed5c4fc6c954a5cdc5399d9d4f25ea5a8dd3"
+  },
+  "description": "Add padding support to wvSplitK skinny GEMM kernel for non-contiguous tensors on ROCm",
+  "test_harness_type": "runtime",
+  "expected_files_changed": 3,
+  "affected_files": [
+    "csrc/rocm/skinny_gemms.cu",
+    "tests/kernels/quantization/test_rocm_skinny_gemms.py",
+    "vllm/model_executor/layers/utils.py"
+  ],
+  "requires_gpu": true,
+  "requires_build": true,
+  "tags": [
+    "rocm",
+    "optimize",
+    "kernel",
+    "cuda",
+    "gemm",
+    "vllm-project"
+  ]
+}
