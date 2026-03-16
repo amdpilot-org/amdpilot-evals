@@ -1,0 +1,246 @@
+  0%|          | 0/100 [00:00<?, ?it/s]Starting Batch Generation with config: EvalConfig({'dataset_src': 'local', 'dataset_name': 'ScalingIntelligence/KernelBench', 'level': 1, 'subset': [None, None], 'run_name': 'amdpilot_triton_qwen35_v1', 'num_workers': 10, 'api_query_interval': 0.0, 'server_type': 'local', 'model_name': 'default', 'max_tokens': 16384, 'temperature': 0.0, 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0, 'runs_dir': '/workspace/KernelBench/runs', 'verbose': True, 'store_type': 'local', 'num_samples': 1, 'log_prompt': True, 'backend': 'triton', 'precision': 'fp32', 'prompt_option': 'one_shot', 'include_hardware_info': False, 'hardware_gpu_name': 'None', 'custom_prompt_key': 'None', 'check_kernel': True})
+Generating 1 sample(s) each for level 1 problems: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100]
+  1%|          | 1/100 [00:29<48:03, 29.12s/it]  3%|▎         | 3/100 [00:34<18:51, 11.67s/it]  5%|▌         | 5/100 [00:43<13:42,  8.66s/it]  7%|▋         | 7/100 [00:51<11:18,  7.29s/it]  9%|▉         | 9/100 [01:06<11:15,  7.42s/it] 10%|█         | 10/100 [01:08<10:12,  6.81s/it] 11%|█         | 11/100 [01:21<11:02,  7.44s/it] 12%|█▏        | 12/100 [01:29<10:55,  7.44s/it] 13%|█▎        | 13/100 [01:31<10:09,  7.00s/it] 14%|█▍        | 14/100 [01:37<10:00,  6.98s/it] 15%|█▌        | 15/100 [02:18<13:03,  9.22s/it] 16%|█▌        | 16/100 [02:18<12:09,  8.68s/it] 17%|█▋        | 17/100 [02:21<11:28,  8.30s/it]Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Generated sample 0 for problem 8: 8_Matmul_with_irregular_shapes_.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Generated sample 0 for problem 1: 1_Square_matrix_multiplication_.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Generated sample 0 for problem 4: 4_Matrix_vector_multiplication_.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Generated sample 0 for problem 9: 9_Tall_skinny_matrix_multiplication_.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Generated sample 0 for problem 7: 7_Matmul_with_small_K_dimension_.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Generated sample 0 for problem 6: 6_Matmul_with_large_K_dimension_.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Generated sample 0 for problem 2: 2_Standard_matrix_multiplication_.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Generated sample 0 for problem 3: 3_Batched_matrix_multiplication.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Generated sample 0 for problem 10: 10_3D_tensor_matrix_multiplication.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Generated sample 0 for problem 12: 12_Matmul_with_diagonal_matrices_.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Generated sample 0 for problem 18: 18_Matmul_with_transposed_both.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Generated sample 0 for problem 16: 16_Matmul_with_transposed_A.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Generated sample 0 for problem 11: 11_4D_tensor_matrix_multiplication.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Generated sample 0 for problem 17: 17_Matmul_with_transposed_B.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Generated sample 0 for problem 23: 23_Softmax.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Static check warnings for sample 0 for problem 24: 24_LogSoftmax.py. Warnings: ['Uses torch.nn compute layer (only containers, Parameter, init allowed)']
+Generated sample 0 for problem 24: 24_LogSoftmax.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Generated sample 0 for problem 5: 5_Matrix_scalar_multiplication.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+ 18%|█▊        | 18/100 [02:45<12:34,  9.20s/it] 19%|█▉        | 19/100 [02:59<12:44,  9.43s/it] 20%|██        | 20/100 [03:09<12:38,  9.48s/it] 21%|██        | 21/100 [03:17<12:24,  9.42s/it] 22%|██▏       | 22/100 [03:44<13:15, 10.20s/it] 23%|██▎       | 23/100 [03:57<13:14, 10.32s/it] 24%|██▍       | 24/100 [04:10<13:12, 10.43s/it] 25%|██▌       | 25/100 [04:18<12:56, 10.35s/it] 26%|██▌       | 26/100 [04:29<12:47, 10.37s/it] 27%|██▋       | 27/100 [04:59<13:30, 11.10s/it] 28%|██▊       | 28/100 [05:04<13:04, 10.89s/it] 29%|██▉       | 29/100 [05:10<12:40, 10.71s/it] 30%|███       | 30/100 [05:18<12:22, 10.60s/it] 31%|███       | 31/100 [05:44<12:47, 11.12s/it] 32%|███▏      | 32/100 [05:50<12:25, 10.97s/it] 33%|███▎      | 33/100 [06:10<12:32, 11.23s/it] 34%|███▍      | 34/100 [06:15<12:08, 11.04s/it] 35%|███▌      | 35/100 [06:18<11:43, 10.83s/it] 36%|███▌      | 36/100 [06:27<11:28, 10.76s/it] 37%|███▋      | 37/100 [06:30<11:05, 10.57s/it] 38%|███▊      | 38/100 [06:53<11:14, 10.88s/it] 39%|███▉      | 39/100 [06:59<10:56, 10.77s/it]Static check warnings for sample 0 for problem 20: 20_LeakyReLU.py. Warnings: ['Uses torch.nn compute layer (only containers, Parameter, init allowed)']
+Generated sample 0 for problem 20: 20_LeakyReLU.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Generated sample 0 for problem 27: 27_SELU_.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Generated sample 0 for problem 15: 15_Matmul_for_lower_triangular_matrices.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Generated sample 0 for problem 22: 22_Tanh.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Generated sample 0 for problem 19: 19_ReLU.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Static check warnings for sample 0 for problem 21: 21_Sigmoid.py. Warnings: ['Uses torch.nn compute layer (only containers, Parameter, init allowed)']
+Generated sample 0 for problem 21: 21_Sigmoid.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Generated sample 0 for problem 25: 25_Swish.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Static check warnings for sample 0 for problem 26: 26_GELU_.py. Warnings: ['Uses torch.nn compute layer (only containers, Parameter, init allowed)']
+Generated sample 0 for problem 26: 26_GELU_.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Static check warnings for sample 0 for problem 28: 28_HardSigmoid.py. Warnings: ['Uses torch.nn compute layer (only containers, Parameter, init allowed)']
+Generated sample 0 for problem 28: 28_HardSigmoid.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Error generating sample 33 0: Static check failed for sample 0 for problem 33: 33_BatchNorm.py. Error: ["Contains 'pass' statement (inheritance bypass)"]. Warnings: ['Uses torch.nn compute layer (only containers, Parameter, init allowed)']
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Static check warnings for sample 0 for problem 29: 29_Softplus.py. Warnings: ['Uses torch.nn compute layer (only containers, Parameter, init allowed)']
+Generated sample 0 for problem 29: 29_Softplus.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Static check warnings for sample 0 for problem 35: 35_GroupNorm_.py. Warnings: ['Uses torch.nn compute layer (only containers, Parameter, init allowed)']
+Generated sample 0 for problem 35: 35_GroupNorm_.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Generated sample 0 for problem 30: 30_Softsign.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Generated sample 0 for problem 39: 39_L2Norm_.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Static check warnings for sample 0 for problem 31: 31_ELU.py. Warnings: ['Uses torch.nn compute layer (only containers, Parameter, init allowed)']
+Generated sample 0 for problem 31: 31_ELU.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Static check warnings for sample 0 for problem 40: 40_LayerNorm.py. Warnings: ['Uses torch.nn compute layer (only containers, Parameter, init allowed)']
+Generated sample 0 for problem 40: 40_LayerNorm.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Static check warnings for sample 0 for problem 32: 32_HardTanh.py. Warnings: ['Uses torch.nn compute layer (only containers, Parameter, init allowed)']
+Generated sample 0 for problem 32: 32_HardTanh.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Error generating sample 13 0: Custom CUDA code generation failed
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Error generating sample 14 0: Custom CUDA code generation failed
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Generated sample 0 for problem 36: 36_RMSNorm_.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Generated sample 0 for problem 38: 38_L1Norm_.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Generated sample 0 for problem 44: 44_Average_Pooling_1D.py
+ 40%|████      | 40/100 [07:02<10:33, 10.55s/it] 41%|████      | 41/100 [07:07<10:15, 10.43s/it] 42%|████▏     | 42/100 [07:11<09:56, 10.28s/it] 43%|████▎     | 43/100 [07:14<09:36, 10.11s/it] 44%|████▍     | 44/100 [07:32<09:36, 10.29s/it] 45%|████▌     | 45/100 [07:56<09:42, 10.58s/it] 46%|████▌     | 46/100 [08:03<09:27, 10.51s/it] 47%|████▋     | 47/100 [08:33<09:39, 10.93s/it] 48%|████▊     | 48/100 [08:55<09:40, 11.17s/it] 49%|████▉     | 49/100 [09:01<09:23, 11.05s/it] 50%|█████     | 50/100 [09:09<09:09, 10.98s/it] 51%|█████     | 51/100 [09:47<09:24, 11.53s/it] 52%|█████▏    | 52/100 [10:11<09:24, 11.75s/it] 53%|█████▎    | 53/100 [10:20<09:10, 11.71s/it] 54%|█████▍    | 54/100 [11:05<09:27, 12.33s/it] 55%|█████▌    | 55/100 [11:13<09:11, 12.25s/it] 56%|█████▌    | 56/100 [11:16<08:51, 12.08s/it] 57%|█████▋    | 57/100 [11:33<08:43, 12.16s/it] 58%|█████▊    | 58/100 [11:39<08:26, 12.06s/it]Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Generated sample 0 for problem 45: 45_Average_Pooling_2D.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Generated sample 0 for problem 47: 47_Sum_reduction_over_a_dimension.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Generated sample 0 for problem 37: 37_FrobeniusNorm_.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Generated sample 0 for problem 46: 46_Average_Pooling_3D.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Error generating sample 48 0: Static check failed for sample 0 for problem 48: 48_Mean_reduction_over_a_dimension.py. Error: ['Contains try-except block (potential fallback bypass)']. Warnings: []
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Generated sample 0 for problem 49: 49_Max_reduction_over_a_dimension.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Generated sample 0 for problem 53: 53_Min_reduction_over_a_dimension.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Static check warnings for sample 0 for problem 34: 34_InstanceNorm.py. Warnings: ['Uses torch.nn compute layer (only containers, Parameter, init allowed)']
+Generated sample 0 for problem 34: 34_InstanceNorm.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Static check warnings for sample 0 for problem 55: 55_conv_standard_2D__asymmetric_input__square_kernel.py. Warnings: ['Uses torch.nn compute layer (only containers, Parameter, init allowed)']
+Generated sample 0 for problem 55: 55_conv_standard_2D__asymmetric_input__square_kernel.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Error generating sample 50 0: Static check failed for sample 0 for problem 50: 50_conv_standard_2D__square_input__square_kernel.py. Error: ["Contains 'pass' statement (inheritance bypass)"]. Warnings: ['Uses torch.nn compute layer (only containers, Parameter, init allowed)']
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Static check warnings for sample 0 for problem 54: 54_conv_standard_3D__square_input__square_kernel.py. Warnings: ['Uses torch.nn compute layer (only containers, Parameter, init allowed)']
+Generated sample 0 for problem 54: 54_conv_standard_3D__square_input__square_kernel.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Static check warnings for sample 0 for problem 57: 57_conv_transposed_2D__square_input__square_kernel.py. Warnings: ['Uses torch.nn compute layer (only containers, Parameter, init allowed)']
+Generated sample 0 for problem 57: 57_conv_transposed_2D__square_input__square_kernel.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Static check warnings for sample 0 for problem 59: 59_conv_standard_3D__asymmetric_input__square_kernel.py. Warnings: ['Uses torch.nn compute layer (only containers, Parameter, init allowed)']
+Generated sample 0 for problem 59: 59_conv_standard_3D__asymmetric_input__square_kernel.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Generated sample 0 for problem 58: 58_conv_transposed_3D__asymmetric_input__asymmetric_kernel.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Static check warnings for sample 0 for problem 60: 60_conv_standard_3D__square_input__asymmetric_kernel.py. Warnings: ['Uses torch.nn compute layer (only containers, Parameter, init allowed)']
+Generated sample 0 for problem 60: 60_conv_standard_3D__square_input__asymmetric_kernel.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Static check warnings for sample 0 for problem 61: 61_conv_transposed_3D__square_input__square_kernel.py. Warnings: ['Uses torch.nn compute layer (only containers, Parameter, init allowed)']
+Generated sample 0 for problem 61: 61_conv_transposed_3D__square_input__square_kernel.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Static check warnings for sample 0 for problem 62: 62_conv_standard_2D__square_input__asymmetric_kernel.py. Warnings: ['Uses torch.nn compute layer (only containers, Parameter, init allowed)']
+Generated sample 0 for problem 62: 62_conv_standard_2D__square_input__asymmetric_kernel.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Error generating sample 41 0: Custom CUDA code generation failed
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Error generating sample 42 0: Custom CUDA code generation failed
+ 59%|█████▉    | 59/100 [11:59<08:19, 12.19s/it] 60%|██████    | 60/100 [12:07<08:05, 12.13s/it] 61%|██████    | 61/100 [12:22<07:54, 12.18s/it] 62%|██████▏   | 62/100 [12:47<07:50, 12.37s/it] 63%|██████▎   | 63/100 [12:56<07:36, 12.33s/it] 64%|██████▍   | 64/100 [13:01<07:19, 12.21s/it] 65%|██████▌   | 65/100 [13:17<07:09, 12.27s/it] 66%|██████▌   | 66/100 [13:23<06:54, 12.18s/it] 67%|██████▋   | 67/100 [13:38<06:43, 12.21s/it] 68%|██████▊   | 68/100 [13:47<06:29, 12.17s/it] 69%|██████▉   | 69/100 [13:54<06:14, 12.10s/it] 70%|███████   | 70/100 [14:06<06:02, 12.09s/it] 71%|███████   | 71/100 [14:12<05:48, 12.01s/it] 72%|███████▏  | 72/100 [14:48<05:45, 12.35s/it] 73%|███████▎  | 73/100 [14:55<05:31, 12.26s/it] 74%|███████▍  | 74/100 [15:11<05:20, 12.31s/it] 75%|███████▌  | 75/100 [15:12<05:04, 12.17s/it]Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Error generating sample 43 0: Custom CUDA code generation failed
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Static check warnings for sample 0 for problem 64: 64_conv_transposed_1D.py. Warnings: ['Uses torch.nn compute layer (only containers, Parameter, init allowed)']
+Generated sample 0 for problem 64: 64_conv_transposed_1D.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Static check warnings for sample 0 for problem 65: 65_conv_transposed_2D__square_input__asymmetric_kernel.py. Warnings: ['Uses torch.nn compute layer (only containers, Parameter, init allowed)']
+Generated sample 0 for problem 65: 65_conv_transposed_2D__square_input__asymmetric_kernel.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Generated sample 0 for problem 67: 67_conv_standard_1D.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Error generating sample 51 0: Custom CUDA code generation failed
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Error generating sample 52 0: Custom CUDA code generation failed
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Generated sample 0 for problem 69: 69_conv_transposed_2D__asymmetric_input__asymmetric_kernel.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Error generating sample 66 0: Static check failed for sample 0 for problem 66: 66_conv_standard_3D__asymmetric_input__asymmetric_kernel.py. Error: ["Contains 'pass' statement (inheritance bypass)"]. Warnings: ['Uses torch.nn compute layer (only containers, Parameter, init allowed)']
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Static check warnings for sample 0 for problem 68: 68_conv_transposed_3D__square_input__asymmetric_kernel.py. Warnings: ['Uses torch.nn compute layer (only containers, Parameter, init allowed)']
+Generated sample 0 for problem 68: 68_conv_transposed_3D__square_input__asymmetric_kernel.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Static check warnings for sample 0 for problem 70: 70_conv_transposed_3D__asymmetric_input__square_kernel.py. Warnings: ['Uses torch.nn compute layer (only containers, Parameter, init allowed)']
+Generated sample 0 for problem 70: 70_conv_transposed_3D__asymmetric_input__square_kernel.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Error generating sample 56 0: Custom CUDA code generation failed
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Static check warnings for sample 0 for problem 73: 73_conv_transposed_3D_asymmetric_input_square_kernel__strided_padded__grouped.py. Warnings: ['Uses torch.nn compute layer (only containers, Parameter, init allowed)']
+Generated sample 0 for problem 73: 73_conv_transposed_3D_asymmetric_input_square_kernel__strided_padded__grouped.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Static check warnings for sample 0 for problem 72: 72_conv_transposed_3D_asymmetric_input_asymmetric_kernel___strided_padded_grouped_.py. Warnings: ['Uses torch.nn compute layer (only containers, Parameter, init allowed)']
+Generated sample 0 for problem 72: 72_conv_transposed_3D_asymmetric_input_asymmetric_kernel___strided_padded_grouped_.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Static check warnings for sample 0 for problem 77: 77_conv_transposed_3D_square_input_square_kernel___padded____dilated____strided__.py. Warnings: ['Uses torch.nn compute layer (only containers, Parameter, init allowed)']
+Generated sample 0 for problem 77: 77_conv_transposed_3D_square_input_square_kernel___padded____dilated____strided__.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Static check warnings for sample 0 for problem 71: 71_conv_transposed_2D__asymmetric_input__square_kernel.py. Warnings: ['Uses torch.nn compute layer (only containers, Parameter, init allowed)']
+Generated sample 0 for problem 71: 71_conv_transposed_2D__asymmetric_input__square_kernel.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Static check warnings for sample 0 for problem 79: 79_conv_transposed_1D_asymmetric_input_square_kernel___padded____strided____dilated__.py. Warnings: ['Uses torch.nn compute layer (only containers, Parameter, init allowed)']
+Generated sample 0 for problem 79: 79_conv_transposed_1D_asymmetric_input_square_kernel___padded____strided____dilated__.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Static check warnings for sample 0 for problem 80: 80_conv_standard_2D_square_input_asymmetric_kernel___dilated____padded__.py. Warnings: ['Uses torch.nn compute layer (only containers, Parameter, init allowed)']
+Generated sample 0 for problem 80: 80_conv_standard_2D_square_input_asymmetric_kernel___dilated____padded__.py
+ 76%|███████▌  | 76/100 [15:15<04:49, 12.05s/it] 77%|███████▋  | 77/100 [15:44<04:42, 12.27s/it] 78%|███████▊  | 78/100 [16:09<04:33, 12.43s/it] 79%|███████▉  | 79/100 [16:10<04:17, 12.28s/it] 80%|████████  | 80/100 [16:12<04:03, 12.16s/it] 81%|████████  | 81/100 [16:35<03:53, 12.29s/it] 82%|████████▏ | 82/100 [16:36<03:38, 12.15s/it] 83%|████████▎ | 83/100 [16:43<03:25, 12.09s/it] 84%|████████▍ | 84/100 [17:06<03:15, 12.22s/it] 85%|████████▌ | 85/100 [17:23<03:04, 12.28s/it] 86%|████████▌ | 86/100 [17:39<02:52, 12.32s/it] 87%|████████▋ | 87/100 [17:45<02:39, 12.24s/it] 88%|████████▊ | 88/100 [17:58<02:27, 12.26s/it] 89%|████████▉ | 89/100 [18:16<02:15, 12.32s/it] 90%|█████████ | 90/100 [18:37<02:04, 12.41s/it] 91%|█████████ | 91/100 [18:52<01:51, 12.44s/it] 92%|█████████▏| 92/100 [19:02<01:39, 12.42s/it] 93%|█████████▎| 93/100 [19:05<01:26, 12.32s/it] 94%|█████████▍| 94/100 [19:07<01:13, 12.21s/it] 95%|█████████▌| 95/100 [19:13<01:00, 12.15s/it] 96%|█████████▌| 96/100 [19:20<00:48, 12.09s/it] 97%|█████████▋| 97/100 [19:29<00:36, 12.06s/it] 98%|█████████▊| 98/100 [19:58<00:24, 12.23s/it] 99%|█████████▉| 99/100 [21:44<00:13, 13.18s/it]100%|██████████| 100/100 [22:04<00:00, 13.24s/it]100%|██████████| 100/100 [22:04<00:00, 13.24s/it]
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Static check warnings for sample 0 for problem 78: 78_conv_transposed_2D_asymmetric_input_asymmetric_kernel___padded__.py. Warnings: ['Uses torch.nn compute layer (only containers, Parameter, init allowed)']
+Generated sample 0 for problem 78: 78_conv_transposed_2D_asymmetric_input_asymmetric_kernel___padded__.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Static check warnings for sample 0 for problem 82: 82_conv_depthwise_2D_square_input_square_kernel.py. Warnings: ['Uses torch.nn compute layer (only containers, Parameter, init allowed)']
+Generated sample 0 for problem 82: 82_conv_depthwise_2D_square_input_square_kernel.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Static check warnings for sample 0 for problem 84: 84_conv_depthwise_2D_asymmetric_input_square_kernel.py. Warnings: ['Uses torch.nn compute layer (only containers, Parameter, init allowed)']
+Generated sample 0 for problem 84: 84_conv_depthwise_2D_asymmetric_input_square_kernel.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Static check warnings for sample 0 for problem 83: 83_conv_depthwise_2D_square_input_asymmetric_kernel.py. Warnings: ['Uses torch.nn compute layer (only containers, Parameter, init allowed)']
+Generated sample 0 for problem 83: 83_conv_depthwise_2D_square_input_asymmetric_kernel.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Error generating sample 63 0: Custom CUDA code generation failed
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Static check warnings for sample 0 for problem 85: 85_conv_depthwise_2D_asymmetric_input_asymmetric_kernel.py. Warnings: ['Uses torch.nn compute layer (only containers, Parameter, init allowed)']
+Generated sample 0 for problem 85: 85_conv_depthwise_2D_asymmetric_input_asymmetric_kernel.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Static check warnings for sample 0 for problem 88: 88_MinGPTNewGelu.py. Warnings: ['Uses torch.nn compute layer (only containers, Parameter, init allowed)']
+Generated sample 0 for problem 88: 88_MinGPTNewGelu.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Static check warnings for sample 0 for problem 87: 87_conv_pointwise_2D.py. Warnings: ['Uses torch.nn compute layer (only containers, Parameter, init allowed)']
+Generated sample 0 for problem 87: 87_conv_pointwise_2D.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Error generating sample 89 0: Static check failed for sample 0 for problem 89: 89_cumsum.py. Error: ["Contains 'pass' statement (inheritance bypass)"]. Warnings: []
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Generated sample 0 for problem 93: 93_masked_cumsum.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Generated sample 0 for problem 94: 94_MSELoss.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Static check warnings for sample 0 for problem 86: 86_conv_depthwise_separable_2D.py. Warnings: ['Uses torch.nn compute layer (only containers, Parameter, init allowed)']
+Generated sample 0 for problem 86: 86_conv_depthwise_separable_2D.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Static check warnings for sample 0 for problem 95: 95_CrossEntropyLoss.py. Warnings: ['Uses torch.nn compute layer (only containers, Parameter, init allowed)']
+Generated sample 0 for problem 95: 95_CrossEntropyLoss.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Static check warnings for sample 0 for problem 96: 96_HuberLoss.py. Warnings: ['Uses torch.nn compute layer (only containers, Parameter, init allowed)']
+Generated sample 0 for problem 96: 96_HuberLoss.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Static check warnings for sample 0 for problem 97: 97_ScaledDotProductAttention.py. Warnings: ['Uses torch.nn compute layer (only containers, Parameter, init allowed)']
+Generated sample 0 for problem 97: 97_ScaledDotProductAttention.py
+Querying server local with model default and args: {'temperature': 0.0, 'server_port': 30000, 'server_address': '10.235.27.218', 'max_tokens': 16384, 'model_name': 'default', 'is_reasoning_model': False, 'reasoning_effort': 'low', 'budget_tokens': 0}
+Error generating sample 74 0: Custom CUDA code generation failed
+Generated sample 0 for problem 92: 92_cumsum_exclusive.py
+Static check warnings for sample 0 for problem 100: 100_HingeLoss.py. Warnings: ['Uses torch.nn compute layer (only containers, Parameter, init allowed)']
+Generated sample 0 for problem 100: 100_HingeLoss.py
+Error generating sample 75 0: Custom CUDA code generation failed
+Error generating sample 76 0: Custom CUDA code generation failed
+Generated sample 0 for problem 99: 99_TripletMarginLoss.py
+Static check warnings for sample 0 for problem 98: 98_KLDivLoss.py. Warnings: ['Uses torch.nn compute layer (only containers, Parameter, init allowed)']
+Generated sample 0 for problem 98: 98_KLDivLoss.py
+Error generating sample 81 0: Custom CUDA code generation failed
+Error generating sample 90 0: Custom CUDA code generation failed
+Error generating sample 91 0: Custom CUDA code generation failed
+
+Generated 80 samples for total 100 problems, Please retry for the 20 failed problems.
