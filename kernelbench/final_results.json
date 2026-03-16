@@ -1,0 +1,35 @@
+{
+  "hardware": "AMD Instinct MI355X",
+  "backend": "triton",
+  "model": "Qwen3.5-397B-A17B",
+  "levels": {
+    "level_1": {
+      "total": 100,
+      "compiled": 88,
+      "correct": 40,
+      "fast_1": 10,
+      "fast_2": 6
+    },
+    "level_2": {
+      "total": 100,
+      "compiled": 93,
+      "correct": 27,
+      "fast_1": 13,
+      "fast_2": 0
+    },
+    "level_3": {
+      "total": 50,
+      "compiled": 48,
+      "correct": 5,
+      "fast_1": 3,
+      "fast_2": 0
+    }
+  },
+  "overall": {
+    "total": 250,
+    "compiled": 229,
+    "correct": 72,
+    "fast_1": 26,
+    "fast_2": 6
+  }
+}
