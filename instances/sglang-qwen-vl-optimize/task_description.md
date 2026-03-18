@@ -37,7 +37,7 @@ The benchmark runs a full serving workload (self-contained):
 4. Runs 128 image-prompt requests as the actual measurement
 5. Reports: `Output throughput (tok/s): <value> | concurrency=16 model=Qwen3-VL-8B`
 
-First run takes 10–15 minutes (model loading + warmup + benchmark). Set `timeout: 1200` when running it.
+First run takes 15–25 minutes (model loading + CUDA graph compilation + warmup + benchmark). Set `timeout: 2400` or higher when running it. Do NOT use timeout < 2000.
 
 ### Configuring the benchmark
 

@@ -12,21 +12,27 @@ PORT="${BENCH_PORT:-30000}"
 MODEL="Qwen/Qwen3-VL-8B-Instruct"
 ATTENTION_BACKEND="${ATTENTION_BACKEND:-triton}"
 EXTRA_SERVER_ARGS="${EXTRA_SERVER_ARGS:-}"
+BENCH_SERVING_TIMEOUT="${BENCH_SERVING_TIMEOUT:-900}"
 
 export SGLANG_DISABLE_CUDNN_CHECK=1
 
 SERVER_PID=""
 cleanup() {
     if [ -n "$SERVER_PID" ]; then
-        kill "$SERVER_PID" 2>/dev/null || true
-        wait "$SERVER_PID" 2>/dev/null || true
+        kill -9 "$SERVER_PID" 2>/dev/null || true
     fi
+    # Force-kill any sglang child processes (scheduler, detokenizer, workers)
+    ps aux | grep -E "sglang::|sglang\.(launch_server|serve)" | grep -v grep \
+        | awk '{print $2}' | xargs -r kill -9 2>/dev/null || true
+    # Release the port
+    fuser -k "${PORT}/tcp" 2>/dev/null || true
 }
 trap cleanup EXIT
 
-# Kill leftover sglang server processes (avoid pkill -f which kills the shell)
-ps aux | grep -E "sglang\.(launch_server|serve)" | grep -v grep \
+# Kill ALL leftover sglang processes and free the port
+ps aux | grep -E "sglang::|sglang\.(launch_server|serve)" | grep -v grep \
     | awk '{print $2}' | xargs -r kill -9 2>/dev/null || true
+fuser -k "${PORT}/tcp" 2>/dev/null || true
 sleep 3
 
 # Start sglang server
@@ -39,7 +45,7 @@ sleep 3
     $EXTRA_SERVER_ARGS > /tmp/sglang_server.log 2>&1 &
 SERVER_PID=$!
 
-echo "Starting sglang server (PID: $SERVER_PID, attention: $ATTENTION_BACKEND)..."
+echo "Starting sglang server (PID: $SERVER_PID, attention: $ATTENTION_BACKEND, port: $PORT)..."
 READY=0
 for i in $(seq 1 120); do
     if curl -sf "http://localhost:$PORT/health" >/dev/null 2>&1; then
@@ -69,12 +75,12 @@ BENCH_ARGS="--backend sglang --model $MODEL --port $PORT \
     --max-concurrency 16 --seed 123 --warmup-requests 0"
 
 echo ""
-echo "=== Warmup run ==="
-/opt/venv/bin/python3 -m sglang.bench_serving $BENCH_ARGS 2>&1 || true
+echo "=== Warmup run (timeout=${BENCH_SERVING_TIMEOUT}s) ==="
+timeout "$BENCH_SERVING_TIMEOUT" /opt/venv/bin/python3 -m sglang.bench_serving $BENCH_ARGS 2>&1 || true
 
 echo ""
-echo "=== Benchmark run ==="
-OUTPUT=$(/opt/venv/bin/python3 -m sglang.bench_serving $BENCH_ARGS 2>&1) || true
+echo "=== Benchmark run (timeout=${BENCH_SERVING_TIMEOUT}s) ==="
+OUTPUT=$(timeout "$BENCH_SERVING_TIMEOUT" /opt/venv/bin/python3 -m sglang.bench_serving $BENCH_ARGS 2>&1) || true
 
 echo "$OUTPUT"
 
