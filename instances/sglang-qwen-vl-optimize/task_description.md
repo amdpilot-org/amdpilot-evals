@@ -1,37 +1,44 @@
-# Qwen3-VL Serving Throughput Optimization
+# Qwen3-VL Triton Attention Throughput Regression Fix
 
-Optimize SGLang serving throughput for Qwen3-VL-8B-Instruct on AMD MI355X to eliminate a regression vs vLLM.
+Fix the triton attention backend throughput regression in SGLang when serving Qwen3-VL-8B-Instruct on AMD MI355X.
 
-## Problem — SGLang Qwen-VL Regression
+## Problem — Triton Attention Regression
 
-SGLang v0.5.9 (ROCm 7.2.0, MI355X) has a **33% throughput regression** compared to vLLM when serving the Qwen3-VL-8B-Instruct vision-language model. SGLang should match or exceed vLLM on AMD GPUs — the vLLM numbers below represent the **pre-regression target** that SGLang must recover:
+SGLang v0.5.9 (ROCm 7.2.0, MI355X) with `--attention-backend triton` shows a **33% throughput regression** vs vLLM on the same workload:
 
 | Backend | Output Throughput (tok/s) | TPOT (ms) | E2E Latency p50 (ms) | TTFT p50 (ms) |
 |---------|--------------------------|-----------|----------------------|---------------|
-| SGLang (native API) | 1235.85 | 12.21 | 25786 | 1134 |
-| SGLang (OAI chat) | 1115.81 | 13.29 | 29223 | 1267 |
+| SGLang triton | 1235.85 | 12.21 | 25786 | 1134 |
+| SGLang OAI chat | 1115.81 | 13.29 | 29223 | 1267 |
 | **vLLM (target)** | **1648.09** | **9.09** | **19385** | **1275** |
 
-Key observations:
-- **Decode is the bottleneck**: TPOT 12.21ms (SGLang) vs 9.09ms (vLLM) — a 34% gap. Prefill (TTFT ~1100-1275ms) is comparable across all backends.
-- **SGLang native API > OAI chat**: 1235 vs 1115 tok/s. Focus optimization on the native decode path.
-- **Vision tokens are ~17% of input**: 112,896 vision tokens out of 652,598 total input tokens. Vision processing overhead may compound during batched decode.
+The regression is concentrated in **decode throughput**: TPOT 12.21ms (SGLang triton) vs 9.09ms (vLLM) — a 34% gap. Prefill (TTFT ~1100-1275ms) is comparable.
+
+## CRITICAL CONSTRAINTS
+
+1. **The benchmark uses `--attention-backend triton`. This is LOCKED and cannot be changed.** The regression is specifically in the triton attention path on AMD. Switching to the aiter backend is NOT an acceptable fix — it bypasses the regression without fixing it.
+
+2. **Do NOT modify the benchmark script** (`bench_qwen_vl.sh`) or its parameters.
+
+3. **Do NOT set `ATTENTION_BACKEND` in `bench_config.env`.** The benchmark ignores this variable — the backend is hardcoded to triton.
+
+4. The fix must be source-level changes to SGLang's triton attention kernels, model code, scheduler, or memory management — changes that make the triton path faster.
 
 ## Deliverable
 
-**The final deliverable is a clean git commit on a new branch in the sglang fork at `/workspace/sglang/`.** After you achieve the target throughput, you MUST create the branch and commit your changes (see "Creating the Fix Branch" section below). The committed Docker image will be used to extract this branch.
+**A clean git commit on a `fix/qwen-vl-throughput` branch in `/workspace/sglang-fork/`** containing source-level changes that bring triton-backend throughput to ≥1600 tok/s.
 
 ## Environment
 
 - **Installed SGLang runtime**: `/sgl-workspace/sglang/` — on `sys.path`, used by `python3 -m sglang.*`. **Edit files HERE to modify SGLang behavior.**
 - **SGLang fork checkout**: `/workspace/sglang-fork/` — clone of `github.com/Arist12/sglang` for creating the fix branch after optimization.
 - **Model weights**: `Qwen/Qwen3-VL-8B-Instruct` cached at `/root/.cache/huggingface`.
-- **Benchmark script**: `/workspace/bench_qwen_vl.sh` — starts server, runs warmup + benchmark, reports output throughput.
+- **Benchmark script**: `/workspace/bench_qwen_vl.sh` — starts server with triton backend, runs warmup + benchmark, reports output throughput.
 
 ## Benchmark
 
 The benchmark runs a full serving workload (self-contained):
-1. Starts SGLang server with the model (attention backend configurable)
+1. Starts SGLang server with `--attention-backend triton` (hardcoded)
 2. Waits for server health
 3. Runs 128 image-prompt requests as warmup (results discarded)
 4. Runs 128 image-prompt requests as the actual measurement
@@ -39,24 +46,12 @@ The benchmark runs a full serving workload (self-contained):
 
 First run takes 15–25 minutes (model loading + CUDA graph compilation + warmup + benchmark). Set `timeout: 2400` or higher when running it. Do NOT use timeout < 2000.
 
-### Configuring the benchmark
-
-The server launch can be configured via `/workspace/bench_config.env`. Write environment variables to this file so that the verification run uses the same configuration:
-
-```bash
-# Switch attention backend
-echo 'export ATTENTION_BACKEND=aiter' > /workspace/bench_config.env
-
-# Add extra server arguments
-echo 'export EXTRA_SERVER_ARGS="--chunked-prefill-size 4096"' >> /workspace/bench_config.env
-```
-
 ### Quick iteration
 
 For faster feedback during development, you can start the server manually and run `bench_serving` directly with fewer prompts:
 
 ```bash
-# Start server (background)
+# Start server (background) — MUST use triton
 SGLANG_DISABLE_CUDNN_CHECK=1 /opt/venv/bin/python3 -m sglang.launch_server \
     --model-path Qwen/Qwen3-VL-8B-Instruct \
     --host 0.0.0.0 --port 30000 --trust-remote-code \
@@ -74,96 +69,65 @@ Use the full benchmark script (`bash /workspace/bench_qwen_vl.sh`) for the final
 
 ## Target
 
-Match or exceed the pre-regression (vLLM) output throughput: **≥1600 tok/s** (vLLM achieves 1648 tok/s on the identical workload). Current SGLang baseline is ~1235 tok/s — this is a 33% gap to close.
-
-## Repro Commands (Reference)
-
-These commands were used to reproduce the regression on `lmsysorg/sglang:v0.5.9-rocm720-mi35x`:
-
-**SGLang server:**
-```bash
-SGLANG_DISABLE_CUDNN_CHECK=1 sglang serve \
-    --model-path Qwen/Qwen3-VL-8B-Instruct \
-    --host 0.0.0.0 --port 30000 --trust-remote-code \
-    --attention-backend triton
-```
-
-**Benchmark:**
-```bash
-python3 -m sglang.bench_serving --backend sglang \
-    --model Qwen/Qwen3-VL-8B-Instruct --dataset-name image \
-    --num-prompts 128 --random-input-len 4000 --random-output-len 2000 \
-    --random-range-ratio 1.0 --image-count 1 --image-resolution 720p \
-    --image-content random --max-concurrency 16 --seed 123 --warmup-requests 0
-```
-
-**vLLM reference (1648 tok/s):**
-```bash
-python -m vllm.entrypoints.openai.api_server \
-    --model Qwen/Qwen3-VL-8B-Instruct --host 0.0.0.0 --port 8000 \
-    --dtype bfloat16 --trust-remote-code
-```
+Bring triton-backend output throughput to **≥1600 tok/s** (vLLM achieves 1648 tok/s on the identical workload with its own attention implementation). Current SGLang triton baseline is ~1235 tok/s — this is a 30% gap to close.
 
 ## Suggested Investigation Areas
 
-1. **Attention backend**: The repro uses `--attention-backend triton`. Try `aiter` (AMD's native high-performance attention backend) which provides significantly better decode throughput on MI355X. Check `sglang/srt/layers/attention/` for backend dispatch logic.
+The decode path is where the regression lives (TPOT 12.21ms vs 9.09ms). Focus here:
 
-2. **Vision encoder pipeline**: Profile the vision encoder and cross-attention layers. Look for unnecessary data copies, synchronization points, or suboptimal kernel dispatch in the Qwen3-VL model implementation under `sglang/srt/models/`.
+1. **Triton attention kernel tuning**: The triton decode attention kernels in `sglang/srt/layers/attention/triton_ops/` may have suboptimal tile sizes, num_kv_splits, or memory access patterns for MI355X. Profile with `rocprof` to find the hotspot kernels. Check `triton_attention_num_kv_splits` and `triton_attention_reduce_in_fp32` server args.
 
-3. **Multimodal scheduler efficiency**: Image requests generate vision tokens that may cause scheduling inefficiency during batched decode. Check `sglang/srt/managers/schedule_batch.py` and related files for multimodal token handling.
+2. **CUDA graph overhead**: VL models may have variable input shapes that cause excessive CUDA graph recompilation or suboptimal graph capture. Check `sglang/srt/layers/attention/triton_backend.py` for how CUDA graphs interact with the triton attention path.
 
-4. **Decode kernel performance**: Since the regression is entirely in decode (TPOT), examine the decode attention kernel path. Check if there are VL-specific code paths that are less optimized than text-only paths.
+3. **Vision token handling in decode**: During batched decode with image tokens, the KV cache access pattern may differ from text-only. Check if the triton attention kernel handles multimodal KV entries efficiently.
 
-5. **Memory management**: Multimodal tokens may trigger extra memory operations (allocation, defragmentation) that slow the decode loop. Check `sglang/srt/mem_cache/`.
+4. **Scheduling inefficiency**: Image requests with many vision tokens may cause the scheduler to create suboptimal batches during decode. Check `sglang/srt/managers/schedule_batch.py`.
 
-6. **CUDA graph compatibility**: Ensure CUDA graphs are enabled and working correctly for VL models. VL models sometimes disable CUDA graphs due to variable input shapes.
+5. **Memory fragmentation**: Multimodal tokens may cause memory fragmentation in the KV cache, leading to non-contiguous memory access during triton attention. Check `sglang/srt/mem_cache/`.
+
+6. **torch.compile and triton interaction**: Check if `torch.compile` or piecewise CUDA graph compilation introduces overhead specific to the triton attention path on AMD.
 
 ## Creating the Fix Branch (REQUIRED)
 
-After achieving the target throughput, you **MUST** create a clean git commit on a new branch. This is the primary deliverable.
-
-The runtime SGLang at `/sgl-workspace/sglang/` may not be a git repo. Use `diff` to identify changes, then apply them to the fork checkout:
+After achieving the target throughput WITH triton, you **MUST** create a clean git commit:
 
 ```bash
-# 1. Identify what you changed in the runtime (adjust paths as needed)
+# 1. Identify changes in the runtime
 diff -ruN /workspace/sglang-fork/python/sglang/ /sgl-workspace/sglang/python/sglang/ > /workspace/changes.patch
 
-# 2. Create the fix branch in the fork
+# 2. Create the fix branch
 cd /workspace/sglang-fork
 git checkout -b fix/qwen-vl-throughput
 
-# 3. Apply the patch
+# 3. Apply and commit
 git apply /workspace/changes.patch || patch -p0 < /workspace/changes.patch
-
-# 4. Commit with a descriptive message
 git add -A
-git commit -m "fix: optimize Qwen3-VL serving throughput on MI355X
+git commit -m "fix: optimize triton attention for Qwen3-VL on MI355X
 
-Closes the ~33% throughput gap vs vLLM on bench_serving image workload.
-Baseline: ~1235 tok/s -> Target: >=1600 tok/s (vLLM: 1648 tok/s)
+Closes the ~33% decode throughput gap vs vLLM on bench_serving image workload.
+Baseline: ~1235 tok/s -> Target: >=1600 tok/s (with --attention-backend triton)
 
 Changes:
 - <describe what you changed and why>
 "
 ```
 
-If the diff approach fails (paths differ), manually copy each changed file:
+If the diff approach fails, manually copy each changed file:
 ```bash
 cd /workspace/sglang-fork
 git checkout -b fix/qwen-vl-throughput
 cp /sgl-workspace/sglang/python/sglang/<changed_file> python/sglang/<changed_file>
 git add -A
-git commit -m "fix: optimize Qwen3-VL serving throughput on MI355X"
+git commit -m "fix: optimize triton attention for Qwen3-VL on MI355X"
 ```
-
-The branch will be preserved in the committed Docker image.
 
 ## Rules
 
 - Do NOT use `pkill -f` — it kills your own shell. Use targeted `kill <PID>`.
 - Read error messages carefully and fix the root cause.
-- Do NOT modify the benchmark script or its parameters (128 prompts, concurrency 16, etc.).
+- **The benchmark uses `--attention-backend triton`. Do NOT switch to aiter or any other backend.** The goal is to fix triton performance.
+- Do NOT modify the benchmark script or its parameters.
 - **Run `bash /workspace/bench_qwen_vl.sh` as your LAST command before creating the git branch.**
-- **Create the fix branch as the very last step** (after confirming the benchmark passes).
+- **Create the fix branch as the very last step.**
 - Kill leftover sglang server processes before starting a new one:
   `ps aux | grep sglang | grep -v grep | awk '{print $2}' | xargs -r kill -9`

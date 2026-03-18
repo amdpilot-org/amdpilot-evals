@@ -1,7 +1,12 @@
 #!/bin/bash
 # Qwen3-VL-8B serving throughput benchmark for AMD MI355X.
 # Self-contained: starts server, runs warmup + benchmark, reports metric.
-# Agent can override settings via /workspace/bench_config.env.
+#
+# IMMUTABLE: attention backend is LOCKED to triton. The regression under
+# investigation is specifically in the triton path. Switching to aiter
+# is not an acceptable fix — the goal is to make triton match vLLM.
+#
+# Agent may configure non-backend server args via /workspace/bench_config.env.
 set -eo pipefail
 
 if [ -f /workspace/bench_config.env ]; then
@@ -10,9 +15,10 @@ fi
 
 PORT="${BENCH_PORT:-30000}"
 MODEL="Qwen/Qwen3-VL-8B-Instruct"
-ATTENTION_BACKEND="${ATTENTION_BACKEND:-triton}"
-EXTRA_SERVER_ARGS="${EXTRA_SERVER_ARGS:-}"
 BENCH_SERVING_TIMEOUT="${BENCH_SERVING_TIMEOUT:-900}"
+
+# LOCKED — do not change. The regression is in the triton attention path.
+ATTENTION_BACKEND="triton"
 
 export SGLANG_DISABLE_CUDNN_CHECK=1
 
@@ -21,28 +27,24 @@ cleanup() {
     if [ -n "$SERVER_PID" ]; then
         kill -9 "$SERVER_PID" 2>/dev/null || true
     fi
-    # Force-kill any sglang child processes (scheduler, detokenizer, workers)
     ps aux | grep -E "sglang::|sglang\.(launch_server|serve)" | grep -v grep \
         | awk '{print $2}' | xargs -r kill -9 2>/dev/null || true
-    # Release the port
     fuser -k "${PORT}/tcp" 2>/dev/null || true
 }
 trap cleanup EXIT
 
-# Kill ALL leftover sglang processes and free the port
 ps aux | grep -E "sglang::|sglang\.(launch_server|serve)" | grep -v grep \
     | awk '{print $2}' | xargs -r kill -9 2>/dev/null || true
 fuser -k "${PORT}/tcp" 2>/dev/null || true
 sleep 3
 
-# Start sglang server
 /opt/venv/bin/python3 -m sglang.launch_server \
     --model-path "$MODEL" \
     --host 0.0.0.0 \
     --port "$PORT" \
     --trust-remote-code \
     --attention-backend "$ATTENTION_BACKEND" \
-    $EXTRA_SERVER_ARGS > /tmp/sglang_server.log 2>&1 &
+    ${EXTRA_SERVER_ARGS:-} > /tmp/sglang_server.log 2>&1 &
 SERVER_PID=$!
 
 echo "Starting sglang server (PID: $SERVER_PID, attention: $ATTENTION_BACKEND, port: $PORT)..."
