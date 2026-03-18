@@ -1,0 +1,56 @@
+name: sglang-issue-19935
+type: bugfix
+repo: https://github.com/sgl-project/sglang.git
+base_image: sglang-issue-19935:base
+
+# All agents use Claude Opus 4.6 via the supervisor proxy (port 8083).
+# The proxy translates OpenAI format (including tools) to Anthropic format.
+model_endpoint:
+  base_url: "http://localhost:8083/v1"
+  model: "claude-opus-4-6"
+  api_key: "sk-dummy"
+
+supervisor_model_endpoint:
+  base_url: "http://localhost:8083/v1"
+  model: "claude-opus-4-6"
+  api_key: "sk-dummy"
+
+container:
+  name: amdpilot_sglang_19935
+  gpu: "0,1,2,3"
+  shm_size: 64g
+  devices: [/dev/kfd, /dev/dri]
+  volumes:
+    - "/mnt/dcgpuval:/mnt/dcgpuval:ro"
+
+workload:
+  description: "Fix FP8 assertion failure in aiter MLA decode (SGLang #19935)"
+  framework: PyTorch
+
+benchmark:
+  command: "/opt/venv/bin/python3 /workspace/test_harness.py"
+  metric_name: score
+  metric_pattern: 'SCORE:\s+([\d.]+)'
+  metric_direction: higher
+
+task:
+  description_file: evals/sglang-sft/issue-19935/task_description.md
+
+stages: auto
+
+kimi_cli:
+  repo_url: "https://github.com/Arist12/kimi-cli.git"
+  branch: amd-dev
+  install_dir: "/sgl-workspace/kimi-cli"
+  provider: sglang
+  provider_type: openai_legacy   # overridden at runtime by is_amd_gateway detection
+  thinking: true
+  yolo: true
+  ralph_iterations: -1
+  max_steps_per_turn: 500
+  reserved_context_size: 50000
+
+max_retries_per_stage: 3
+max_total_hours: 2
+supervisor: true
+nudge: true
