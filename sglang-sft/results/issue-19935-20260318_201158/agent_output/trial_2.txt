@@ -1,0 +1,95 @@
+• Used ReadFile (test_harness.py)
+• Used ReadFile (/sgl-workspace/sglang/pyt...ttention/aiter_backend.py)
+• The test harness actually starts a server and tries to load the model. Let me
+  continue reading the aiter_backend.py file to find the mla_decode_fwd call sit
+  es.
+• Used ReadFile (/sgl-workspace/sglang/pyt...ttention/aiter_backend.py)
+• Used ReadFile (/sgl-workspace/sglang/pyt...ttention/aiter_backend.py)
+• Good - I can see the fix is already in place. The _k_scale = layer.k_scale if
+  layer.k_scale is not None else self.k_scale pattern is applied at all 4 call s
+  ites (lines 1960, 1999, and 2183). Let me verify the fix is correct at all 4 l
+  ocations:
+• Used Grep (_k_scale = layer\.k_scale...t None else self\.k_scale)
+• Used Grep (q_scale=|kv_scale=)
+• The fix is in place. There are 4 mla_decode_fwd calls (lines 1961, 2016, 2047,
+  2184), and 3 _k_scale definitions (line 1960 for target_verify, line 1999 for
+  both draft_extend non-graph and graph paths, and line 2183 for forward_decode)
+  . All 4 calls use _k_scale correctly.
+
+  Now, the test harness tries to actually start the server and load the model. T
+  he model weights are missing, so it will fail. Let me check what files exist a
+  t /models/Kimi-K2.5:
+• Used Shell (ls -la /models/Kimi-K2.5/ 2>/dev/null | head -30)
+• Used Shell (# Check if the safetensor...S" || echo "FILE MISSING")
+• The model files exist! They're symlinks to actual files. Let me check if all 6
+  4 shards exist and the total size:
+• Used Shell (# Check how many safetens...total, Missing: $missing")
+• All 64 model shards exist. The model should load. Let me check available GPUs
+  and then try running the test harness:
+• Used Shell (rocm-smi --showid 2>/dev/...() > 0 else 'none')" 2>&1)
+• We have 4 MI355X GPUs. Let me check if port 9000 is already in use:
+• Used Shell (# Check if port 9000 is i...cho "No sglang processes")
+• Port 9000 is in use. Let me find out what's using it:
+• Used Shell (ss -tlnp | grep 9000 lsof...|| ss -tlnp sport = :9000)
+• Used Shell (# Try to find pid using p...o "netstat not available")
+• Used Shell (# Find what's using port ...i     fi done 2>/dev/null)
+• Wait, 0x2328 = 9000. Let me look at this more carefully. The hex 1F92 = 8082,
+  0035 = 53 (DNS), 96B9 = 38585, 3036 = 12342. Let me search properly:
+• Used Shell (# 9000 in hex = 0x2328 gr... echo "Connection failed")
+• Used Shell (# Find the process with u..."     fi done 2>/dev/null)
+• Used Shell (# Different approach - fi...[502091830\]' 2>/dev/null)
+• The socket is owned by uid 13927 (not root), and we can't find the process - i
+  t's likely outside our container's namespace. The previous trial note mentione
+  d "Port 9000 is occupied by the agent process (PID 158)". Let me check if we c
+  an use a different port or if the test harness allows that:
+
+  Looking at the test harness again - it uses PORT = 9000 and we can't modify te
+  st_harness.py. But the process holding port 9000 might be from a previous run.
+  Let me try to understand if it's truly bound:
+• Used Shell (# Check if port 9000 resp...SY: {e}')     s.close() ")
+• Used Shell (# Check if we can bind on...e}')     s.close() " 2>&1)
+• Used Shell (# The socket is bound at ...kets ss -tlnp 2>/dev/null)
+• I see ports 9000-9004 are all listening, and they're on 127.0.0.1. These look
+  like they could be from a previous sglang server run (TP=4 would use ports 900
+  0-9004). Let me check if there's actually a sglang server running:
+• Used Shell (# Check if there's a runn... 5 2>&1 echo "---info---")
+• Used Shell (# Find the PID using port...ev/null echo "---done---")
+• No process found with that socket inode - it could be outside the container na
+  mespace. Let me just try killing whatever holds the port and run the test:
+• Used Shell (# The sockets at 9000-900...int(f'Error: {e}') " 2>&1)
+• Let me just run the test harness and see what happens:
+• Used Shell (/opt/venv/bin/python3 /wo...pace/test_harness.py 2>&1)
+  Killed by timeout (300s)
+• The test harness timed out after 300s - it's waiting for the server to start (
+  SERVER_TIMEOUT=600s). The server likely fails to bind to port 9000. Let me che
+  ck if the server even started and what happened:
+• Used Shell (# Kill any leftover pytho...nch_server | grep -v grep)
+• The server IS actually running (PID 568) and is in the torch compile phase. Th
+  e previous test harness timed out because the server takes a long time to star
+  t (model loading + torch compilation for a huge model). The server was launche
+  d by the test harness (PID 567). Let me wait for it and check the health endpo
+  int periodically:
+• Used Shell (# Kill the old test harne...| grep -v grep | head -10)
+• Good, the server is still running and loading. The schedulers are each using ~
+  9GB. Let me wait for it to finish loading and start serving:
+• Used Shell (# Wait and poll for the s..."     fi     sleep 5 done)
+  Killed by timeout (300s)
+• The server is still compiling (132 compile workers). This is a 671B parameter
+  model. Let me continue waiting:
+• Used Shell (# Continue waiting for th..."     fi     sleep 5 done)
+  Killed by timeout (300s)
+• Used Shell (# Wait with a longer time...     fi     sleep 30 done)
+  Killed by timeout (300s)
+• Used Shell (# Check if the server pro...am 2>/dev/null | head -30)
+• Good - the model is loaded with ~215GB VRAM used on each of the 4 GPUs. It's i
+  n the torch.compile phase. The server has been running for ~21 minutes. Let me
+  keep waiting:
+• Used Shell (# Keep waiting with a muc...     fi     sleep 30 done)
+  Killed by timeout (300s)
+• Used Shell (# Still waiting - the com...     fi     sleep 30 done)
+  Killed by timeout (300s)
+• Used Shell (# Check total elapsed tim...'{print $2, $3, $4, $11}')
+• The server has been running for 31 minutes. Let me keep waiting more:
+
+--- EXIT CODE ---
+124

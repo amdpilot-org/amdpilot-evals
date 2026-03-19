@@ -1,0 +1,68 @@
+{
+  "job_name": "sglang-issue-19935",
+  "repo": "https://github.com/sgl-project/sglang.git",
+  "initial_baseline_ms": null,
+  "current_best_ms": null,
+  "stages_completed": [],
+  "current_stage": {
+    "stage": "stage1_fix_fp8_kscale_fallback",
+    "baseline_ms": 0.0,
+    "current_best_ms": 0.0,
+    "applied_optimizations": [
+      {
+        "name": "fp8_kscale_fallback",
+        "impact_ms": null,
+        "files_changed": [
+          "/sgl-workspace/sglang/python/sglang/srt/layers/attention/aiter_backend.py"
+        ],
+        "description": "At all 4 mla_decode_fwd call sites (target_verify, draft_extend non-graph, draft_extend graph, forward_decode), replaced `q_scale=layer.k_scale, kv_scale=layer.k_scale` with `_k_scale = layer.k_scale if layer.k_scale is not None else self.k_scale` and `q_scale=_k_scale, kv_scale=_k_scale`. This prevents the assertion failure in asm_mla.cu:206 when layer.k_scale is None (the default in RadixAttention). self.k_scale is initialized to torch.tensor([1.0]) in AiterAttnBackend.__init__.",
+        "technique_category": "",
+        "timestamp": ""
+      }
+    ],
+    "attempted_but_failed": [
+      {
+        "name": "trial_2",
+        "reason": "Time has expired (negative remaining). The code fix was correctly applied at all 4 mla_decode_fwd call sites (replacing layer.k_scale with a fallback to self.k_scale when None), but could never be val",
+        "error": "",
+        "approaches_tried": 1,
+        "timestamp": "2026-03-18T22:17:28.220264"
+      }
+    ],
+    "profiling_summary": {
+      "top_bottlenecks": [],
+      "gpu_utilization": 0.0,
+      "memory_usage_gb": 0.0,
+      "kernel_breakdown": {},
+      "raw_profile_path": "",
+      "timestamp": ""
+    },
+    "active_backends": {
+      "attention": "aiter",
+      "moe": "default"
+    },
+    "hotspot_targets": [],
+    "next_moves": [
+      "Verify fix with actual model weights - current environment lacks Kimi-K2.5 safetensors",
+      "Integration test with full server startup and request serving"
+    ],
+    "environment_changes": [],
+    "notes": [
+      "Fix is syntactically valid and imports correctly",
+      "Fix matches the fallback pattern used by flashmla_backend.py (lines 424-432, 498-506)",
+      "self.k_scale is already initialized as torch.tensor([1.0]).to(device) at line 205-206 of aiter_backend.py",
+      "Model weights not available in test environment (/models/Kimi-K2.5 has only config/tokenizer files, no .safetensors)",
+      "Test harness returns SCORE: 0 because server cannot load model weights, not because of the assertion fix",
+      "Git commit: fix(attention): fall back to self.k_scale when layer.k_scale is None in aiter MLA decode"
+    ],
+    "started_at": "2026-03-18T20:12:20.784045",
+    "completed_at": ""
+  },
+  "attempt_history": [],
+  "technique_attempts": {
+    "trial_2": 1
+  },
+  "global_notes": [
+    "Model weights for Kimi-K2.5 are not available in this container - only config and tokenizer files exist at /models/Kimi-K2.5"
+  ]
+}

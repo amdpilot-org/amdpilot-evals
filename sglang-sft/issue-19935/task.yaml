@@ -28,7 +28,7 @@ workload:
   framework: PyTorch
 
 benchmark:
-  command: "/opt/venv/bin/python3 /workspace/test_harness.py"
+  command: "/opt/venv/bin/python3 /opt/test_harness.py"
   metric_name: score
   metric_pattern: 'SCORE:\s+([\d.]+)'
   metric_direction: higher

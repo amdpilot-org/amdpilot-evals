@@ -8,6 +8,13 @@ RUN cd /sgl-workspace/sglang && \
     git checkout 751c4540990152bc045d44859ca1498d34337750 && \
     /opt/venv/bin/pip install -e "python[all]" --no-deps 2>/dev/null || true
 
+# Strip git history so the agent cannot look up future commits / the fix
+RUN cd /sgl-workspace/sglang && \
+    rm -rf .git && \
+    git init && \
+    git add -A && \
+    git commit -m "init" --allow-empty-message 2>/dev/null || true
+
 # Pre-install uv
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 
@@ -20,9 +27,9 @@ RUN source $HOME/.local/bin/env && \
       --with /tmp/kimi-wheels/pykaos-0.7.0-py3-none-any.whl \
       -- kimi --version
 
-# Copy the test harness
-COPY test_harness.py /workspace/test_harness.py
-RUN chmod +x /workspace/test_harness.py
+# Copy the test harness to a non-obvious path (orchestrator benchmark command points here)
+COPY test_harness.py /opt/test_harness.py
+RUN chmod +x /opt/test_harness.py
 
 # Symlink model path
 RUN mkdir -p /models && \

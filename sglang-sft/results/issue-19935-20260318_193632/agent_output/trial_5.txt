@@ -1,0 +1,17 @@
+• Used Shell (grep -n 'self.k_scale' /s...ter_backend.py | head -10)
+• Used Shell (grep -n 'mla_decode_fwd\|...ttention/aiter_backend.py)
+• Good. I can see self.k_scale is initialized at line 205, and there are 4 mla_d
+  ecode_fwd call sites using layer.k_scale at lines 1977-1978, 2031-2032, 2062-2
+  063, and 2198-2199. There's also a line 1808 usage. Let me apply the fix now.
+• Used Shell (cd /sgl-workspace/sglang ...(content) print('Done') ")
+• Now check line 1808 too — it also passes layer.k_scale:
+• Used Shell (sed -n '1805,1812p' /sgl-...ttention/aiter_backend.py)
+• Used Shell (grep -n 'layer.k_scale\|l...ttention/aiter_backend.py)
+• All 4 mla_decode_fwd call sites (8 occurrences of layer.k_scale as q_scale/kv_
+  scale) are fixed. Line 1808 is for set_kv_buffer, not mla_decode_fwd, so it's
+  a different function and not the issue.
+
+  Now run the test harness:
+
+--- EXIT CODE ---
+137

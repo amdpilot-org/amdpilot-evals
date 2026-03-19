@@ -1,0 +1,61 @@
+{
+  "job": "sglang-issue-19935",
+  "type": "bugfix",
+  "best_metric": "N/A",
+  "metric_name": "score",
+  "metric_direction": "higher",
+  "total_elapsed_s": 294,
+  "stages_completed": 0,
+  "total_trials": 3,
+  "failures": 3,
+  "trials": [
+    {
+      "trial": 1,
+      "stage": "stage1_fix_fp8_kscale_fallback",
+      "metric": null,
+      "elapsed_s": 18,
+      "supervisor_action": "retry_with_hints",
+      "supervisor_analysis": "Fallback: trial 1 produced no metric, providing task-specific guidance.",
+      "nudge": {
+        "polls": 0,
+        "noops": 0,
+        "nudges_sent": 0,
+        "nudges": [],
+        "last_step": null,
+        "latest_status": ""
+      }
+    },
+    {
+      "trial": 2,
+      "stage": "stage1_fix_fp8_kscale_fallback",
+      "metric": null,
+      "elapsed_s": 25,
+      "supervisor_action": "retry_with_hints",
+      "supervisor_analysis": "Fallback: trial 2 produced no metric, providing task-specific guidance.",
+      "nudge": {
+        "polls": 0,
+        "noops": 0,
+        "nudges_sent": 0,
+        "nudges": [],
+        "last_step": null,
+        "latest_status": ""
+      }
+    },
+    {
+      "trial": 3,
+      "stage": "stage1_fix_fp8_kscale_fallback",
+      "metric": null,
+      "elapsed_s": 98,
+      "supervisor_action": "retry_with_hints",
+      "supervisor_analysis": "Fallback: trial 3 produced no metric, providing task-specific guidance.",
+      "nudge": {
+        "polls": 3,
+        "noops": 3,
+        "nudges_sent": 0,
+        "nudges": [],
+        "last_step": 15,
+        "latest_status": "tool: <system>Todo list updated</system>"
+      }
+    }
+  ]
+}

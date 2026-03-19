@@ -1,0 +1,4 @@
+Error response from daemon: Container amdpilot_sglang_19935 is paused, unpause the container before exec
+
+--- EXIT CODE ---
+1

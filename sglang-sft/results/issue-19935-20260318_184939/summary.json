@@ -1,0 +1,61 @@
+{
+  "job": "sglang-issue-19935",
+  "type": "bugfix",
+  "best_metric": "N/A",
+  "metric_name": "score",
+  "metric_direction": "higher",
+  "total_elapsed_s": 494,
+  "stages_completed": 0,
+  "total_trials": 3,
+  "failures": 3,
+  "trials": [
+    {
+      "trial": 1,
+      "stage": "stage1_fix_fp8_kscale_fallback",
+      "metric": null,
+      "elapsed_s": 2,
+      "supervisor_action": "retry_with_hints",
+      "supervisor_analysis": "Trial 1 failed due to an LLM provider API error (404), not due to any agent logic. The agent never got to attempt the task. Retrying with explicit instructions.",
+      "nudge": {
+        "polls": 0,
+        "noops": 0,
+        "nudges_sent": 0,
+        "nudges": [],
+        "last_step": null,
+        "latest_status": ""
+      }
+    },
+    {
+      "trial": 2,
+      "stage": "stage1_fix_fp8_kscale_fallback",
+      "metric": null,
+      "elapsed_s": 2,
+      "supervisor_action": "retry_with_hints",
+      "supervisor_analysis": "Both trials failed due to LLM provider API errors (404 - double /v1/v1/ path), not due to any agent logic. The agent never attempted the fix. Retrying with extremely explicit step-by-step instructions so the agent can succeed with minimal LLM round-trips.",
+      "nudge": {
+        "polls": 0,
+        "noops": 0,
+        "nudges_sent": 0,
+        "nudges": [],
+        "last_step": null,
+        "latest_status": ""
+      }
+    },
+    {
+      "trial": 3,
+      "stage": "stage1_fix_fp8_kscale_fallback",
+      "metric": null,
+      "elapsed_s": 2,
+      "supervisor_action": "retry_with_hints",
+      "supervisor_analysis": "All 3 trials failed due to LLM provider API errors (404 double /v1/v1/ path), not agent logic. The agent never attempted the fix. Providing the exact shell commands to execute so the agent can succeed with minimal LLM interaction.",
+      "nudge": {
+        "polls": 0,
+        "noops": 0,
+        "nudges_sent": 0,
+        "nudges": [],
+        "last_step": null,
+        "latest_status": ""
+      }
+    }
+  ]
+}

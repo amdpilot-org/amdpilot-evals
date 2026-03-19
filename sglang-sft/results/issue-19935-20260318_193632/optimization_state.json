@@ -1,0 +1,66 @@
+{
+  "job_name": "sglang-issue-19935",
+  "repo": "https://github.com/sgl-project/sglang.git",
+  "initial_baseline_ms": null,
+  "current_best_ms": null,
+  "stages_completed": [],
+  "current_stage": {
+    "stage": "stage1_fix_fp8_k_scale_fallback",
+    "baseline_ms": 0.0,
+    "current_best_ms": 0.0,
+    "applied_optimizations": [],
+    "attempted_but_failed": [
+      {
+        "name": "trial_1",
+        "reason": "Trial 1 failed due to an infrastructure issue \u2014 the Docker container was paused ('Container amdpilot_sglang_19935 is paused, unpause the container before exec'). The agent never got to attempt the act",
+        "error": "",
+        "approaches_tried": 1,
+        "timestamp": "2026-03-18T19:37:20.829467"
+      },
+      {
+        "name": "trial_3",
+        "reason": "Trial 3 failed due to an LLM provider error \u2014 the agent never executed any commands. The fix is well-defined: patch 4 call sites in aiter_backend.py. Providing explicit step-by-step instructions.",
+        "error": "",
+        "approaches_tried": 1,
+        "timestamp": "2026-03-18T20:07:12.011927"
+      },
+      {
+        "name": "trial_4",
+        "reason": "Trial 4 was killed (exit code 137) before the agent could make any changes \u2014 it only read the environment file and set up a todo list. The fix is well-defined and simple. Providing exact code patches ",
+        "error": "",
+        "approaches_tried": 1,
+        "timestamp": "2026-03-18T20:07:46.678553"
+      },
+      {
+        "name": "trial_5",
+        "reason": "Trial 5 made real progress \u2014 the agent applied the sed fix to all 4 mla_decode_fwd call sites but was killed (exit 137) before running the test harness. The changes may or may not have been persisted.",
+        "error": "",
+        "approaches_tried": 1,
+        "timestamp": "2026-03-18T20:08:59.716888"
+      }
+    ],
+    "profiling_summary": {
+      "top_bottlenecks": [],
+      "gpu_utilization": 0.0,
+      "memory_usage_gb": 0.0,
+      "kernel_breakdown": {},
+      "raw_profile_path": "",
+      "timestamp": ""
+    },
+    "active_backends": {},
+    "hotspot_targets": [],
+    "next_moves": [],
+    "environment_changes": [],
+    "notes": [],
+    "started_at": "2026-03-18T19:37:07.144808",
+    "completed_at": ""
+  },
+  "attempt_history": [],
+  "technique_attempts": {
+    "trial_1": 1,
+    "trial_3": 1,
+    "trial_4": 1,
+    "trial_5": 1
+  },
+  "global_notes": []
+}

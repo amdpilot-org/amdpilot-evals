@@ -1,0 +1,58 @@
+{
+  "job_name": "sglang-issue-19935",
+  "repo": "https://github.com/sgl-project/sglang.git",
+  "initial_baseline_ms": null,
+  "current_best_ms": null,
+  "stages_completed": [],
+  "current_stage": {
+    "stage": "stage1_fix_fp8_kscale_fallback",
+    "baseline_ms": null,
+    "current_best_ms": null,
+    "applied_optimizations": [],
+    "attempted_but_failed": [
+      {
+        "name": "trial_1",
+        "reason": "Trial 1 failed due to an LLM provider API error (VertexGenAI returned BadRequest about tool types). The agent never actually started working on the task. Retrying.",
+        "error": "",
+        "approaches_tried": 1,
+        "timestamp": "2026-03-18T19:28:29.420854"
+      },
+      {
+        "name": "trial_2",
+        "reason": "Trial 2 failed due to the same LLM provider API error (VertexGenAI BadRequest about tool types). The agent never started working on the task. This is an infrastructure issue, not a task logic failure.",
+        "error": "",
+        "approaches_tried": 1,
+        "timestamp": "2026-03-18T19:29:11.777091"
+      },
+      {
+        "name": "trial_3",
+        "reason": "All 3 trials failed due to LLM provider API errors (VertexGenAI BadRequest about tool types). The agent never started working on the task. Retrying with extremely detailed step-by-step instructions so",
+        "error": "",
+        "approaches_tried": 1,
+        "timestamp": "2026-03-18T19:30:02.247947"
+      }
+    ],
+    "profiling_summary": {
+      "top_bottlenecks": [],
+      "gpu_utilization": 0.0,
+      "memory_usage_gb": 0.0,
+      "kernel_breakdown": {},
+      "raw_profile_path": "",
+      "timestamp": ""
+    },
+    "active_backends": {},
+    "hotspot_targets": [],
+    "next_moves": [],
+    "environment_changes": [],
+    "notes": [],
+    "started_at": "2026-03-18T19:26:01.852404",
+    "completed_at": ""
+  },
+  "attempt_history": [],
+  "technique_attempts": {
+    "trial_1": 1,
+    "trial_2": 1,
+    "trial_3": 1
+  },
+  "global_notes": []
+}

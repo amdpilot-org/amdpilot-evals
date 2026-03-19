@@ -1,0 +1,251 @@
+# Task: Fix Fix FP8 assertion failure in aiter MLA decode (SGLang #19935) on AMD GPU -- Stage1 Fix Fp8 Kscale Fallback
+
+## Starting Point
+
+You are starting from a **clean environment**.
+- Base image: `sglang-issue-19935:base`
+- Repo cloned at `/workspace/` from `https://github.com/sgl-project/sglang.git`
+- **CHECK FIRST**: Run `ls /workspace/` to see if a previous trial left benchmark scripts or results. Reuse them if they exist.
+
+## Task Description
+
+# [AMD] Fix FP8 assertion failure in aiter MLA decode by falling back to self.k_scale
+
+## Bug Description
+
+When `layer.k_scale` is `None` (the default in `RadixAttention`), the aiter ASM MLA kernel asserts `q_scale.has_value() && kv_scale.has_value()` for FP8 Q tensors. This assertion failure occurs in `aiter/csrc/py_itfs_cu/asm_mla.cu:206` when running MLA models (e.g., Kimi-K2.5, DeepSeek-R1) with `--attention-backend aiter --kv-cache-dtype fp8_e4m3`.
+
+This issue was found in Kimi-K2.5 but not in DeepSeek-R1. It must be resolved to enable the FP8 KV cache for Kimi-K2.5 on MI355.
+
+## Root Cause
+
+The aiter ASM MLA decode kernel requires valid `q_scale` and `kv_scale` tensors when Q is FP8, but all 4 `mla_decode_fwd` call sites in `aiter_backend.py` pass `layer.k_scale` directly, which defaults to `None` in `RadixAttention`. The `None` propagates as an empty `std::optional` to the C++ kernel, triggering the assertion during CUDA graph capture.
+
+## Expected Fix
+
+Fall back to `self.k_scale` (initialized to `torch.tensor([1.0])` at `AiterAttnBackend.__init__`) when `layer.k_scale is None`, at all 4 call sites:
+
+1. `forward_extend` → target_verify path
+2. `forward_extend` → draft_extend non-graph path
+3. `forward_extend` → draft_extend graph path
+4. `forward_decode`
+
+This matches the fallback pattern already used by `flashmla_backend.py`.
+
+## Environment
+
+- **Hardware**: MI355 x8
+- **Repository**: SGLang (sgl-project/sglang)
+- **Codebase**: SGLang is at `/sgl-workspace/sglang` (checked out at a version BEFORE this fix)
+- **Key file**: `python/sglang/srt/layers/attention/aiter_backend.py`
+- **Model**: Kimi-K2.5 at `/models/Kimi-K2.5`
+
+## Reproduction
+
+Start the server:
+```bash
+SGLANG_AITER_MLA_PERSIST=1 /opt/venv/bin/python3 -m sglang.launch_server \
+  --model-path /models/Kimi-K2.5 \
+  --tensor-parallel-size 4 \
+  --trust-remote-code \
+  --chunked-prefill-size 131072 \
+  --host 0.0.0.0 \
+  --port 9000 \
+  --log-requests \
+  --disable-radix-cache \
+  --mem-fraction-static 0.8 \
+  --max-running-requests 64 \
+  --kv-cache-dtype fp8_e4m3 \
+  --attention-backend aiter
+```
+
+The server will crash with an assertion error in `asm_mla.cu:206`.
+
+## Verification
+
+After fixing, the server should start successfully and the GSM8K benchmark should run:
+```bash
+/opt/venv/bin/python3 /sgl-workspace/sglang/benchmark/gsm8k/bench_sglang.py \
+  --num-questions 50 --parallel 10 --num-shots 5 --port 9000
+```
+
+The test harness at `/workspace/test_harness.py` will:
+1. Start the server with the FP8 KV cache + aiter backend
+2. Send a health check / warmup request
+3. Report SCORE: 100 if the server starts and responds correctly
+
+## Previous Trial Results
+
+| Trial | Stage | Claimed | Verified | Source | Elapsed | Notes |
+|-------|-------|---------|----------|--------|---------|-------|
+| 1 | stage1_fix_fp8_kscale_fallback | N/A | N/A | verification_run | 9s |  |
+| 2 | stage1_fix_fp8_kscale_fallback | N/A | N/A | agent_output | 0s |  |
+
+**2 trial(s) had missing or unreliable metrics** — check failure reasons before repeating an approach.
+
+Use these results to guide your optimization strategy. Do NOT repeat approaches that already failed. Build on configurations that produced the best numbers.
+
+## Optimization State
+
+
+### Failed attempts: trial_1, trial_2
+
+### Current stage carry-over: stage1_fix_fp8_kscale_fallback
+- Failed attempts:
+- `trial_1`: Trial 1 failed due to an LLM provider API error (BadRequest from VertexGenAI). The agent never executed any code. Need to retry.
+- `trial_2`: Trial 2 failed because the container was not running (exit code 1). Trial 1 failed due to an LLM API error. Neither trial has actually attempted the code fix yet. Retrying with very explicit step-by-s
+
+## Supervisor Review History (recent)
+
+- Trial 1 (FAILED): retry_with_hints — Trial 1 failed due to an LLM provider API error (BadRequest from VertexGenAI). The agent never executed any code. Need to retry.
+- Trial 2 (FAILED): retry_with_hints — Trial 2 failed because the container was not running (exit code 1). Trial 1 failed due to an LLM API error. Neither trial has actually attempted the code fix yet. Retrying with very explicit step-by-step instructions.
+
+Use these reviews to understand what was tried, what worked, and what the supervisor recommends. Do NOT repeat approaches that the supervisor already flagged as ineffective.
+
+## Execution Environment
+
+You are running inside a Docker container with ROCm, PyTorch, and GPU access.
+All commands run directly in this container — no `docker exec` needed.
+- Repo at `/workspace/`
+
+## Goal
+
+Fix the issue described above. Verify the fix is correct and does not introduce regressions.
+Run the verification command and ensure all checks pass: `/opt/venv/bin/python3 /workspace/test_harness.py`
+
+## Supervisor Guidance
+
+Both previous trials failed due to infrastructure issues (API error, container not running), not code problems. You need to make a simple code change. Here is EXACTLY what to do:
+
+1. Open `/sgl-workspace/sglang/python/sglang/srt/layers/attention/aiter_backend.py`
+
+2. First, check if `self.k_scale` is already initialized in `AiterAttnBackend.__init__`. If not, add:
+   python
+   self.k_scale = torch.tensor([1.0], dtype=torch.float32, device='cuda')
+   
+   (or similar, matching how flashmla_backend.py does it)
+
+3. Find ALL 4 calls to `mla_decode_fwd` in the file. At each call site, wherever `layer.k_scale` is passed as an argument, replace it with:
+   python
+   layer.k_scale if layer.k_scale is not None else self.k_scale
+   
+
+4. The 4 call sites are in:
+   - `forward_extend` → target_verify path
+   - `forward_extend` → draft_extend non-graph path  
+   - `forward_extend` → draft_extend graph path
+   - `forward_decode`
+
+5. After making the changes, run the test harness: `/opt/venv/bin/python3 /workspace/test_harness.py`
+
+Do NOT install anything. Do NOT modify the test harness. Just edit the one file and run the test.
+
+## Stage Hints
+
+Edit `/sgl-workspace/sglang/python/sglang/srt/layers/attention/aiter_backend.py`. Find all 4 `mla_decode_fwd` call sites and replace direct use of `layer.k_scale` with a fallback: use `layer.k_scale if layer.k_scale is not None else self.k_scale`. The 4 locations are: (1) `forward_extend` target_verify path, (2) `forward_extend` draft_extend non-graph path, (3) `forward_extend` draft_extend graph path, (4) `forward_decode`. You can also add the fallback once near the top of each method, e.g. `k_scale = layer.k_scale if layer.k_scale is not None else self.k_scale` and then use `k_scale` in the call. Check `flashmla_backend.py` for the reference pattern. After making the fix, run `/opt/venv/bin/python3 /workspace/test_harness.py` to verify the server starts and responds correctly with FP8 KV cache + aiter backend.
+
+## Learned Insights (from previous trials)
+
+# Learned Insights
+
+- **Trial 1**: The fix requires changing 4 mla_decode_fwd call sites in aiter_backend.py to fall back to self.k_scale when layer.k_scale is None
+- **Trial 1**: self.k_scale should be initialized to torch.tensor([1.0]) in AiterAttnBackend.__init__
+- **Trial 1**: This matches the fallback pattern already used by flashmla_backend.py
+- **Trial 2**: Trial 1 failed due to LLM provider API error (BadRequest from VertexGenAI), not a code issue
+- **Trial 2**: Trial 2 failed because the container was not running - infrastructure issue
+- **Trial 2**: The fix requires changing 4 mla_decode_fwd call sites in aiter_backend.py to fall back to self.k_scale when layer.k_scale is None
+- **Trial 2**: self.k_scale should be initialized to torch.tensor([1.0]) in AiterAttnBackend.__init__
+- **Trial 2**: This matches the fallback pattern already used by flashmla_backend.py
+
+## Workflow
+
+1. **Read the task**: Read `/workspace/task_description.md` for full bug details
+2. **Reproduce**: Run the failing command/test to confirm the issue exists
+3. **Diagnose**: Read error traces, find the root cause in the source code
+4. **Fix**: Apply the minimum necessary fix — do not refactor unrelated code
+5. **Verify**: Run the test harness to confirm the fix works
+6. **Regression check**: Ensure the fix doesn't break other functionality
+7. **Update state**: Write results to `/workspace/optimization_state.json`
+
+## Integrity Rules (MANDATORY)
+
+- Do NOT modify `test_harness.py` or the benchmark script.
+- Do NOT change benchmark parameters (warmup, iterations, batch size, input dimensions).
+- Do NOT redirect or filter benchmark output (no `grep`, no `| tail`).
+- The orchestrator independently re-runs the benchmark to verify your results. Any discrepancy between your claimed result and the verification run causes the trial to be marked as FAILED.
+- Achieve improvements through legitimate code changes only.
+
+## CRITICAL: Output Format
+
+Your LAST action before finishing MUST be running the benchmark command **directly** —
+do NOT pipe through `grep` or redirect output. The FULL benchmark output must appear
+in your output so the orchestrator can capture the metric via regex: `SCORE:\s+([\d.]+)`
+
+The output must include a line matching: `score: <value>`
+
+Without this line, the trial is recorded as a FAILURE even if you achieved great results.
+
+## State File
+
+After completing work, update `/workspace/optimization_state.json`:
+```json
+{
+  "job_name": "...",
+  "repo": "...",
+  "current_best_ms": 43.4,
+  "stages_completed": [...],
+  "current_stage": {
+    "stage": "<stage name>",
+    "current_best_ms": 41.2,
+    "active_backends": {
+      "attention": "<backend in use>",
+      "moe": "<backend in use>"
+    },
+    "hotspot_targets": [
+      {
+        "kernel": "<hottest kernel>",
+        "share_pct": 26.7,
+        "file": "<exact file path if known>",
+        "symbol": "<exact symbol/function if known>",
+        "backend": "<backend tied to this hotspot>",
+        "reason": "<why this hotspot matters>",
+        "next_step": "<next source-level change to try>"
+      }
+    ],
+    "next_moves": [
+      "<concrete next move>",
+      "<concrete next move>"
+    ],
+    "applied_optimizations": [
+      {
+        "name": "<technique>",
+        "impact_ms": -5.0,
+        "files_changed": ["<path>"],
+        "description": "<what changed>"
+      }
+    ],
+    "attempted_but_failed": [
+      {"name": "<technique>", "reason": "<why>", "error": "<snippet>"}
+    ],
+    "profiling_summary": {
+      "top_bottlenecks": ["<kernel> <pct>"],
+      "gpu_utilization": 0.72,
+      "kernel_breakdown": {"gemm": 61.0, "attention": 24.0}
+    },
+    "environment_changes": ["pip install <pkg>"],
+    "notes": ["<important learning from this trial>"]
+  }
+}
+```
+Prefer structured fields like `active_backends`, `hotspot_targets`, and `next_moves`
+for actionable handoff information when they are relevant to the task. Use `notes`
+for supporting detail, not as the only place where critical hotspot/file/symbol
+guidance is recorded.
+Prefer `next_moves` that point to concrete source-level changes tied to
+`hotspot_targets`; generic env-var/backend tuning should be secondary unless the
+profiling evidence specifically supports it.
+
+The file already exists when the trial starts. Preserve the existing top-level
+structure and update the `current_stage` section with what you learned in this
+trial. If you only know part of the state, add just those fields and leave the
+rest intact. The orchestrator merges this file into the next trial's prompt.

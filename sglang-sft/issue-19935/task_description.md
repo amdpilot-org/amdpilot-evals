@@ -58,8 +58,4 @@ After fixing, the server should start successfully and the GSM8K benchmark shoul
   --num-questions 50 --parallel 10 --num-shots 5 --port 9000
 ```
 
-The test harness at `/workspace/test_harness.py` performs **source code verification** — it reads `aiter_backend.py` and checks that the k_scale fallback was applied at all 4 `mla_decode_fwd` call sites. No model loading is required for scoring. Run it with:
-```bash
-/opt/venv/bin/python3 /workspace/test_harness.py
-```
-It reports SCORE: 100 if all 4 call sites are fixed, partial scores for fewer fixes.
+After applying your fix, the orchestrator will automatically verify that the `kv_scale` and `q_scale` arguments to all `mla_decode_fwd` call sites no longer pass raw `layer.k_scale` (which can be None), and that a proper fallback to `self.k_scale` is present.

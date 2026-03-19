@@ -1,0 +1,246 @@
+# Task: Fix Fix FP8 assertion failure in aiter MLA decode (SGLang #19935) on AMD GPU -- Stage1 Fix Fp8 Kscale Fallback
+
+## Starting Point
+
+You are starting from a **clean environment**.
+- Base image: `sglang-issue-19935:base`
+- Repo cloned at `/workspace/` from `https://github.com/sgl-project/sglang.git`
+- **CHECK FIRST**: Run `ls /workspace/` to see if a previous trial left benchmark scripts or results. Reuse them if they exist.
+
+## Task Description
+
+# [AMD] Fix FP8 assertion failure in aiter MLA decode by falling back to self.k_scale
+
+## Bug Description
+
+When `layer.k_scale` is `None` (the default in `RadixAttention`), the aiter ASM MLA kernel asserts `q_scale.has_value() && kv_scale.has_value()` for FP8 Q tensors. This assertion failure occurs in `aiter/csrc/py_itfs_cu/asm_mla.cu:206` when running MLA models (e.g., Kimi-K2.5, DeepSeek-R1) with `--attention-backend aiter --kv-cache-dtype fp8_e4m3`.
+
+This issue was found in Kimi-K2.5 but not in DeepSeek-R1. It must be resolved to enable the FP8 KV cache for Kimi-K2.5 on MI355.
+
+## Root Cause
+
+The aiter ASM MLA decode kernel requires valid `q_scale` and `kv_scale` tensors when Q is FP8, but all 4 `mla_decode_fwd` call sites in `aiter_backend.py` pass `layer.k_scale` directly, which defaults to `None` in `RadixAttention`. The `None` propagates as an empty `std::optional` to the C++ kernel, triggering the assertion during CUDA graph capture.
+
+## Expected Fix
+
+Fall back to `self.k_scale` (initialized to `torch.tensor([1.0])` at `AiterAttnBackend.__init__`) when `layer.k_scale is None`, at all 4 call sites:
+
+1. `forward_extend` → target_verify path
+2. `forward_extend` → draft_extend non-graph path
+3. `forward_extend` → draft_extend graph path
+4. `forward_decode`
+
+This matches the fallback pattern already used by `flashmla_backend.py`.
+
+## Environment
+
+- **Hardware**: MI355 x8
+- **Repository**: SGLang (sgl-project/sglang)
+- **Codebase**: SGLang is at `/sgl-workspace/sglang` (checked out at a version BEFORE this fix)
+- **Key file**: `python/sglang/srt/layers/attention/aiter_backend.py`
+- **Model**: Kimi-K2.5 at `/models/Kimi-K2.5`
+
+## Reproduction
+
+Start the server:
+```bash
+SGLANG_AITER_MLA_PERSIST=1 /opt/venv/bin/python3 -m sglang.launch_server \
+  --model-path /models/Kimi-K2.5 \
+  --tensor-parallel-size 4 \
+  --trust-remote-code \
+  --chunked-prefill-size 131072 \
+  --host 0.0.0.0 \
+  --port 9000 \
+  --log-requests \
+  --disable-radix-cache \
+  --mem-fraction-static 0.8 \
+  --max-running-requests 64 \
+  --kv-cache-dtype fp8_e4m3 \
+  --attention-backend aiter
+```
+
+The server will crash with an assertion error in `asm_mla.cu:206`.
+
+## Verification
+
+After fixing, the server should start successfully and the GSM8K benchmark should run:
+```bash
+/opt/venv/bin/python3 /sgl-workspace/sglang/benchmark/gsm8k/bench_sglang.py \
+  --num-questions 50 --parallel 10 --num-shots 5 --port 9000
+```
+
+The test harness at `/workspace/test_harness.py` will:
+1. Start the server with the FP8 KV cache + aiter backend
+2. Send a health check / warmup request
+3. Report SCORE: 100 if the server starts and responds correctly
+
+## Previous Trial Results
+
+| Trial | Stage | Claimed | Verified | Source | Elapsed | Notes |
+|-------|-------|---------|----------|--------|---------|-------|
+| 1 | stage1_fix_fp8_kscale_fallback | 0.00 | 0.0 | verification_run | 3600s | verified |
+
+**Best so far**: 0.0 (higher is better) (trial 1, stage1_fix_fp8_kscale_fallback)
+
+Use these results to guide your optimization strategy. Do NOT repeat approaches that already failed. Build on configurations that produced the best numbers.
+
+## Optimization State
+
+
+### Applied optimizations: fp8_kscale_fallback
+
+### Global notes:
+- Model weights for Kimi-K2.5 are not available in this container - only config and tokenizer files exist at /models/Kimi-K2.5
+
+### Current stage carry-over: stage1_fix_fp8_kscale_fallback
+- Baseline: 0.00ms
+- Best in this stage: 0.00ms
+- Applied optimizations:
+- `fp8_kscale_fallback` (unmeasured): At all 4 mla_decode_fwd call sites (target_verify, draft_extend non-graph, draft_extend graph, forward_decode), replaced `q_scale=layer.k_scale, kv_scale=layer.k_scale` with `_k_scale = layer.k_scale if layer.k_scale is not None else self.k_scale` and `q_scale=_k_scale, kv_scale=_k_scale`. This prevents the assertion failure in asm_mla.cu:206 when layer.k_scale is None (the default in RadixAttention). self.k_scale is initialized to torch.tensor([1.0]) in AiterAttnBackend.__init__.
+  Files: /sgl-workspace/sglang/python/sglang/srt/layers/attention/aiter_backend.py
+- Active backends: attention=aiter, moe=default
+- Concrete next moves:
+- Verify fix with actual model weights - current environment lacks Kimi-K2.5 safetensors
+- Integration test with full server startup and request serving
+- Notes:
+- Fix is syntactically valid and imports correctly
+- Fix matches the fallback pattern used by flashmla_backend.py (lines 424-432, 498-506)
+- self.k_scale is already initialized as torch.tensor([1.0]).to(device) at line 205-206 of aiter_backend.py
+- Model weights not available in test environment (/models/Kimi-K2.5 has only config/tokenizer files, no .safetensors)
+- Test harness returns SCORE: 0 because server cannot load model weights, not because of the assertion fix
+- Git commit: fix(attention): fall back to self.k_scale when layer.k_scale is None in aiter MLA decode
+
+## Supervisor Review History (recent)
+
+- Trial 1 (0.00): retry_with_hints — The agent spent the entire 3600s fighting port 9000 conflicts and trying to start a server with missing model weights, never actually reading test_harness.py in full. The test harness almost certainly performs source-code analysis of the fix rather than running a live server, since model weights are unavailable. The code fix itself sounds correct but the agent never verified it against the test harness's actual scoring logic.
+
+Use these reviews to understand what was tried, what worked, and what the supervisor recommends. Do NOT repeat approaches that the supervisor already flagged as ineffective.
+
+## Execution Environment
+
+You are running inside a Docker container with ROCm, PyTorch, and GPU access.
+All commands run directly in this container — no `docker exec` needed.
+- Repo at `/workspace/`
+
+## Goal
+
+Fix the issue described above. Verify the fix is correct and does not introduce regressions.
+Run the verification command and ensure all checks pass: `/opt/venv/bin/python3 /workspace/test_harness.py`
+
+## Supervisor Guidance
+
+CRITICAL — STOP trying to start a server. Model weights don't exist. The test harness almost certainly scores your code fix via SOURCE CODE ANALYSIS, not by running a live server.
+
+Do this FIRST, before anything else:
+1. `cat /workspace/test_harness.py` — read the ENTIRE file, every line. Understand exactly how it computes the score.
+2. `cat /sgl-workspace/sglang/python/sglang/srt/layers/attention/aiter_backend.py` — verify your fix is still in place and correct.
+3. Only after understanding the scoring logic, make any adjustments needed to pass.
+4. Run `/opt/venv/bin/python3 /workspace/test_harness.py` with a 120s timeout — if it's source analysis, it should finish fast.
+
+Do NOT attempt to start sglang server. Do NOT try to free port 9000. Do NOT try to proxy or redirect ports. Focus entirely on understanding the test harness scoring and ensuring your code fix matches what it expects.
+
+## Stage Hints
+
+1. Open `/sgl-workspace/sglang/python/sglang/srt/layers/attention/aiter_backend.py` and locate all 4 `mla_decode_fwd` call sites (in `forward_extend` target_verify path, `forward_extend` draft_extend non-graph path, `forward_extend` draft_extend graph path, and `forward_decode`). 2. At each call site, the `kv_scale` argument currently passes `layer.k_scale` directly. Change each to use `layer.k_scale if layer.k_scale is not None else self.k_scale`. Similarly check if `q_scale` needs the same treatment — look at how the scale arguments are constructed. 3. Cross-reference with `flashmla_backend.py` in the same directory for the correct fallback pattern. 4. Verify `self.k_scale` is initialized in `AiterAttnBackend.__init__` as `torch.tensor([1.0])` — if not, ensure it exists. 5. Run `/opt/venv/bin/python3 /workspace/test_harness.py` to verify the fix (expects SCORE: 100).
+
+## Learned Insights (from previous trials)
+
+# Learned Insights
+
+- **Trial 1**: Model weights for Kimi-K2.5 are not available in this container - only config/tokenizer files exist
+- **Trial 1**: Port 9000 is occupied by the agent process (PID 158) and cannot be freed
+- **Trial 1**: The code fix (fallback to self.k_scale when layer.k_scale is None) was applied correctly at all 4 mla_decode_fwd call sites but was never validated against the test harness scoring logic
+- **Trial 1**: For bug-fix tasks without model weights, the test harness likely performs source-code analysis rather than live server testing - always read test_harness.py first
+
+## Workflow
+
+1. **Read the task**: Read `/workspace/task_description.md` for full bug details
+2. **Reproduce**: Run the failing command/test to confirm the issue exists
+3. **Diagnose**: Read error traces, find the root cause in the source code
+4. **Fix**: Apply the minimum necessary fix — do not refactor unrelated code
+5. **Verify**: Run the test harness to confirm the fix works
+6. **Regression check**: Ensure the fix doesn't break other functionality
+7. **Update state**: Write results to `/workspace/optimization_state.json`
+
+## Integrity Rules (MANDATORY)
+
+- Do NOT modify `test_harness.py` or the benchmark script.
+- Do NOT change benchmark parameters (warmup, iterations, batch size, input dimensions).
+- Do NOT redirect or filter benchmark output (no `grep`, no `| tail`).
+- The orchestrator independently re-runs the benchmark to verify your results. Any discrepancy between your claimed result and the verification run causes the trial to be marked as FAILED.
+- Achieve improvements through legitimate code changes only.
+
+## CRITICAL: Output Format
+
+Your LAST action before finishing MUST be running the benchmark command **directly** —
+do NOT pipe through `grep` or redirect output. The FULL benchmark output must appear
+in your output so the orchestrator can capture the metric via regex: `SCORE:\s+([\d.]+)`
+
+The output must include a line matching: `score: <value>`
+
+Without this line, the trial is recorded as a FAILURE even if you achieved great results.
+
+## State File
+
+After completing work, update `/workspace/optimization_state.json`:
+```json
+{
+  "job_name": "...",
+  "repo": "...",
+  "current_best_ms": 43.4,
+  "stages_completed": [...],
+  "current_stage": {
+    "stage": "<stage name>",
+    "current_best_ms": 41.2,
+    "active_backends": {
+      "attention": "<backend in use>",
+      "moe": "<backend in use>"
+    },
+    "hotspot_targets": [
+      {
+        "kernel": "<hottest kernel>",
+        "share_pct": 26.7,
+        "file": "<exact file path if known>",
+        "symbol": "<exact symbol/function if known>",
+        "backend": "<backend tied to this hotspot>",
+        "reason": "<why this hotspot matters>",
+        "next_step": "<next source-level change to try>"
+      }
+    ],
+    "next_moves": [
+      "<concrete next move>",
+      "<concrete next move>"
+    ],
+    "applied_optimizations": [
+      {
+        "name": "<technique>",
+        "impact_ms": -5.0,
+        "files_changed": ["<path>"],
+        "description": "<what changed>"
+      }
+    ],
+    "attempted_but_failed": [
+      {"name": "<technique>", "reason": "<why>", "error": "<snippet>"}
+    ],
+    "profiling_summary": {
+      "top_bottlenecks": ["<kernel> <pct>"],
+      "gpu_utilization": 0.72,
+      "kernel_breakdown": {"gemm": 61.0, "attention": 24.0}
+    },
+    "environment_changes": ["pip install <pkg>"],
+    "notes": ["<important learning from this trial>"]
+  }
+}
+```
+Prefer structured fields like `active_backends`, `hotspot_targets`, and `next_moves`
+for actionable handoff information when they are relevant to the task. Use `notes`
+for supporting detail, not as the only place where critical hotspot/file/symbol
+guidance is recorded.
+Prefer `next_moves` that point to concrete source-level changes tied to
+`hotspot_targets`; generic env-var/backend tuning should be secondary unless the
+profiling evidence specifically supports it.
+
+The file already exists when the trial starts. Preserve the existing top-level
+structure and update the `current_stage` section with what you learned in this
+trial. If you only know part of the state, add just those fields and leave the
+rest intact. The orchestrator merges this file into the next trial's prompt.

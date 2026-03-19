@@ -1,168 +1,147 @@
 #!/usr/bin/env python3
-"""Test harness for SGLang #19935 — FP8 MLA decode assertion fix.
+"""Verification harness for SGLang #19935 — FP8 MLA decode k_scale fix.
 
-Phase 1 (fast): Source code verification — checks that all 4 mla_decode_fwd
-call sites in aiter_backend.py have the k_scale fallback applied.
-
-Phase 2 (optional, slow): Full server test — starts the server with FP8 KV
-cache and verifies it doesn't crash. Only runs if FULL_VERIFY=1.
+Uses AST analysis to verify the fix was applied correctly at all
+mla_decode_fwd call sites. Checks that kv_scale arguments are not
+the raw `layer.k_scale` attribute (which can be None), but instead
+use a fallback or conditional expression.
 """
 
-import json
-import os
-import re
-import signal
-import subprocess
+import ast
 import sys
-import time
-import urllib.request
 
 AITER_BACKEND = "/sgl-workspace/sglang/python/sglang/srt/layers/attention/aiter_backend.py"
-MODEL_PATH = "/models/Kimi-K2.5"
-PORT = 9001
-SERVER_TIMEOUT = 2400
-REQUEST_TIMEOUT = 120
 
 
-def verify_source_code():
-    """Check that the fix was applied to all 4 mla_decode_fwd call sites."""
-    if not os.path.isfile(AITER_BACKEND):
+def _is_raw_layer_k_scale(node):
+    """Check if an AST node is exactly `layer.k_scale` (the buggy pattern)."""
+    return (
+        isinstance(node, ast.Attribute)
+        and node.attr == "k_scale"
+        and isinstance(node.value, ast.Name)
+        and node.value.id == "layer"
+    )
+
+
+def _has_self_k_scale_ref(node):
+    """Check if an AST node references `self.k_scale` anywhere."""
+    for child in ast.walk(node):
+        if (
+            isinstance(child, ast.Attribute)
+            and child.attr == "k_scale"
+            and isinstance(child.value, ast.Name)
+            and child.value.id == "self"
+        ):
+            return True
+    return False
+
+
+def _find_mla_decode_calls(tree):
+    """Find all calls to mla_decode_fwd in the AST."""
+    calls = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        name = ""
+        if isinstance(func, ast.Name):
+            name = func.id
+        elif isinstance(func, ast.Attribute):
+            name = func.attr
+        if name == "mla_decode_fwd":
+            calls.append(node)
+    return calls
+
+
+def _check_call_site(call):
+    """Check if a mla_decode_fwd call has proper kv_scale handling.
+
+    Returns (q_ok, kv_ok) — True if the argument is NOT raw layer.k_scale.
+    """
+    q_ok = True
+    kv_ok = True
+    for kw in call.keywords:
+        if kw.arg == "q_scale" and _is_raw_layer_k_scale(kw.value):
+            q_ok = False
+        if kw.arg == "kv_scale" and _is_raw_layer_k_scale(kw.value):
+            kv_ok = False
+    return q_ok, kv_ok
+
+
+def _check_surrounding_scope_has_fallback(source_lines, call_lineno):
+    """Check that within ~80 lines before the call, self.k_scale is referenced
+    in a conditional or assignment context (not just in a comment)."""
+    start = max(0, call_lineno - 80)
+    end = call_lineno
+    region = source_lines[start:end]
+    for line in region:
+        stripped = line.strip()
+        if stripped.startswith("#"):
+            continue
+        if "self.k_scale" in stripped:
+            return True
+    return False
+
+
+def verify():
+    try:
+        with open(AITER_BACKEND) as f:
+            source = f.read()
+    except FileNotFoundError:
         print(f"ERROR: {AITER_BACKEND} not found")
         return 0
 
-    with open(AITER_BACKEND) as f:
-        code = f.read()
-
-    fixed_sites = 0
-    total_sites = 0
-
-    for match in re.finditer(r'mla_decode_fwd\s*\(', code):
-        total_sites += 1
-        start = match.start()
-        region = code[max(0, start - 500):start + 800]
-
-        has_fallback = any(p in region for p in [
-            "self.k_scale if layer.k_scale is None",
-            "layer.k_scale if layer.k_scale is not None else self.k_scale",
-            "self.k_scale if not layer.k_scale",
-            "layer.k_scale or self.k_scale",
-            "k_scale = self.k_scale" and "layer.k_scale",
-            "kv_scale = self.k_scale",
-            "_scale = layer.k_scale if layer.k_scale",
-            "layer.k_scale is None",
-        ])
-
-        if has_fallback:
-            fixed_sites += 1
-
-    if total_sites == 0:
-        print("WARNING: No mla_decode_fwd call sites found in aiter_backend.py")
-        has_none_check = "layer.k_scale is None" in code or "k_scale is None" in code
-        has_self_k_scale = "self.k_scale" in code
-        if has_none_check and has_self_k_scale:
-            print("Found k_scale None-check and self.k_scale reference — fix likely applied")
-            return 75
+    try:
+        tree = ast.parse(source)
+    except SyntaxError as e:
+        print(f"ERROR: Syntax error in {AITER_BACKEND}: {e}")
         return 0
 
-    print(f"mla_decode_fwd call sites: {total_sites} found, {fixed_sites} fixed")
+    calls = _find_mla_decode_calls(tree)
+    if not calls:
+        print("ERROR: No mla_decode_fwd calls found")
+        return 0
 
-    if fixed_sites == total_sites and total_sites >= 4:
+    source_lines = source.splitlines()
+    total = len(calls)
+    fixed = 0
+
+    for i, call in enumerate(calls):
+        q_ok, kv_ok = _check_call_site(call)
+        has_fallback = _check_surrounding_scope_has_fallback(source_lines, call.lineno)
+
+        site_ok = (q_ok and kv_ok) or has_fallback
+        if site_ok:
+            fixed += 1
+            print(f"  SITE {i+1} (line {call.lineno}): FIXED")
+        else:
+            detail = []
+            if not q_ok:
+                detail.append("q_scale=layer.k_scale (raw)")
+            if not kv_ok:
+                detail.append("kv_scale=layer.k_scale (raw)")
+            if not has_fallback:
+                detail.append("no self.k_scale fallback nearby")
+            print(f"  SITE {i+1} (line {call.lineno}): UNFIXED — {', '.join(detail)}")
+
+    print(f"\nmla_decode_fwd sites: {fixed}/{total} fixed")
+
+    if total < 4:
+        print(f"WARNING: Expected >= 4 call sites, found {total}")
+
+    if fixed == total and total >= 4:
         return 100
-    elif fixed_sites == total_sites and total_sites > 0:
-        return 90
-    elif fixed_sites > 0:
-        return int(25 * fixed_sites)
+    elif fixed == total and total > 0:
+        return 80
+    elif fixed > 0:
+        return int(25 * fixed)
     return 0
 
 
-def verify_server():
-    """Optional: start the actual server and verify it doesn't crash."""
-    if not os.path.isdir(MODEL_PATH):
-        print(f"Model not found at {MODEL_PATH} — skipping server test")
-        return None
-
-    env = os.environ.copy()
-    env["SGLANG_AITER_MLA_PERSIST"] = "1"
-
-    server_cmd = [
-        "/opt/venv/bin/python3", "-m", "sglang.launch_server",
-        "--model-path", MODEL_PATH,
-        "--tensor-parallel-size", "4",
-        "--trust-remote-code",
-        "--chunked-prefill-size", "131072",
-        "--host", "0.0.0.0",
-        "--port", str(PORT),
-        "--disable-radix-cache",
-        "--mem-fraction-static", "0.8",
-        "--max-running-requests", "64",
-        "--kv-cache-dtype", "fp8_e4m3",
-        "--attention-backend", "aiter",
-    ]
-
-    print(f"\n=== Full server verification (timeout {SERVER_TIMEOUT}s) ===")
-    print(f"Starting server on port {PORT}...")
-    proc = subprocess.Popen(server_cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-
-    try:
-        start = time.time()
-        while time.time() - start < SERVER_TIMEOUT:
-            try:
-                req = urllib.request.Request(f"http://localhost:{PORT}/health")
-                with urllib.request.urlopen(req, timeout=5) as resp:
-                    if resp.status == 200:
-                        elapsed = int(time.time() - start)
-                        print(f"Server healthy after {elapsed}s")
-                        payload = json.dumps({
-                            "text": "What is 2 + 2?",
-                            "sampling_params": {"temperature": 0, "max_new_tokens": 32},
-                        }).encode()
-                        req = urllib.request.Request(
-                            f"http://localhost:{PORT}/generate",
-                            data=payload,
-                            headers={"Content-Type": "application/json"},
-                        )
-                        with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT) as r:
-                            resp_data = json.loads(r.read().decode())
-                        text = resp_data.get("text", "")
-                        print(f"Response: {text[:200]}")
-                        return 100 if text.strip() else 50
-            except Exception:
-                pass
-
-            ret = proc.poll()
-            if ret is not None:
-                stdout = proc.stdout.read().decode() if proc.stdout else ""
-                if "assertion" in stdout.lower():
-                    print("ASSERTION ERROR — fix did not resolve the crash")
-                    return 0
-                print(f"Server exited with code {ret}")
-                return 0
-            time.sleep(10)
-
-        print("Server startup timed out")
-        return 0
-    finally:
-        proc.send_signal(signal.SIGTERM)
-        try:
-            proc.wait(timeout=30)
-        except subprocess.TimeoutExpired:
-            proc.kill()
-
-
 def main():
-    print("=== Phase 1: Source code verification ===")
-    code_score = verify_source_code()
-    print(f"Code verification score: {code_score}")
-
-    if os.environ.get("FULL_VERIFY") == "1" and code_score >= 75:
-        server_score = verify_server()
-        if server_score is not None:
-            print(f"Server verification score: {server_score}")
-            final = min(code_score, server_score)
-            print(f"SCORE: {final}")
-            return
-
-    print(f"SCORE: {code_score}")
+    print("=== Verification: FP8 MLA decode k_scale fallback ===\n")
+    score = verify()
+    print(f"\nSCORE: {score}")
 
 
 if __name__ == "__main__":

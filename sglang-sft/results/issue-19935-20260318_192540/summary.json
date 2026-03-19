@@ -1,0 +1,61 @@
+{
+  "job": "sglang-issue-19935",
+  "type": "bugfix",
+  "best_metric": "N/A",
+  "metric_name": "score",
+  "metric_direction": "higher",
+  "total_elapsed_s": 274,
+  "stages_completed": 0,
+  "total_trials": 3,
+  "failures": 3,
+  "trials": [
+    {
+      "trial": 1,
+      "stage": "stage1_fix_fp8_kscale_fallback",
+      "metric": null,
+      "elapsed_s": 3,
+      "supervisor_action": "retry_with_hints",
+      "supervisor_analysis": "Trial 1 failed due to an LLM provider API error (VertexGenAI returned BadRequest about tool types). The agent never actually started working on the task. Retrying.",
+      "nudge": {
+        "polls": 0,
+        "noops": 0,
+        "nudges_sent": 0,
+        "nudges": [],
+        "last_step": null,
+        "latest_status": ""
+      }
+    },
+    {
+      "trial": 2,
+      "stage": "stage1_fix_fp8_kscale_fallback",
+      "metric": null,
+      "elapsed_s": 2,
+      "supervisor_action": "retry_with_hints",
+      "supervisor_analysis": "Trial 2 failed due to the same LLM provider API error (VertexGenAI BadRequest about tool types). The agent never started working on the task. This is an infrastructure issue, not a task logic failure. Retrying with very explicit step-by-step instructions so the agent can complete quickly once the API works.",
+      "nudge": {
+        "polls": 0,
+        "noops": 0,
+        "nudges_sent": 0,
+        "nudges": [],
+        "last_step": null,
+        "latest_status": ""
+      }
+    },
+    {
+      "trial": 3,
+      "stage": "stage1_fix_fp8_kscale_fallback",
+      "metric": null,
+      "elapsed_s": 1,
+      "supervisor_action": "retry_with_hints",
+      "supervisor_analysis": "All 3 trials failed due to LLM provider API errors (VertexGenAI BadRequest about tool types). The agent never started working on the task. Retrying with extremely detailed step-by-step instructions so the agent can complete quickly if the API stabilizes.",
+      "nudge": {
+        "polls": 0,
+        "noops": 0,
+        "nudges_sent": 0,
+        "nudges": [],
+        "last_step": null,
+        "latest_status": ""
+      }
+    }
+  ]
+}

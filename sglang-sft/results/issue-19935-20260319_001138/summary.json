@@ -1,0 +1,31 @@
+{
+  "job": "sglang-issue-19935",
+  "type": "bugfix",
+  "best_metric": "100.00",
+  "metric_name": "score",
+  "metric_direction": "higher",
+  "total_elapsed_s": 339,
+  "stages_completed": 1,
+  "total_trials": 1,
+  "failures": 0,
+  "trials": [
+    {
+      "trial": 1,
+      "stage": "stage1_fix_k_scale_fallback",
+      "metric": "100.00",
+      "elapsed_s": 296,
+      "verified": true,
+      "verified_metric": 100.0,
+      "supervisor_action": "stop",
+      "supervisor_analysis": "Bug fix task is complete. All 4 mla_decode_fwd call sites in aiter_backend.py now fall back to self.k_scale when layer.k_scale is None, preventing the FP8 assertion failure. Test harness confirms SCORE: 100.",
+      "nudge": {
+        "polls": 3,
+        "noops": 3,
+        "nudges_sent": 0,
+        "nudges": [],
+        "last_step": 5,
+        "latest_status": "tool: <system>30 lines read from file starting from line 1955.</system>   1955\t                reduce_final_map = self.forward"
+      }
+    }
+  ]
+}

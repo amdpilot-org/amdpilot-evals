@@ -1,0 +1,61 @@
+{
+  "job": "sglang-issue-19935",
+  "type": "bugfix",
+  "best_metric": "N/A",
+  "metric_name": "score",
+  "metric_direction": "higher",
+  "total_elapsed_s": 512,
+  "stages_completed": 0,
+  "total_trials": 3,
+  "failures": 3,
+  "trials": [
+    {
+      "trial": 1,
+      "stage": "stage1_diagnose_and_fix",
+      "metric": null,
+      "elapsed_s": 3,
+      "supervisor_action": "retry_with_hints",
+      "supervisor_analysis": "The agent failed immediately (3s elapsed) likely due to an authorization/login error when trying to access a remote resource (e.g., git clone or API call). The agent never actually read or modified the source file. Need to redirect it to work locally.",
+      "nudge": {
+        "polls": 0,
+        "noops": 0,
+        "nudges_sent": 0,
+        "nudges": [],
+        "last_step": null,
+        "latest_status": ""
+      }
+    },
+    {
+      "trial": 2,
+      "stage": "stage1_diagnose_and_fix",
+      "metric": null,
+      "elapsed_s": 2,
+      "supervisor_action": "retry_with_hints",
+      "supervisor_analysis": "Trial 2 failed again in ~2s with an authorization error, meaning the agent is still trying to access an external resource (GitHub clone, API, etc.) instead of working locally. The codebase is already present at /sgl-workspace/sglang.",
+      "nudge": {
+        "polls": 0,
+        "noops": 0,
+        "nudges_sent": 0,
+        "nudges": [],
+        "last_step": null,
+        "latest_status": ""
+      }
+    },
+    {
+      "trial": 3,
+      "stage": "stage1_diagnose_and_fix",
+      "metric": null,
+      "elapsed_s": 2,
+      "supervisor_action": "retry_with_hints",
+      "supervisor_analysis": "Three consecutive trials have failed in ~2-3 seconds with 'Authorization failed' errors. The agent keeps trying to access an external resource (GitHub) instead of working locally. The fix is straightforward but the agent needs extremely explicit instructions to avoid any network access.",
+      "nudge": {
+        "polls": 0,
+        "noops": 0,
+        "nudges_sent": 0,
+        "nudges": [],
+        "last_step": null,
+        "latest_status": ""
+      }
+    }
+  ]
+}

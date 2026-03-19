@@ -1,0 +1,58 @@
+{
+  "job_name": "sglang-issue-19935",
+  "repo": "https://github.com/sgl-project/sglang.git",
+  "initial_baseline_ms": null,
+  "current_best_ms": null,
+  "stages_completed": [],
+  "current_stage": {
+    "stage": "stage1_diagnose_and_fix",
+    "baseline_ms": null,
+    "current_best_ms": null,
+    "applied_optimizations": [],
+    "attempted_but_failed": [
+      {
+        "name": "trial_1",
+        "reason": "The agent failed immediately (3s elapsed) likely due to an authorization/login error when trying to access a remote resource (e.g., git clone or API call). The agent never actually read or modified th",
+        "error": "",
+        "approaches_tried": 1,
+        "timestamp": "2026-03-18T19:29:37.640472"
+      },
+      {
+        "name": "trial_2",
+        "reason": "Trial 2 failed again in ~2s with an authorization error, meaning the agent is still trying to access an external resource (GitHub clone, API, etc.) instead of working locally. The codebase is already ",
+        "error": "",
+        "approaches_tried": 1,
+        "timestamp": "2026-03-18T19:30:23.143013"
+      },
+      {
+        "name": "trial_3",
+        "reason": "Three consecutive trials have failed in ~2-3 seconds with 'Authorization failed' errors. The agent keeps trying to access an external resource (GitHub) instead of working locally. The fix is straightf",
+        "error": "",
+        "approaches_tried": 1,
+        "timestamp": "2026-03-18T19:37:09.169728"
+      }
+    ],
+    "profiling_summary": {
+      "top_bottlenecks": [],
+      "gpu_utilization": 0.0,
+      "memory_usage_gb": 0.0,
+      "kernel_breakdown": {},
+      "raw_profile_path": "",
+      "timestamp": ""
+    },
+    "active_backends": {},
+    "hotspot_targets": [],
+    "next_moves": [],
+    "environment_changes": [],
+    "notes": [],
+    "started_at": "2026-03-18T19:29:08.003321",
+    "completed_at": ""
+  },
+  "attempt_history": [],
+  "technique_attempts": {
+    "trial_1": 1,
+    "trial_2": 1,
+    "trial_3": 1
+  },
+  "global_notes": []
+}
