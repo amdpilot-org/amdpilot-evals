@@ -57,7 +57,8 @@ Expected improvement with FP8 prefill vs BF16 prefill:
 - Total tok/s: 1.17×-1.26× improvement
 - TTFT: 1.07×-1.29× improvement
 
-The test harness at `/workspace/test_harness.py` will:
-1. Start the server with FP8 prefill + radix cache
-2. Send test requests and verify responses
-3. Report SCORE: 100 if the server starts and serves correctly with radix cache + FP8 prefill
+The test harness at `/workspace/test_harness.py` performs **source code verification** — it reads `aiter_backend.py` and checks that FP8 prefill was integrated into the radix-cache path. No model loading is required for scoring. Run it with:
+```bash
+/opt/venv/bin/python3 /workspace/test_harness.py
+```
+It checks for: FP8 prefill env var usage, `fused_gemm_afp4wfp4_split_cat`, FP8 cast operations, and FP8 code near radix-cache paths.
