@@ -1,0 +1,56 @@
+name: sglang-kimi-k25-optimize
+type: optimize
+repo: https://github.com/sgl-project/sglang.git
+repo_branch: main
+base_image: amdpilot-eval-sglang-kimi-k25-optimize
+
+model_endpoint:
+  model: "Qwen/Qwen3.5-397B-A17B"
+  base_url: "http://10.235.24.154:30000/v1"
+  api_key: "EMPTY"
+
+kimi_cli:
+  thinking: true
+
+container:
+  name: amdpilot_kimi_k25
+  gpu: "0,1,2,3,4,5,6,7"
+  shm_size: 64g
+  devices: [/dev/kfd, /dev/dri]
+  env:
+    TOKENIZERS_PARALLELISM: "false"
+    GPU_COREDUMP_ENABLE: "0"
+    SGLANG_USE_AITER: "1"
+    SGLANG_ROCM_FUSED_DECODE_MLA: "0"
+  volumes:
+    - "/mnt/dcgpuval/huggingface:/root/.cache/huggingface"
+    - "/home/yikzhang/.ssh:/root/.ssh:ro"
+
+workload:
+  description: "Optimize decode latency for Kimi-K2.5 (1T MoE) model on AMD MI355X with TP=8, comparing triton and aiter attention backends on long-context workload"
+  function: "sglang.bench_one_batch decode"
+  framework: PyTorch
+
+benchmark:
+  command: "bash /workspace/bench_kimi_k25.sh"
+  metric_name: decode_median_ms
+  metric_pattern: 'Decode median \(ms\):\s+([\d.]+)'
+  metric_direction: lower
+  fixed_params:
+    model: moonshotai/Kimi-K2.5
+    tp: 8
+    batch_size: 1
+    input_len: 8192
+    output_len: 2048
+  valid_context_pattern: "tp=8"
+  output_format: "Decode median (ms): <value> | tp=8 batch=1 in=8192 out=2048"
+
+task:
+  description_file: evals/instances/sglang-kimi-k25-optimize/task_description.md
+
+stages: auto
+
+max_retries_per_stage: 5
+max_total_hours: 12
+supervisor_mode: agent
+nudge_agent: oss
