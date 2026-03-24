@@ -59,18 +59,17 @@ except Exception as e:
     check("Import _aiter_ops", False, str(e))
 
 # Check 2: mxfp4.py has Mxfp4Backend.CK enum value (doesn't exist before fix)
+# Use source-level check to avoid import side-effects from uncompiled C++ extensions
 try:
-    spec2 = importlib.util.spec_from_file_location(
-        "mxfp4", "/workspace/vllm/vllm/model_executor/layers/quantization/mxfp4.py")
-    mxfp4_mod = importlib.util.module_from_spec(spec2)
-    spec2.loader.exec_module(mxfp4_mod)
+    import re
+    with open("/workspace/vllm/vllm/model_executor/layers/quantization/mxfp4.py") as f:
+        mxfp4_src = f.read()
 
-    backend_cls = getattr(mxfp4_mod, "Mxfp4Backend", None)
-    has_ck = backend_cls is not None and hasattr(backend_cls, "CK")
+    has_ck = bool(re.search(r'CK\s*=\s*\d+', mxfp4_src))
     check("Mxfp4Backend.CK enum value exists", has_ck,
-          "CK backend enum not found in Mxfp4Backend")
+          "CK = <int> not found in mxfp4.py")
 except Exception as e:
-    check("Import mxfp4 module", False, str(e)[:200])
+    check("Mxfp4Backend.CK enum value exists", False, str(e)[:200])
 
 print()
 score = (checks_passed / checks_total * 100.0) if checks_total > 0 else 0.0
