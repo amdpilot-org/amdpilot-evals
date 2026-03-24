@@ -1,6 +1,7 @@
 # Kimi-K2.5 Decode Latency Optimization
 
 Optimize the decode latency of the Kimi-K2.5 (1T MoE) model on 8x AMD MI355X GPUs using SGLang.
+The single metric that matters is the output of `/workspace/bench_kimi_k25.sh`. Lower is better.
 
 ## Environment
 
@@ -43,38 +44,22 @@ This ensures the verification run uses the same configuration as your run.
 Read the benchmark output logs carefully to identify which backends are active (attention,
 MoE, all-reduce) before optimizing. Only optimize backends that are actually in use.
 
-## Optimization Objectives
+## Optimization Objective
 
-### Objective 1: Triton Backend Optimization
-Optimize decode latency using the triton attention backend (default). This includes:
-- MoE kernel config tuning (GEMM block sizes, waves_per_eu)
-- GEMM config tuning for small-M (batch=1 decode)
-- All-reduce optimization
-- CUDA graph optimization
+Your single goal: **minimize the decode median latency reported by `bench_kimi_k25.sh`.**
 
-### Objective 2: AITER Attention Backend Optimization (PRIMARY)
-The AITER attention backend may perform significantly better than triton for long-context
-decode (input_len=8192). However, it currently has known issues with Kimi-K2.5:
+There are NO restrictions on approach. You are free to:
+- Switch between any available attention backends (triton, aiter, flashinfer, or any combination)
+- Tune MoE kernel configurations (GEMM block sizes, waves_per_eu, etc.)
+- Tune GEMM configs for small-M shapes (batch=1 decode)
+- Fix bugs in any backend to unlock better performance
+- Modify source code in `/sgl-workspace/sglang/` and `/sgl-workspace/aiter/`
+- Try any optimization technique: kernel config tuning, torch.compile, graph capture, scheduling, backend switching, etc.
 
-**Issue 1: MLA absorbed path w_kc bug** — For BF16 models, `forward_absorb_prepare` in
-`forward_mla.py:231` crashes with `AttributeError: 'NoneType' object has no attribute 'dtype'`
-because `self.w_kc` is never populated. The weight absorption in `deepseek_weight_loader.py`
-doesn't trigger for the default BF16 configuration.
+The only constraint: the final metric must come from `bench_kimi_k25.sh` with CUDA graphs enabled (no `--disable-cuda-graph`).
 
-**Issue 2: Fused MLA RoPE crash** — The AITER fused decode MLA path
-(`forward_mla_fused_rope_rocm.py`) is broken (sglang issue #20691):
-1. `HybridAttnBackend` has no attribute `forward_metadata`
-2. `DeepseekScalingRotaryEmbedding` has no attribute `cos_sin_cache`
+## Deliver Results
 
-**Your task**: Fix the AITER decode attention path for Kimi-K2.5, then benchmark both
-backends and determine which is optimal. The agent should:
-1. First establish a triton baseline
-2. Fix the AITER backend bugs (in `/sgl-workspace/sglang/` and/or `/sgl-workspace/aiter/`)
-3. Enable AITER decode with `DECODE_ATTENTION_BACKEND=aiter` and `SGLANG_ROCM_FUSED_DECODE_MLA=1`
-4. Compare performance and select the optimal configuration
-5. Continue optimizing the winning backend
-
-### Objective 3: Deliver Results
 After optimization is complete, push your changes and write a setup guide:
 
 1. **Create branches**: The fork remotes are pre-configured:
@@ -83,12 +68,12 @@ After optimization is complete, push your changes and write a setup guide:
    - SSH keys are mounted at `/root/.ssh/`
    - Set `GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=no'` before git operations
 
-2. **Push changes**: Create branch `kimi-k25-optimize` on each fork with your changes:
+2. **Push changes**: Create branch `kimi-k25-optimize-v3` on each fork with your changes:
    ```bash
    cd /sgl-workspace/sglang
-   git checkout -b kimi-k25-optimize
+   git checkout -b kimi-k25-optimize-v3
    git add -A && git commit -m "Kimi-K2.5 decode optimization for MI355X"
-   GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=no' git push fork kimi-k25-optimize
+   GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=no' git push fork kimi-k25-optimize-v3
    ```
    Do the same for aiter if you modified it.
 
@@ -96,7 +81,7 @@ After optimization is complete, push your changes and write a setup guide:
    - Step-by-step reproduction instructions starting from the base Docker image
    - Which branches to clone and how to set up the environment
    - The exact benchmark command and expected results
-   - Comparison of triton vs aiter backend performance
+   - Summary of all optimizations applied and their individual impact
 
 4. **Verify**: Clone your branches into a clean directory and confirm the benchmark runs correctly.
 

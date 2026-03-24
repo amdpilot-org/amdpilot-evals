@@ -5,7 +5,7 @@ repo_branch: main
 base_image: amdpilot-eval-sglang-kimi-k25-optimize
 
 model_endpoint:
-  model: "Qwen/Qwen3.5-397B-A17B"
+  model: "moonshotai/Kimi-K2.5"
   base_url: "http://10.235.24.154:30000/v1"
   api_key: "EMPTY"
 
