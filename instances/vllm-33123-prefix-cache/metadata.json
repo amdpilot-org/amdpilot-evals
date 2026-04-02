@@ -1,0 +1,20 @@
+{
+  "name": "vllm-33123-prefix-cache",
+  "category": "bugfix",
+  "difficulty": "hard",
+  "source": {
+    "repo": "vllm-project/vllm",
+    "issue": 33123,
+    "candidate_fix_pr": 33761,
+    "parent_commit": "2647163674720242cee78dae3f7c7b98539ed029"
+  },
+  "description": "Prefix caching on ROCm produces different output on cache miss vs cache hit",
+  "task_description_source": "GitHub issue #33123 with strengthened reproducibility guard",
+  "test_harness_type": "runtime",
+  "requires_gpu": true,
+  "anti_contamination": {
+    "pin_pre_fix_commit": true,
+    "source_overrides_wheel": true,
+    "reason": "Open issue with flaky reproduction. Eval must avoid both wheel/source mismatch and too-weak single-pass checks."
+  }
+}

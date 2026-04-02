@@ -1,0 +1,20 @@
+{
+  "name": "vllm-35925-aiter-corruption",
+  "category": "bugfix",
+  "difficulty": "hard",
+  "source": {
+    "repo": "vllm-project/vllm",
+    "issue": 35925,
+    "known_fix_pr": 37228,
+    "parent_commit": "a0e8c74005f5782fad30be912c12cd37fc2813e9"
+  },
+  "description": "Qwen3.5-35B-A3B corrupted responses when AITER is enabled on ROCm",
+  "task_description_source": "GitHub issue #35925 plus reproduction tightening for multimodal/text corruption",
+  "test_harness_type": "runtime",
+  "requires_gpu": true,
+  "anti_contamination": {
+    "pin_pre_fix_commit": true,
+    "source_overrides_wheel": true,
+    "reason": "The upstream stride fix landed after the issue was filed. Eval must not silently inherit that fix."
+  }
+}

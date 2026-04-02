@@ -1,0 +1,31 @@
+name: vllm-33123-prefix-cache
+type: bugfix
+repo: https://github.com/vllm-project/vllm.git
+base_image: amdpilot-eval-vllm-33123-prefix-cache
+
+model_endpoint:
+  base_url: "http://localhost:30000/v1"
+  api_key: "sk-dummy"
+
+container:
+  name: amdpilot_eval_vllm_33123_prefix_cache
+  shm_size: 32g
+  devices: [/dev/kfd, /dev/dri]
+
+workload:
+  description: "Reproduce and fix prefix caching non-determinism on ROCm"
+  framework: PyTorch
+
+benchmark:
+  command: "/usr/bin/python3 /workspace/test_harness.py"
+  metric_name: score
+  metric_pattern: 'SCORE:\s+([\d.]+)'
+  metric_direction: higher
+
+task:
+  description_file: evals/instances/vllm-33123-prefix-cache/task_description.md
+
+stages: auto
+
+max_retries_per_stage: 5
+max_total_hours: 6
