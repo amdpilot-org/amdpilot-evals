@@ -9,7 +9,9 @@ The eval bundle therefore uses:
 
 - a pinned pre-fix checkout
 - source-over-wheel runtime forcing
-- more requests than the old 4-request harness
+- three prompt lengths (different token/block remainders)
+- repeated requests + logprob comparison
+- a prefix-caching-disabled negative control
 
 The goal is to avoid false `score=100` results that only happen because the
 bug was not exercised strongly enough.
@@ -40,8 +42,10 @@ unset PYTHONPATH
 
 The harness:
 1. starts a vLLM server with prefix caching enabled
-2. sends 20 identical requests
-3. requires cache-miss and cache-hit outputs to remain identical across the run
+2. tests 3 prompts of different lengths
+3. sends 6 requests per prompt
+4. checks both output text and per-token logprob stability
+5. reruns the same prompts with prefix caching disabled as a negative control
 
 Success means:
 - all requests complete
