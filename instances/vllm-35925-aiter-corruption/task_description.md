@@ -15,10 +15,14 @@ This bundle should answer one question only:
 
 ## Reproduction target
 
-The original issue reports corruption when AITER is enabled for Qwen3.5-35B-A3B.
-The corruption shows up as repetitive punctuation or clearly garbled outputs.
-The report started with multimodal evaluation and later confirmed text-only
-repro as well.
+The original report started from multimodal evaluation and later confirmed
+text-only corruption too. This bundle therefore uses both:
+
+- 60 text-only prompts
+- 60 multimodal prompts
+
+The bundle should fail if **any** AITER-enabled output shows the characteristic
+corruption pattern (repetitive punctuation / obviously garbled output).
 
 ## Environment
 
@@ -38,8 +42,8 @@ unset PYTHONPATH
 
 The harness runs:
 1. a text-only baseline with AITER disabled
-2. a text-only run with AITER enabled
-3. a multimodal run with AITER enabled
+2. 60 text-only prompts with AITER enabled
+3. 60 multimodal prompts with AITER enabled
 
 Success means:
 - all baseline outputs are clean

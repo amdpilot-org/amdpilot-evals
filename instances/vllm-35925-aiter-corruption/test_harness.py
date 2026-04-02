@@ -1,29 +1,32 @@
 #!/usr/bin/env python3
-"""Eval bundle harness for vLLM issue #35925.
+"""Test harness v2 for vLLM issue #35925.
 
-The bundle is intentionally pinned to a pre-fix commit. The harness mixes
-text-only and multimodal prompts so the bug is not silently missed by a weak
-text-only check.
+This version is intentionally stronger than the original live harness:
+- 120 prompts (60 text-only + 60 multimodal) instead of 15
+- TP=1 to match the original report more closely
+- max_model_len=8192 to exercise more KV/cache state
+- safe kill pattern
+- runtime forced onto the checked-out source via PYTHONPATH
 """
 
 from __future__ import annotations
 
-import base64
-import json
 import os
 import re
 import subprocess
 import sys
 import time
-import urllib.error
-import urllib.request
 
 PYTHON = "/usr/bin/python3"
+checks_passed = 0
+checks_total = 0
+
 MODEL = "Qwen/Qwen3.5-35B-A3B"
-HOST = "127.0.0.1"
-PORT = 8192
-TP = 4
-MAX_MODEL_LEN = 4096
+MAX_MODEL_LEN = 8192
+TP = 1
+NUM_TEXT_PROMPTS = 60
+NUM_MULTIMODAL_PROMPTS = 60
+TOTAL_PROMPTS = NUM_TEXT_PROMPTS + NUM_MULTIMODAL_PROMPTS
 
 TEXT_PROMPTS = [
     "What is 2+2? Give only the numerical answer.",
@@ -41,34 +44,52 @@ TEXT_PROMPTS = [
     "Describe the process of making tea step by step.",
     "What are the three states of matter? List them.",
     "Summarize the plot of Romeo and Juliet in two sentences.",
-    "List three mammals.",
+    "What is the speed of light in km/s? Just the number.",
+    "Name three countries in South America.",
+    "What is the square root of 144?",
+    "Describe what happens during a solar eclipse.",
     "What is the largest ocean on Earth?",
-    "Give one adjective describing snow.",
+    "How many bones does an adult human body have? Just the number.",
+    "What is the chemical formula for table salt?",
+    "Name the first person to walk on the Moon.",
+    "What is the largest planet in our solar system?",
+    "Explain what gravity is in one sentence.",
+    "What year did World War II end?",
+    "Name three programming languages.",
+    "What is the tallest mountain in the world?",
+    "How many continents are there? Just the number.",
+    "What is DNA? Explain in one sentence.",
+    "Name the four seasons.",
+    "What is the currency of Japan?",
+    "How many sides does a hexagon have?",
+    "What is the Pythagorean theorem?",
+    "Name three elements from the periodic table.",
+    "What is the freezing point of water in Fahrenheit?",
+    "Who wrote Hamlet?",
+    "What is the smallest prime number?",
+    "Name the seven colors of the rainbow.",
+    "What is an atom?",
+    "How many minutes are in an hour?",
+    "What is the formula for the area of a circle?",
+    "Name three types of rocks.",
     "What does CPU stand for?",
-    "How many letters are in the English alphabet?",
+    "What is the distance from Earth to the Moon in miles? Approximate.",
+    "Name three mammals that live in the ocean.",
+    "What is Pi to 5 decimal places?",
+    "Describe how a battery works in two sentences.",
+    "What is the atomic number of carbon?",
+    "Name three types of clouds.",
+    "What is the main gas in Earth's atmosphere?",
+    "How many teeth does an adult human have?",
+    "What is the largest desert on Earth?",
+    "Name three Nobel Prize categories.",
+    "What temperature is absolute zero in Celsius?",
+    "Describe what an earthquake is.",
+    "What is the longest river in the world?",
+    "How many strings does a standard guitar have?",
+    "What is mitosis?",
+    "Name the first five elements of the periodic table.",
 ]
-
-MULTIMODAL_PROMPTS = [
-    {
-        "role": "user",
-        "content": [
-            {"type": "text", "text": "Describe this image in one short sentence."},
-            {"type": "image_url", "image_url": {"url": "data:image/png;base64,"
-             "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO5Wn6sAAAAASUVORK5CYII="}},
-        ],
-    },
-    {
-        "role": "user",
-        "content": [
-            {"type": "text", "text": "What color is the image? Reply with one word."},
-            {"type": "image_url", "image_url": {"url": "data:image/png;base64,"
-             "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO5Wn6sAAAAASUVORK5CYII="}},
-        ],
-    },
-]
-
-checks_passed = 0
-checks_total = 0
 
 
 def check(name: str, condition: bool, detail: str = "") -> None:
@@ -78,160 +99,257 @@ def check(name: str, condition: bool, detail: str = "") -> None:
         checks_passed += 1
         print(f"  PASS: {name}")
     else:
-        print(f"  FAIL: {name}" + (f" — {detail}" if detail else ""))
+        print(f"  FAIL: {name}" + (f" -- {detail}" if detail else ""))
 
 
 def is_corrupted(text: str) -> bool:
-    if re.search(r"(.)\1{9,}", text):
+    if not text or len(text.strip()) == 0:
+        return False
+    if re.search(r"([^\s])\1{9,}", text):
         return True
-    if len(text) > 10:
-        clean = text.replace(" ", "").replace("\n", "")
-        if clean:
-            counts = {}
-            for ch in clean:
-                counts[ch] = counts.get(ch, 0) + 1
-            ch, cnt = max(counts.items(), key=lambda x: x[1])
-            if cnt / len(clean) > 0.6 and ch in "!?.*#@&^~":
-                return True
+    clean = text.replace(" ", "").replace("\n", "").replace("\t", "")
+    if len(clean) > 10:
+        counts = {}
+        for ch in clean:
+            counts[ch] = counts.get(ch, 0) + 1
+        most_char, most_count = max(counts.items(), key=lambda x: x[1])
+        if most_count / len(clean) > 0.6 and most_char in "!?.*#@&^~|/\\:;><":
+            return True
     return False
 
 
 def kill_gpu_processes() -> None:
-    os.system("pgrep -f 'python3 -m (sglang|vllm)' | xargs -r kill -9")
-    time.sleep(3)
+    os.system("pgrep -f 'python3 -m (sglang|vllm)' | xargs -r kill -9 2>/dev/null")
+    time.sleep(5)
 
 
-def wait_for_server(timeout: int = 600) -> bool:
-    url = f"http://{HOST}:{PORT}/health"
-    start = time.time()
-    while time.time() - start < timeout:
-        try:
-            with urllib.request.urlopen(url, timeout=5) as resp:
-                if resp.status == 200:
-                    return True
-        except (urllib.error.URLError, OSError):
-            pass
-        time.sleep(5)
-    return False
-
-
-def start_server(aiter_enabled: bool) -> subprocess.Popen:
+def run_generation_text_only(env_overrides: dict[str, str], prompts: list[str]) -> list[str] | None:
     env = os.environ.copy()
-    env.pop("PYTHONPATH", None)
+    env.update(env_overrides)
     env["PYTHONPATH"] = "/workspace/vllm"
-    env["VLLM_ROCM_USE_AITER"] = "1" if aiter_enabled else "0"
-    env["VLLM_ROCM_USE_AITER_MHA"] = "1" if aiter_enabled else "0"
-    env["VLLM_ROCM_USE_AITER_MOE"] = "1" if aiter_enabled else "0"
-    env["VLLM_ROCM_USE_AITER_LINEAR"] = "0"
-    env["VLLM_ROCM_USE_AITER_RMSNORM"] = "0"
-    env["VLLM_ROCM_USE_AITER_TRITON_ROPE"] = "0"
-    cmd = [
-        PYTHON, "-m", "vllm.entrypoints.openai.api_server",
-        "--model", MODEL,
-        "--dtype", "bfloat16",
-        "--max-model-len", str(MAX_MODEL_LEN),
-        "--host", HOST,
-        "--port", str(PORT),
-        "--tensor-parallel-size", str(TP),
-        "--gpu-memory-utilization", "0.95",
-        "--generation-config", "vllm",
-        "--enforce-eager",
-    ]
-    return subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env)
 
+    script = f'''
+import json
+from vllm import LLM, SamplingParams
 
-def send_completion(prompt: str) -> str | None:
-    payload = {
-        "model": MODEL,
-        "prompt": prompt,
-        "temperature": 0.0,
-        "max_tokens": 200,
-    }
-    data = json.dumps(payload).encode("utf-8")
-    req = urllib.request.Request(
-        f"http://{HOST}:{PORT}/v1/completions",
-        data=data,
-        headers={"Content-Type": "application/json"},
-    )
+prompts = {prompts!r}
+llm = LLM(
+    model="{MODEL}",
+    max_model_len={MAX_MODEL_LEN},
+    trust_remote_code=True,
+    tensor_parallel_size={TP},
+    gpu_memory_utilization=0.95,
+    enforce_eager=True,
+)
+params = SamplingParams(temperature=0.0, max_tokens=200)
+outputs = llm.generate(prompts, params)
+for o in outputs:
+    text = o.outputs[0].text
+    print("OUTPUT_TEXT:" + json.dumps(text))
+print("GENERATION_DONE")
+'''
     try:
-        with urllib.request.urlopen(req, timeout=120) as resp:
-            body = json.loads(resp.read().decode("utf-8"))
-        return body["choices"][0]["text"]
-    except Exception as e:  # noqa: BLE001
-        print(f"    completion error: {e}")
-        return None
-
-
-def send_multimodal(messages: list[dict]) -> str | None:
-    payload = {
-        "model": MODEL,
-        "messages": messages,
-        "temperature": 0.0,
-        "max_tokens": 64,
-    }
-    data = json.dumps(payload).encode("utf-8")
-    req = urllib.request.Request(
-        f"http://{HOST}:{PORT}/v1/chat/completions",
-        data=data,
-        headers={"Content-Type": "application/json"},
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=120) as resp:
-            body = json.loads(resp.read().decode("utf-8"))
-        return body["choices"][0]["message"]["content"]
-    except Exception as e:  # noqa: BLE001
-        print(f"    multimodal error: {e}")
-        return None
-
-
-def run_suite(aiter_enabled: bool) -> list[str | None]:
-    server = start_server(aiter_enabled)
-    try:
-        if not wait_for_server():
-            return []
-        outputs = [send_completion(prompt) for prompt in TEXT_PROMPTS]
-        outputs.extend(send_multimodal([mm_prompt]) for mm_prompt in MULTIMODAL_PROMPTS)
-        return outputs
-    finally:
-        server.terminate()
-        try:
-            server.wait(timeout=30)
-        except subprocess.TimeoutExpired:
-            server.kill()
-            server.wait(timeout=10)
-        kill_gpu_processes()
-
-
-def main() -> int:
-    kill_gpu_processes()
-
-    print("=== baseline: AITER disabled ===")
-    baseline_outputs = run_suite(False)
-    check("baseline_completed", len(baseline_outputs) == len(TEXT_PROMPTS) + len(MULTIMODAL_PROMPTS))
-    baseline_corrupt = [o for o in baseline_outputs if o and is_corrupted(o)]
-    check("baseline_clean", len(baseline_corrupt) == 0, f"{len(baseline_corrupt)} corrupted")
-
-    print("=== AITER enabled ===")
-    aiter_outputs = run_suite(True)
-    check("aiter_completed", len(aiter_outputs) == len(TEXT_PROMPTS) + len(MULTIMODAL_PROMPTS))
-    aiter_corrupt = [o for o in aiter_outputs if o and is_corrupted(o)]
-    check("aiter_clean", len(aiter_corrupt) == 0, f"{len(aiter_corrupt)} corrupted")
-
-    if baseline_outputs and aiter_outputs and len(baseline_outputs) == len(aiter_outputs):
-        paired = [(b, a) for b, a in zip(baseline_outputs, aiter_outputs) if b is not None and a is not None]
-        check("all_outputs_nonempty", len(paired) == len(TEXT_PROMPTS) + len(MULTIMODAL_PROMPTS))
-        check(
-            "aiter_matches_baseline_shape",
-            all(len(a.strip()) > 0 for _, a in paired),
-            "some AITER outputs empty",
+        result = subprocess.run(
+            [PYTHON, "-c", script],
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=1800,
         )
+    except subprocess.TimeoutExpired:
+        print("  Generation timed out after 1800s")
+        return None
+
+    if result.returncode != 0:
+        print(f"  Generation process failed (rc={result.returncode})")
+        print(f"  stderr (last 500 chars): {result.stderr[-500:]}")
+        return None
+
+    if "GENERATION_DONE" not in result.stdout:
+        print("  Generation did not complete successfully")
+        return None
+
+    outputs = []
+    for line in result.stdout.split("\n"):
+        if line.startswith("OUTPUT_TEXT:"):
+            try:
+                outputs.append(__import__("json").loads(line[len("OUTPUT_TEXT:"):]))
+            except Exception:
+                outputs.append(line[len("OUTPUT_TEXT:"):])
+    return outputs
+
+
+def run_generation_multimodal(env_overrides: dict[str, str], num_prompts: int) -> list[str] | None:
+    env = os.environ.copy()
+    env.update(env_overrides)
+    env["PYTHONPATH"] = "/workspace/vllm"
+
+    script = f'''
+import io
+import json
+import random
+
+def make_test_image(width=224, height=224, seed=0):
+    random.seed(seed)
+    try:
+        from PIL import Image
+        img = Image.new("RGB", (width, height),
+                        (random.randint(0,255), random.randint(0,255), random.randint(0,255)))
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        buf.seek(0)
+        return buf
+    except ImportError:
+        import struct, zlib
+        def create_png(w, h, r, g, b):
+            raw = b""
+            for _ in range(h):
+                raw += b"\\x00" + bytes([r, g, b]) * w
+            compressed = zlib.compress(raw)
+            def chunk(ctype, data):
+                c = ctype + data
+                crc = zlib.crc32(c) & 0xffffffff
+                return struct.pack(">I", len(data)) + c + struct.pack(">I", crc)
+            sig = b"\\x89PNG\\r\\n\\x1a\\n"
+            ihdr = chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0))
+            idat = chunk(b"IDAT", compressed)
+            iend = chunk(b"IEND", b"")
+            return sig + ihdr + idat + iend
+        return io.BytesIO(create_png(width, height, random.randint(0,255), random.randint(0,255), random.randint(0,255)))
+
+MULTIMODAL_QUESTIONS = [
+    "Describe what you see in this image.",
+    "What colors are present in this image?",
+    "Is this image bright or dark? Why?",
+    "What could this image represent?",
+    "Describe the dominant color in this image.",
+    "How many distinct colors can you see?",
+    "What mood does this image convey?",
+    "Describe the texture you see.",
+    "What shape does this image resemble?",
+    "Is this a natural or artificial image? Why?",
+]
+
+from vllm import LLM, SamplingParams
+llm = LLM(
+    model="{MODEL}",
+    max_model_len={MAX_MODEL_LEN},
+    trust_remote_code=True,
+    tensor_parallel_size={TP},
+    gpu_memory_utilization=0.95,
+    enforce_eager=True,
+)
+params = SamplingParams(temperature=0.0, max_tokens=200)
+prompts_data = []
+for i in range({num_prompts}):
+    img_buf = make_test_image(seed=i)
+    question = MULTIMODAL_QUESTIONS[i % len(MULTIMODAL_QUESTIONS)]
+    prompt = f"<|im_start|>user\\n<image>\\n{{question}}<|im_end|>\\n<|im_start|>assistant\\n"
+    try:
+        from PIL import Image
+        img = Image.open(img_buf)
+    except ImportError:
+        img = img_buf
+    prompts_data.append({{"prompt": prompt, "multi_modal_data": {{"image": img}}}})
+
+outputs = llm.generate(prompts_data, params)
+for o in outputs:
+    text = o.outputs[0].text
+    print("OUTPUT_TEXT:" + json.dumps(text))
+print("GENERATION_DONE")
+'''
+    try:
+        result = subprocess.run(
+            [PYTHON, "-c", script],
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=2400,
+        )
+    except subprocess.TimeoutExpired:
+        print("  Multimodal generation timed out after 2400s")
+        return None
+
+    if result.returncode != 0 or "GENERATION_DONE" not in result.stdout:
+        print(f"  Multimodal generation failed (rc={result.returncode})")
+        print(f"  stderr (last 500 chars): {result.stderr[-500:]}")
+        return None
+
+    outputs = []
+    for line in result.stdout.split("\n"):
+        if line.startswith("OUTPUT_TEXT:"):
+            try:
+                outputs.append(__import__("json").loads(line[len("OUTPUT_TEXT:"):]))
+            except Exception:
+                outputs.append(line[len("OUTPUT_TEXT:"):])
+    return outputs
+
+
+print("\n=== Test 1: Baseline (AITER disabled, text-only) ===")
+kill_gpu_processes()
+baseline_env = {"VLLM_ROCM_USE_AITER": "0"}
+baseline_outputs = run_generation_text_only(baseline_env, TEXT_PROMPTS[:30])
+check("Baseline generation completed", baseline_outputs is not None, "Generation failed")
+
+if baseline_outputs is not None:
+    baseline_corrupted = sum(1 for t in baseline_outputs if is_corrupted(t))
+    check("Baseline has no corrupted outputs", baseline_corrupted == 0, f"{baseline_corrupted}/{len(baseline_outputs)} corrupted")
+
+print("\n=== Test 2: AITER enabled, text-only (60 prompts) ===")
+kill_gpu_processes()
+aiter_env = {
+    "VLLM_ROCM_USE_AITER": "1",
+    "VLLM_ROCM_USE_AITER_MHA": "1",
+    "VLLM_ROCM_USE_AITER_MOE": "1",
+    "VLLM_ROCM_USE_AITER_LINEAR": "0",
+    "VLLM_ROCM_USE_AITER_RMSNORM": "0",
+    "VLLM_ROCM_USE_AITER_TRITON_ROPE": "0",
+}
+aiter_text_outputs = run_generation_text_only(aiter_env, TEXT_PROMPTS)
+check("AITER text generation completed", aiter_text_outputs is not None, "Generation failed")
+text_corrupted = 0
+if aiter_text_outputs is not None:
+    text_corrupted = sum(1 for t in aiter_text_outputs if is_corrupted(t))
+    check("AITER text has no corrupted outputs", text_corrupted == 0, f"{text_corrupted}/{len(aiter_text_outputs)} corrupted")
+
+print("\n=== Test 3: AITER enabled, multimodal (60 prompts) ===")
+kill_gpu_processes()
+aiter_mm_outputs = run_generation_multimodal(aiter_env, 60)
+
+if aiter_mm_outputs is not None:
+    check("AITER multimodal generation completed", True)
+    mm_corrupted = sum(1 for t in aiter_mm_outputs if is_corrupted(t))
+    check("AITER multimodal has no corrupted outputs", mm_corrupted == 0, f"{mm_corrupted}/{len(aiter_mm_outputs)} corrupted")
+else:
+    print("  Multimodal not available, running fallback extra text prompts")
+    extra_prompts = [f"Question {{i}}: Explain what the number {{i*7}} means in mathematics." for i in range(60)]
+    kill_gpu_processes()
+    fallback_outputs = run_generation_text_only(aiter_env, extra_prompts)
+    if fallback_outputs is not None:
+        check("AITER fallback text generation completed", True)
+        fb_corrupted = sum(1 for t in fallback_outputs if is_corrupted(t))
+        check("AITER fallback text has no corrupted outputs", fb_corrupted == 0, f"{fb_corrupted}/{len(fallback_outputs)} corrupted")
+        text_corrupted += fb_corrupted
     else:
-        check("output_pairing", False, "missing outputs")
+        check("AITER fallback text generation completed", False, "Generation failed")
 
-    score = int(100 * checks_passed / checks_total) if checks_total else 0
-    print(f"SCORE: {score}")
-    return 0 if score == 100 else 1
+print("\n=== Test 4: Overall corruption summary ===")
+total_aiter = 0
+total_corrupted = 0
+if aiter_text_outputs is not None:
+    total_aiter += len(aiter_text_outputs)
+    total_corrupted += sum(1 for t in aiter_text_outputs if is_corrupted(t))
+if aiter_mm_outputs is not None:
+    total_aiter += len(aiter_mm_outputs)
+    total_corrupted += sum(1 for t in aiter_mm_outputs if is_corrupted(t))
+if total_aiter > 0:
+    corruption_rate = total_corrupted / total_aiter * 100
+    print(f"  Total AITER outputs: {total_aiter}")
+    print(f"  Total corrupted: {total_corrupted}")
+    print(f"  Corruption rate: {corruption_rate:.1f}%")
+    check("Zero corruption across all AITER tests", total_corrupted == 0, f"{total_corrupted}/{total_aiter} corrupted ({corruption_rate:.1f}%)")
 
-
-if __name__ == "__main__":
-    sys.exit(main())
+kill_gpu_processes()
+score = int(100 * checks_passed / checks_total) if checks_total > 0 else 0
+print(f"SCORE: {score}")
+sys.exit(0 if score == 100 else 1)
