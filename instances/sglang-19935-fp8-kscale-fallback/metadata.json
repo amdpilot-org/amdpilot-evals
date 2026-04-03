@@ -1,0 +1,79 @@
+{
+  "name": "sglang-19935-fp8-kscale-fallback",
+  "category": "bugfix",
+  "difficulty": "medium",
+  "source": {
+    "repo": "sgl-project/sglang",
+    "pr": 19935,
+    "issue": null,
+    "merge_commit": "1e2983c98ebd53c60df3581cc31627d75f24b811"
+  },
+  "description": "Fix FP8 assertion failure in aiter MLA decode by falling back to self.k_scale when layer.k_scale is None.",
+  "bug_type": "persistent",
+  "bug_source": "sglang",
+  "runtime_family": "sgl-dev",
+  "commit_window": {
+    "introducing_pr": null,
+    "fix_pr": 19935,
+    "fix_commit": "1e2983c98ebd53c60df3581cc31627d75f24b811",
+    "fix_date": "2026-03-12",
+    "pin_commit": null,
+    "note": "Bug is persistent (not a regression). Base image (Feb 26) predates fix (Mar 12), so no checkout needed."
+  },
+  "aiter_dependency": false,
+  "model_required": false,
+  "gpu_required": 1,
+  "harness_type": "unit_test",
+  "affected_files": [
+    "python/sglang/srt/layers/attention/aiter_backend.py"
+  ],
+  "tags": [
+    "sglang",
+    "bugfix",
+    "fp8",
+    "mla",
+    "aiter-backend"
+  ],
+  "previous_runs": [
+    {
+      "experiment_id": "sglang-19935-20260319_031636",
+      "best_score": 0.0,
+      "trials": 10,
+      "source_dir": "evals/sglang-sft/results/issue-19935-20260319_031636",
+      "notes": [
+        "Agent repeatedly targeted /workspace instead of /sgl-workspace/sglang."
+      ]
+    },
+    {
+      "experiment_id": "sglang-19935-20260319_031939",
+      "best_score": null,
+      "trials": 1,
+      "source_dir": "evals/sglang-sft/results/issue-19935-20260319_031939",
+      "notes": [
+        "Early run died before making code changes."
+      ]
+    },
+    {
+      "experiment_id": "sglang-19935-20260319_032237",
+      "best_score": 100.0,
+      "trials": 1,
+      "source_dir": "evals/sglang-sft/results/issue-19935-20260319_032237",
+      "notes": [
+        "Verified historical success recovered from legacy sglang-sft run."
+      ]
+    }
+  ],
+  "reconstructed_from": [
+    "evals/sglang-sft/results/issue-19935-20260319_031636",
+    "evals/sglang-sft/results/issue-19935-20260319_031939",
+    "evals/sglang-sft/results/issue-19935-20260319_032237"
+  ],
+  "verified": {
+    "status": "verified_success",
+    "by": "amdpilot-team",
+    "date": "2026-04-03",
+    "preflight_score": 85.7,
+    "verified_score": 100.0,
+    "notes": "Validated on v0.4.0 as a one-pass solve after the canonical bundle was reconstructed and tightened."
+  }
+}
