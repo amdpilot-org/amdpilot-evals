@@ -60,11 +60,11 @@
     "evals/sglang-sft/results/issue-20187-20260319_125058"
   ],
   "verified": {
-    "status": "verified_success",
+    "status": "verified_with_caveat",
     "by": "amdpilot-team",
     "date": "2026-04-03",
     "preflight_score": 82.4,
     "verified_score": 100.0,
-    "notes": "Validated on v0.4.0 as a one-pass solve after the canonical bundle was reconstructed and tightened."
+    "notes": "Validated on v0.4.0 as a one-pass solve after the canonical bundle was reconstructed and tightened, but later audit flagged the harness as too regex-heavy to fully rule out a plausible-but-not-production-correct implementation."
   }
 }

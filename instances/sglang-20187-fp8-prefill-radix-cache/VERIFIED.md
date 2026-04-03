@@ -1,6 +1,6 @@
 # Verification Record
 
-- Status: `verified_success`
+- Status: `verified_with_caveat`
 - Date: `2026-04-03`
 - Verified by: `amdpilot-team`
 - System version: `v0.4.0`
@@ -16,11 +16,14 @@ agent run after the canonical bundle was reconstructed from the legacy
 
 ## Interpretation
 
-- the canonical bundle is now structurally complete and reproducible
-- the bug reproduces cleanly under the v0.4.0 unit-test-style flow
-- the fix target is localized to the FP8 prefill radix-cache path
+- the canonical bundle is structurally complete and reproducible
+- there is **no reward-hacking evidence** from the run audit
+- however, the current harness still relies too heavily on regex-style source
+  checks, so a plausible-looking but not fully production-correct patch may
+  satisfy it
 
 ## Next Action
 
-Keep this bundle in the active SGLang bugfix set and use it as the canonical
-replacement for the older fragmented `sglang-20187-*` historical runs.
+Keep this bundle active, but strengthen the harness before treating it as a
+fully hardened gold-standard success. The preferred direction is AST or runtime
+validation rather than simple pattern matching.
