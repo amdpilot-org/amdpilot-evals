@@ -369,6 +369,7 @@ def main():
             pr_body=data.get("body", ""),
             repo=repo,
             model_url=args.model_url,
+            base_image=base_image,
         )
         (out_dir / "test_harness.py").write_text(test_content)
     else:
