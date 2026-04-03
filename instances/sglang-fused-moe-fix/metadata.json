@@ -26,8 +26,9 @@
   "verified": {
     "date": "2026-04-03",
     "by": "amdpilot-team",
-    "status": "preflight_blocked",
+    "status": "verified_success",
     "preflight_score": 100.0,
-    "notes": "Current harness is too permissive and incorrectly treats non-NameError exceptions as pass; needs tightening before clean rerun."
+    "verified_score": 100.0,
+    "notes": "After tightening the harness from import-only checks to AST + runtime namespace checks, the instance reproduced cleanly and reached 100 verified in a one-pass solve."
   }
 }

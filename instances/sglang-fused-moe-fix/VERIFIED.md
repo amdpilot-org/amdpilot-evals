@@ -1,24 +1,26 @@
 # Verification Record
 
-- Status: `preflight_blocked`
+- Status: `verified_success`
 - Date: `2026-04-03`
 - Verified by: `amdpilot-team`
 - System version: `v0.4.0`
-- Preflight score: `100.0`
+- Preflight score: `60.0`
+- Verified score: `100.0`
+- Trials: `1`
 
 ## Result
 
-The instance did not enter an agent trial because the untouched baseline already
-returned `100/100`.
+`sglang-fused-moe-fix` reached `100 verified` in a one-pass agent run after the
+harness was tightened to test the real runtime `NameError` path.
 
 ## Interpretation
 
-This is currently a harness-validity problem, not a solved rerun:
-
-- the harness catches non-target exceptions too broadly
-- import-time dependency issues can be misclassified as pass
-- the instance needs a tighter runtime check around the actual `NameError` path
+- the original import-only harness was too weak and falsely returned `100`
+- the corrected AST + runtime namespace checks gave a clean pass/fail boundary
+- once the harness matched the real bug, the issue became a fast, clean SGLang
+  bugfix success case
 
 ## Next Action
 
-Tighten `test_harness.py` first, then rerun preflight.
+Keep this corrected harness as the canonical version and use it as the reference
+pattern for future runtime-NameError bugfix instances.
