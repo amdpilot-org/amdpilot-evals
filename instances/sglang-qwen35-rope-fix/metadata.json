@@ -11,5 +11,24 @@
   "description": "Qwen3.5 fails to start on ROCm with two separate errors",
   "task_description_source": "Symptom only (error messages), no fix hints",
   "test_harness_type": "runtime (import + config construction + module loading)",
-  "requires_gpu": false
+  "requires_gpu": true,
+  "bug_source": "sglang",
+  "bug_type": "persistent",
+  "commit_window": {
+    "introducing_pr": null,
+    "fix_pr": 18753,
+    "pin_commit": "91230dcca890252018e04f838db7f19995a62aa1"
+  },
+  "aiter_dependency": false,
+  "model_required": false,
+  "gpu_required": 1,
+  "harness_type": "unit_test",
+  "runtime_family": "sgl-dev",
+  "verified": {
+    "date": "2026-04-03",
+    "by": "amdpilot-team",
+    "status": "preflight_passed",
+    "preflight_score": 75.0,
+    "notes": "Passed v0.4.0 preflight and entered agent trial; issue reproduces on the Feb 26 sgl-dev base image."
+  }
 }

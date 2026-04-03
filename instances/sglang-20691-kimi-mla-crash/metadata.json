@@ -1,0 +1,51 @@
+{
+  "name": "sglang-20691-kimi-mla-crash",
+  "category": "bugfix",
+  "difficulty": "medium",
+  "source": {
+    "repo": "sgl-project/sglang",
+    "issue": 20691,
+    "pr": null,
+    "merge_commit": null
+  },
+  "description": "Kimi K2 crashes on ROCm with fused decode MLA — HybridAttnBackend missing forward_metadata",
+  "expected_files_changed": 1,
+  "affected_files": [
+    "python/sglang/srt/models/deepseek_common/attention_forward_methods/forward_mla_fused_rope_rocm.py"
+  ],
+  "requires_gpu": true,
+  "requires_model_download": true,
+  "model": "fxmarty/moonshotai_Kimi-K2-Instruct-0905-2-layers",
+  "gpu_count": 8,
+  "tags": ["rocm", "bugfix", "sglang", "mla", "kimi-k2"],
+  "previous_runs": [
+    {
+      "experiment_id": "issue-sglang-20691",
+      "system_version": "pre-0.4.0",
+      "best_score": 60,
+      "trials": 3,
+      "issues": ["unsafe kill pattern", "PYTHONPATH blanking", "unpinned commit"]
+    }
+  ],
+  "reformulated": true,
+  "reformulation_notes": "Fixed unsafe kill pattern (lesson #4), removed PYTHONPATH blanking, pinned to sgl-dev built-in commit, standardized task_description",
+  "bug_source": "sglang",
+  "bug_type": "regression",
+  "commit_window": {
+    "introducing_pr": 19122,
+    "fix_pr": [20409, 21315],
+    "pin_commit": "1eea744855eff823637053d74bf51f5d1a758e07"
+  },
+  "aiter_dependency": true,
+  "model_required": true,
+  "gpu_required": 8,
+  "harness_type": "server_test",
+  "runtime_family": "sgl-dev",
+  "verified": {
+    "date": "2026-04-03",
+    "by": "amdpilot-team",
+    "status": "preflight_blocked",
+    "preflight_score": 100.0,
+    "notes": "Current 2-layer Kimi test model plus base-image aiter path does not exercise the real fused MLA rope crash path; formulation remains blocked."
+  }
+}

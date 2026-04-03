@@ -1,7 +1,7 @@
-name: sglang-fused-moe-fix
+name: sglang-21614-gibberish-concurrency
 type: bugfix
 repo: https://github.com/sgl-project/sglang.git
-base_image: amdpilot-eval-sglang-fused-moe-fix
+base_image: amdpilot-eval-sglang-21614-gibberish-concurrency
 
 model_endpoint:
   model: "Qwen/Qwen3.5-397B-A17B"
@@ -9,9 +9,9 @@ model_endpoint:
   api_key: "sk-dummy"
 
 container:
-  name: amdpilot_eval_moe
-  gpu: "0"
-  shm_size: 16g
+  name: amdpilot_eval_sglang_21614_gibberish_concurrency
+  gpu: "0,1,2,3"
+  shm_size: 64g
   devices: [/dev/kfd, /dev/dri]
   env:
     TOKENIZERS_PARALLELISM: "false"
@@ -20,7 +20,7 @@ container:
     - "/mnt/dcgpuval/huggingface:/root/.cache/huggingface"
 
 workload:
-  description: "MoE models crash on ROCm with NameError in fused_moe.py"
+  description: "Fix gibberish output at high batch concurrency >= 32 on MI355X"
   framework: PyTorch
 
 benchmark:
@@ -28,7 +28,7 @@ benchmark:
   metric_name: score
   metric_pattern: 'SCORE:\s+([\d.]+)'
   metric_direction: higher
-  preflight_timeout: 120
+  preflight_timeout: 1200
 
 task:
   description_file: /workspace/task_description.md
@@ -45,5 +45,5 @@ kimi_cli:
   yolo: true
   ralph_iterations: -1
 
-max_retries_per_stage: 3
-max_total_hours: 1
+max_retries_per_stage: 5
+max_total_hours: 4

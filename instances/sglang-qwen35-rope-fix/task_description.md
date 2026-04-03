@@ -18,6 +18,14 @@ Both errors prevent Qwen3.5 from running on AMD GPUs.
 - SGLang at `/workspace/sglang`
 - Use `/opt/venv/bin/python3`
 
+## Rules
+
+- Edit files only under `/workspace/sglang`
+- Use `/opt/venv/bin/python3` for all commands
+- Do not modify `/workspace/test_harness.py`
+- If you start auxiliary processes, never use broad kill patterns such as
+  `pkill -f python` or `pkill -f sglang`
+
 ## Verification
 
 ```bash

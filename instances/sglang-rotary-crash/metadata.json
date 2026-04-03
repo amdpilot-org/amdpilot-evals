@@ -12,5 +12,24 @@
   "description": "RotaryEmbedding crashes on ROCm with CUDA_HOME error",
   "task_description_source": "GitHub issue #18812 (symptom only, no fix)",
   "test_harness_type": "runtime",
-  "requires_gpu": true
+  "requires_gpu": true,
+  "bug_source": "sglang",
+  "bug_type": "persistent",
+  "commit_window": {
+    "introducing_pr": null,
+    "fix_pr": 18903,
+    "pin_commit": "90a0d66e1e46f67ceba1c1c5061180e6af1cc748"
+  },
+  "aiter_dependency": false,
+  "model_required": false,
+  "gpu_required": 1,
+  "harness_type": "unit_test",
+  "runtime_family": "sgl-dev",
+  "verified": {
+    "date": "2026-04-03",
+    "by": "amdpilot-team",
+    "status": "preflight_passed",
+    "preflight_score": 66.7,
+    "notes": "Passed v0.4.0 preflight and entered agent trial; issue reproduces on the Feb 26 sgl-dev base image."
+  }
 }
