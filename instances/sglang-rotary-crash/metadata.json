@@ -28,8 +28,9 @@
   "verified": {
     "date": "2026-04-03",
     "by": "amdpilot-team",
-    "status": "preflight_passed",
+    "status": "verified_success",
     "preflight_score": 66.7,
-    "notes": "Passed v0.4.0 preflight and entered agent trial; issue reproduces on the Feb 26 sgl-dev base image."
+    "verified_score": 100.0,
+    "notes": "Passed v0.4.0 preflight, entered an agent trial, and reached 100 verified in a one-pass solve."
   }
 }
