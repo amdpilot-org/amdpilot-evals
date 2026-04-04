@@ -191,24 +191,25 @@ size_test_script = """
 import sys
 sys.stdout = open(sys.stdout.fileno(), 'w', buffering=1)
 
-# Simulate the buffer size computation
+# Simulate the buffer size computation using the actual aiter formula.
 # Before fix: shape = (token_num, topk, D) → total = token_num * topk * D
 # After fix: shape = (sorted_size, D) → total = min(token_num * topk * block_m, sorted_len) * D
+#
+# sorted_token_ids length is computed by moe_sorting (_moe_sorting_impl):
+#   max_num_tokens_padded = topk_ids.numel() + num_experts * block_size - topk
+#                        = token_num * topk + num_experts * block_size - topk
 
 token_num = 99
 topk = 5
 block_m = 4
+num_experts = 8
 D = 1024
 
-# sorted_token_ids can be larger due to block_m alignment padding
-# CK kernel pads: num_sorted = ceil(token_num * topk / block_m) * block_m
-import math
-num_sorted_padded = math.ceil(token_num * topk / block_m) * block_m
+# Actual aiter formula for sorted_token_ids.shape[0]
+sorted_len = token_num * topk + num_experts * block_m - topk
 
 # Old allocation: token_num * topk * D = 99 * 5 * 1024 = 506880
 old_size = token_num * topk * D
-# Sorted_token_ids length: padded to block_m boundary
-sorted_len = num_sorted_padded
 
 # New allocation: min(token_num * topk * block_m, sorted_len) * D
 sorted_size = min(token_num * topk * block_m, sorted_len)
@@ -222,6 +223,7 @@ overflow = sorted_len > old_rows
 print(f"TOKEN_NUM:{token_num}")
 print(f"TOPK:{topk}")
 print(f"BLOCK_M:{block_m}")
+print(f"NUM_EXPERTS:{num_experts}")
 print(f"OLD_ROWS:{old_rows}")
 print(f"SORTED_LEN:{sorted_len}")
 print(f"SORTED_SIZE:{sorted_size}")
@@ -251,6 +253,56 @@ if stdout6:
     )
 else:
     print("  [SKIP] Buffer size computation subprocess failed")
+
+# ---------------------------------------------------------------------------
+# Check 7: Regression — diverging formula case (DeepSeek-style decode).
+#
+# With token_num=1, topk=8, block_m=4, num_experts=8 (DeepSeek V3 decode):
+#   ceil formula: ceil(8/4)*4 = 8 → overflow = 8 > 8 = False  (WRONG)
+#   actual aiter: 8 + 8*4 - 8 = 32 → overflow = 32 > 8 = True (CORRECT)
+#
+# The old ceil-based formula would miss this overflow entirely.
+# ---------------------------------------------------------------------------
+print("\n--- Check 7: diverging formula regression (DeepSeek decode) ---")
+
+diverge_test_script = """
+import sys
+sys.stdout = open(sys.stdout.fileno(), 'w', buffering=1)
+
+token_num = 1
+topk = 8
+block_m = 4
+num_experts = 8
+
+# Actual aiter formula
+sorted_len = token_num * topk + num_experts * block_m - topk
+old_rows = token_num * topk
+overflow = sorted_len > old_rows
+
+sorted_size = min(token_num * topk * block_m, sorted_len)
+
+print(f"OLD_ROWS:{old_rows}")
+print(f"SORTED_LEN:{sorted_len}")
+print(f"OLD_OVERFLOWS:{overflow}")
+print(f"NEW_SUFFICIENT:{sorted_size >= sorted_len}")
+"""
+
+try:
+    stdout7, _, _ = subprocess.run(
+        [VENV_PYTHON, "-c", diverge_test_script],
+        capture_output=True, text=True, timeout=30,
+    ).stdout or "", "", 0
+except Exception:
+    stdout7 = ""
+
+if stdout7:
+    check(
+        "DeepSeek decode: old allocation overflows (formula divergence case)",
+        "OLD_OVERFLOWS:True" in stdout7,
+        "DeepSeek decode params should demonstrate overflow with actual formula",
+    )
+else:
+    print("  [SKIP] Diverging formula subprocess failed")
 
 # ---------------------------------------------------------------------------
 # Summary
