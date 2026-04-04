@@ -1,0 +1,15 @@
+{
+  "name": "vllm-rocm-spec-decode-dispatch",
+  "category": "bugfix",
+  "difficulty": "medium",
+  "source": {
+    "repo": "vllm-project/vllm",
+    "pr": 32877,
+    "merge_commit": "8de7c636cc02a8306441af868b9c1d0e6d64799f",
+    "parent_commit": "059779231f158b8b570e71aaa5c66f49b41b2fb1"
+  },
+  "description": "AITER FA decode hardcodes max_seqlen_q=1, breaking speculative decoding with multi-token queries",
+  "task_description_source": "Symptom only (incorrect output during speculative decoding), fix not revealed",
+  "test_harness_type": "behavioral (source inspection + AST analysis)",
+  "requires_gpu": true
+}

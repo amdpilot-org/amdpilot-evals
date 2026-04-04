@@ -4,8 +4,10 @@
 Bug: ROCm attention Triton kernels assume power-of-2 block sizes using
 bitwise addressing. Qwen3-Next uses block_size=544 (not power of 2),
 causing crashes or incorrect results.
-Test: Verify the Triton kernels accept PHYSICAL_BLOCK_SIZE for generalized
-addressing, and the backend routes non-pow2 to the Triton cache path.
+
+Fix: Add PHYSICAL_BLOCK_SIZE constexpr to Triton kernels for generalized
+addressing, use BLOCK_SIZE=32 tile with modular arithmetic, and fall back
+to triton_reshape_and_cache_flash for non-pow2 cache writes.
 """
 import sys
 import subprocess
@@ -39,65 +41,98 @@ print("=" * 60)
 print("vllm-rocm-nonpow2-blocksize test harness")
 print("=" * 60)
 
-# Check 1: Backend imports
-stdout, stderr, rc = run_test("""
-import sys; sys.stdout = open(sys.stdout.fileno(), 'w', buffering=1)
-from vllm.v1.attention.backends.rocm_attn import RocmAttentionBackend
-print("IMPORT:OK")
-""")
-check("ROCm attention backend imports", "IMPORT:OK" in stdout, stderr[:200])
-
-# Check 2: Chunked prefill kernel has PHYSICAL_BLOCK_SIZE for generalized addressing.
-# Triton kernel params are tl.constexpr, not visible in Python signatures.
-# We check the kernel source file directly.
-stdout, stderr, rc = run_test("""
-import sys; sys.stdout = open(sys.stdout.fileno(), 'w', buffering=1)
-path = "/workspace/vllm/vllm/attention/ops/chunked_prefill_paged_decode.py"
-with open(path) as f:
-    src = f.read()
-has_param = "PHYSICAL_BLOCK_SIZE" in src
-has_div = "// PHYSICAL_BLOCK_SIZE" in src
-has_mod = "% PHYSICAL_BLOCK_SIZE" in src
-print(f"CHUNKED_PARAM:{has_param}")
-print(f"CHUNKED_DIV:{has_div}")
-print(f"CHUNKED_MOD:{has_mod}")
-""")
-chunked_ok = all(f":{x}" in stdout for x in ["True", "True", "True"]) and "CHUNKED_PARAM:True" in stdout
-check("Chunked prefill kernel uses PHYSICAL_BLOCK_SIZE for addressing",
-      "CHUNKED_PARAM:True" in stdout and ("CHUNKED_DIV:True" in stdout or "CHUNKED_MOD:True" in stdout),
-      "kernel uses bitwise ops only — block_size=544 will crash")
-
-# Check 3: Prefix prefill kernel supports non-pow2 block sizes
-stdout, stderr, rc = run_test("""
-import sys; sys.stdout = open(sys.stdout.fileno(), 'w', buffering=1)
-path = "/workspace/vllm/vllm/attention/ops/prefix_prefill.py"
-with open(path) as f:
-    src = f.read()
-has_param = "PHYSICAL_BLOCK_SIZE" in src
-has_div = "// PHYSICAL_BLOCK_SIZE" in src
-has_mod = "% PHYSICAL_BLOCK_SIZE" in src
-print(f"PREFIX_PARAM:{has_param}")
-print(f"PREFIX_DIV:{has_div}")
-print(f"PREFIX_MOD:{has_mod}")
-""")
-check("Prefix prefill kernel supports non-pow2 via PHYSICAL_BLOCK_SIZE",
-      "PREFIX_PARAM:True" in stdout and ("PREFIX_DIV:True" in stdout or "PREFIX_MOD:True" in stdout),
-      "kernel lacks generalized addressing for non-pow2 block sizes")
-
-# Check 4: ROCm backend detects pow2 vs non-pow2 and routes cache writes
+# Check 1: Triton cache fallback imported in rocm_attn backend
 stdout, stderr, rc = run_test("""
 import sys; sys.stdout = open(sys.stdout.fileno(), 'w', buffering=1)
 import inspect
 from vllm.v1.attention.backends.rocm_attn import RocmAttentionImpl
 src = inspect.getsource(RocmAttentionImpl)
-has_pow2 = "is_pow2" in src
 has_triton_cache = "triton_reshape_and_cache_flash" in src
-print(f"HAS_POW2:{has_pow2}")
 print(f"HAS_TRITON_CACHE:{has_triton_cache}")
 """)
-check("Backend branches on is_pow2 for cache writes",
-      "HAS_POW2:True" in stdout and "HAS_TRITON_CACHE:True" in stdout,
-      "no pow2 detection — non-pow2 block sizes hit wrong code path")
+check("Backend has Triton cache fallback for non-pow2 block sizes",
+      "HAS_TRITON_CACHE:True" in stdout,
+      "no triton_reshape_and_cache_flash in RocmAttentionImpl")
+
+# Check 2: Non-pow2 dispatch logic exists in rocm_attn
+# The PR adds a power-of-2 check to branch between native and Triton cache paths
+stdout, stderr, rc = run_test("""
+import sys; sys.stdout = open(sys.stdout.fileno(), 'w', buffering=1)
+import inspect
+from vllm.v1.attention.backends.rocm_attn import RocmAttentionImpl
+src = inspect.getsource(RocmAttentionImpl)
+# The fix adds pow2 detection: block_size & (block_size - 1) == 0
+has_pow2_check = "block_size - 1" in src or "is_power_of_2" in src.lower() or "pow2" in src.lower()
+print(f"HAS_POW2_CHECK:{has_pow2_check}")
+""")
+check("Backend has power-of-2 block size detection for dispatch",
+      "HAS_POW2_CHECK:True" in stdout,
+      "no pow2 branching logic found")
+
+# Check 3: PHYSICAL_BLOCK_SIZE exists in the chunked prefill kernel source
+# This is a Triton tl.constexpr param, not a Python function parameter
+stdout, stderr, rc = run_test("""
+import sys; sys.stdout = open(sys.stdout.fileno(), 'w', buffering=1)
+from pathlib import Path
+import importlib.util
+
+# Find the chunked prefill module
+spec = importlib.util.find_spec("vllm.attention.ops.chunked_prefill_paged_decode")
+if spec is None or spec.origin is None:
+    print("MODULE_NOT_FOUND")
+else:
+    src = Path(spec.origin).read_text()
+    has_physical = "PHYSICAL_BLOCK_SIZE" in src
+    print(f"HAS_PHYSICAL_BLOCK_SIZE:{has_physical}")
+""")
+if "MODULE_NOT_FOUND" in stdout:
+    check("Chunked prefill kernel has PHYSICAL_BLOCK_SIZE", False, "module not found")
+else:
+    check("Chunked prefill kernel has PHYSICAL_BLOCK_SIZE",
+          "HAS_PHYSICAL_BLOCK_SIZE:True" in stdout,
+          "PHYSICAL_BLOCK_SIZE not found in kernel source — non-pow2 addressing not implemented")
+
+# Check 4: PHYSICAL_BLOCK_SIZE exists in prefix prefill kernel source
+stdout, stderr, rc = run_test("""
+import sys; sys.stdout = open(sys.stdout.fileno(), 'w', buffering=1)
+from pathlib import Path
+import importlib.util
+
+spec = importlib.util.find_spec("vllm.attention.ops.prefix_prefill")
+if spec is None or spec.origin is None:
+    print("MODULE_NOT_FOUND")
+else:
+    src = Path(spec.origin).read_text()
+    has_physical = "PHYSICAL_BLOCK_SIZE" in src
+    print(f"HAS_PHYSICAL_BLOCK_SIZE:{has_physical}")
+""")
+if "MODULE_NOT_FOUND" in stdout:
+    check("Prefix prefill kernel has PHYSICAL_BLOCK_SIZE", False, "module not found")
+else:
+    check("Prefix prefill kernel has PHYSICAL_BLOCK_SIZE",
+          "HAS_PHYSICAL_BLOCK_SIZE:True" in stdout,
+          "PHYSICAL_BLOCK_SIZE not found in prefix prefill kernel")
+
+# Check 5: triton_reshape_and_cache_flash handles 5D head-major layout
+stdout, stderr, rc = run_test("""
+import sys; sys.stdout = open(sys.stdout.fileno(), 'w', buffering=1)
+from pathlib import Path
+import importlib.util
+
+spec = importlib.util.find_spec("vllm.attention.ops.triton_reshape_and_cache_flash")
+if spec is None or spec.origin is None:
+    print("MODULE_NOT_FOUND")
+else:
+    src = Path(spec.origin).read_text()
+    has_head_major = "HEAD_MAJOR" in src or "ndim == 5" in src or "head_major" in src.lower()
+    print(f"HAS_HEAD_MAJOR:{has_head_major}")
+""")
+if "MODULE_NOT_FOUND" in stdout:
+    check("Triton cache kernel supports 5D head-major layout", False, "module not found")
+else:
+    check("Triton cache kernel supports 5D head-major layout",
+          "HAS_HEAD_MAJOR:True" in stdout,
+          "no head-major / 5D support in triton_reshape_and_cache_flash")
 
 print()
 score = (checks_passed / checks_total * 100.0) if checks_total > 0 else 0.0

@@ -1,8 +1,11 @@
-FROM rocm/sgl-dev:v0.5.9-rocm720-mi35x-20260226
+FROM rocm/vllm-dev:rocm7.2.1_v0.18.0_20260330
 WORKDIR /workspace
-RUN git clone https://github.com/vllm-project/vllm.git /workspace/vllm && \
-    cd /workspace/vllm && git checkout 2ce6f3cf67934ebe199188c9a1f83ff1c2d8ba96
-RUN pip install cbor2 lm-format-enforcer 2>/dev/null || true
+RUN mkdir -p /opt/venv/bin && ln -sf /usr/bin/python3 /opt/venv/bin/python3
+RUN git clone --depth 100 https://github.com/vllm-project/vllm.git /workspace/vllm && \
+    cd /workspace/vllm && \
+    git fetch --depth 100 origin 9fa6c68fa627c7ab041c48ac9987fb093719597f && \
+    git checkout -f 9fa6c68fa627c7ab041c48ac9987fb093719597f~1 && \
+    pip install --no-build-isolation --no-deps -e .
 COPY test_harness.py /workspace/test_harness.py
 COPY task_description.md /workspace/task_description.md
 CMD ["sleep", "infinity"]

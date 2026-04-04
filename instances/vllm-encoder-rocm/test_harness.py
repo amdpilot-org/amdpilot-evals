@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
-"""Test harness for vllm-encoder-rocm.
+"""Test harness for vllm-encoder-rocm (PR #35334). Behavioral tests only.
 
-Bug: RocmAttentionImpl raises NotImplementedError for ENCODER attention.
-Test: Try to call the init with ENCODER type -- unfixed code rejects it.
+Bug: ROCm attention backends raise NotImplementedError for encoder self-attention,
+blocking encoder-decoder models (Whisper, BART) on AMD GPUs.
+Test: Verify backends correctly support encoder attention types by calling
+supports_attn_type() and attempting instantiation with ENCODER type.
 """
 import sys
-sys.path.insert(0, "/workspace/vllm")
+import subprocess
 
 checks_passed = 0
 checks_total = 0
+
 
 def check(name, condition, detail=""):
     global checks_passed, checks_total
@@ -21,110 +24,126 @@ def check(name, condition, detail=""):
         msg += f": {detail}"
     print(msg)
 
+
+def run_test(script, timeout=60):
+    result = subprocess.run(
+        ["/opt/venv/bin/python3", "-c", script],
+        capture_output=True, text=True, timeout=timeout,
+        cwd="/workspace",
+    )
+    return result.stdout or "", result.stderr or "", result.returncode
+
+
 print("=" * 60)
 print("vllm-encoder-rocm test harness")
 print("=" * 60)
 
-import importlib.util
+# Test 1: RocmAttentionBackend.supports_attn_type returns True for ENCODER types
+stdout, stderr, rc = run_test("""
+import sys; sys.stdout = open(sys.stdout.fileno(), 'w', buffering=1)
+from vllm.v1.attention.backend import AttentionType
+from vllm.v1.attention.backends.rocm_attn import RocmAttentionBackend
 
-# Load modules
-attn_type_mod = None
-rocm_mod = None
-aiter_mod = None
-
-try:
-    spec = importlib.util.spec_from_file_location(
-        "backend", "/workspace/vllm/vllm/v1/attention/backend.py")
-    attn_type_mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(attn_type_mod)
-    AttentionType = attn_type_mod.AttentionType
-    check("Import AttentionType", True)
-except Exception as e:
-    check("Import AttentionType", False, str(e)[:150])
-
-try:
-    spec2 = importlib.util.spec_from_file_location(
-        "rocm_attn", "/workspace/vllm/vllm/v1/attention/backends/rocm_attn.py")
-    rocm_mod = importlib.util.module_from_spec(spec2)
-    spec2.loader.exec_module(rocm_mod)
-    check("Import rocm_attn", True)
-except Exception as e:
-    check("Import rocm_attn", False, str(e)[:150])
-
-try:
-    spec3 = importlib.util.spec_from_file_location(
-        "rocm_aiter",
-        "/workspace/vllm/vllm/v1/attention/backends/rocm_aiter_unified_attn.py")
-    aiter_mod = importlib.util.module_from_spec(spec3)
-    spec3.loader.exec_module(aiter_mod)
-    check("Import rocm_aiter_unified_attn", True)
-except Exception as e:
-    check("Import rocm_aiter_unified_attn", False, str(e)[:150])
-
-# Check: RocmAttentionImpl.__init__ accepts ENCODER type
-# The unfixed code raises NotImplementedError in __init__ for non-DECODER types.
-if rocm_mod and attn_type_mod:
+for attn_type in ['DECODER', 'ENCODER', 'ENCODER_ONLY']:
+    atype = getattr(AttentionType, attn_type)
     try:
-        # The __init__ checks attn_type and raises NotImplementedError
-        # We can test this by reading the source of __init__ to see if ENCODER
-        # is in the allowed list. This is more robust than just checking forward().
-        import inspect
-        init_src = inspect.getsource(rocm_mod.RocmAttentionImpl.__init__)
-        # In the unfixed code: if attn_type not in [DECODER, ENCODER_DECODER]: raise
-        # In the fixed code: ENCODER should be in the allowed list
-        if "NotImplementedError" in init_src:
-            # Find the list of allowed types before NotImplementedError
-            # The pattern is: if attn_type not in [...]: raise NotImplementedError
-            lines = init_src.split("\n")
-            for i, line in enumerate(lines):
-                if "NotImplementedError" in line:
-                    # Look at the preceding lines for the allowed list
-                    context = "\n".join(lines[max(0, i-5):i+1])
-                    encoder_allowed = "ENCODER" in context and "ENCODER_DECODER" != context.strip()
-                    # More precisely: check if AttentionType.ENCODER is in the not-in list
-                    # or if the check has been removed/modified to accept ENCODER
-                    check("RocmAttentionImpl accepts ENCODER type",
-                          "ENCODER" in context and context.count("ENCODER") >= 2,
-                          "ENCODER not in allowed attention types")
-                    break
-            else:
-                # No NotImplementedError found at all -- the check was removed entirely
-                check("RocmAttentionImpl accepts ENCODER type", True)
-        else:
-            check("RocmAttentionImpl accepts ENCODER type", True)
+        result = RocmAttentionBackend.supports_attn_type(atype)
+        print(f"ROCM_{attn_type}:{result}")
+    except AttributeError:
+        print(f"ROCM_{attn_type}:NO_METHOD")
     except Exception as e:
-        check("RocmAttentionImpl accepts ENCODER type", False, str(e)[:150])
+        print(f"ROCM_{attn_type}:ERROR:{type(e).__name__}")
+""")
 
-# Same check for AITER unified backend
-if aiter_mod and attn_type_mod:
+if rc != 0 and "ROCM_" not in stdout:
+    check("Import RocmAttentionBackend", False, stderr[:200])
+    check("RocmAttentionBackend supports ENCODER", False, "import failed")
+    check("RocmAttentionBackend supports ENCODER_ONLY", False, "import failed")
+    check("RocmAttentionBackend supports DECODER", False, "import failed")
+else:
+    check("Import RocmAttentionBackend", True)
+    check("RocmAttentionBackend supports ENCODER",
+          "ROCM_ENCODER:True" in stdout,
+          "ENCODER not supported or method missing")
+    check("RocmAttentionBackend supports ENCODER_ONLY",
+          "ROCM_ENCODER_ONLY:True" in stdout,
+          "ENCODER_ONLY not supported or method missing")
+    check("RocmAttentionBackend supports DECODER",
+          "ROCM_DECODER:True" in stdout,
+          "DECODER support broken")
+
+# Test 2: RocmAiterUnifiedAttentionBackend.supports_attn_type returns True for ENCODER
+stdout2, stderr2, rc2 = run_test("""
+import sys; sys.stdout = open(sys.stdout.fileno(), 'w', buffering=1)
+from vllm.v1.attention.backend import AttentionType
+from vllm.v1.attention.backends.rocm_aiter_unified_attn import RocmAiterUnifiedAttentionBackend
+
+for attn_type in ['DECODER', 'ENCODER', 'ENCODER_ONLY']:
+    atype = getattr(AttentionType, attn_type)
     try:
-        # Find the impl class
-        impl_cls = None
-        for name in dir(aiter_mod):
-            obj = getattr(aiter_mod, name)
-            if isinstance(obj, type) and "Impl" in name and "Attn" in name:
-                impl_cls = obj
-                break
-
-        if impl_cls:
-            init_src = inspect.getsource(impl_cls.__init__)
-            if "NotImplementedError" in init_src:
-                lines = init_src.split("\n")
-                for i, line in enumerate(lines):
-                    if "NotImplementedError" in line:
-                        context = "\n".join(lines[max(0, i-5):i+1])
-                        check(f"{impl_cls.__name__} accepts ENCODER type",
-                              "ENCODER" in context and context.count("ENCODER") >= 2,
-                              "ENCODER not in allowed attention types")
-                        break
-                else:
-                    check(f"{impl_cls.__name__} accepts ENCODER type", True)
-            else:
-                check(f"{impl_cls.__name__} accepts ENCODER type", True)
-        else:
-            check("AITER unified impl accepts ENCODER", False, "No Impl class found")
+        result = RocmAiterUnifiedAttentionBackend.supports_attn_type(atype)
+        print(f"AITER_{attn_type}:{result}")
+    except AttributeError:
+        print(f"AITER_{attn_type}:NO_METHOD")
     except Exception as e:
-        check("AITER unified impl accepts ENCODER", False, str(e)[:150])
+        print(f"AITER_{attn_type}:ERROR:{type(e).__name__}")
+""")
+
+if rc2 != 0 and "AITER_" not in stdout2:
+    check("Import RocmAiterUnifiedAttentionBackend", False, stderr2[:200])
+    check("AiterUnified supports ENCODER", False, "import failed")
+    check("AiterUnified supports ENCODER_ONLY", False, "import failed")
+else:
+    check("Import RocmAiterUnifiedAttentionBackend", True)
+    check("AiterUnified supports ENCODER",
+          "AITER_ENCODER:True" in stdout2,
+          "ENCODER not supported or method missing")
+    check("AiterUnified supports ENCODER_ONLY",
+          "AITER_ENCODER_ONLY:True" in stdout2,
+          "ENCODER_ONLY not supported or method missing")
+
+# Test 3: RocmAttentionImpl has _forward_encoder_attention method
+stdout3, stderr3, rc3 = run_test("""
+import sys; sys.stdout = open(sys.stdout.fileno(), 'w', buffering=1)
+from vllm.v1.attention.backends.rocm_attn import RocmAttentionImpl
+has_method = hasattr(RocmAttentionImpl, '_forward_encoder_attention')
+is_callable = callable(getattr(RocmAttentionImpl, '_forward_encoder_attention', None))
+print(f"HAS_FWD_ENCODER:{has_method}")
+print(f"IS_CALLABLE:{is_callable}")
+""")
+
+check("RocmAttentionImpl has _forward_encoder_attention",
+      "HAS_FWD_ENCODER:True" in stdout3 and "IS_CALLABLE:True" in stdout3,
+      "encoder attention forward method missing or not callable")
+
+# Test 4: Instantiating RocmAttentionImpl with ENCODER type does NOT raise
+# NotImplementedError (the specific bug). Other errors (missing GPU, etc.) are OK.
+stdout4, stderr4, rc4 = run_test("""
+import sys, math
+sys.stdout = open(sys.stdout.fileno(), 'w', buffering=1)
+from vllm.v1.attention.backend import AttentionType
+from vllm.v1.attention.backends.rocm_attn import RocmAttentionImpl
+try:
+    impl = RocmAttentionImpl(
+        num_heads=32, head_size=128, scale=1.0/math.sqrt(128),
+        num_kv_heads=8, alibi_slopes=None, sliding_window=(-1, -1),
+        kv_cache_dtype="auto", blocksparse_params=None,
+        logits_soft_cap=None, attn_type=AttentionType.ENCODER,
+        kv_sharing_target_layer_name=None, sinks=None,
+    )
+    print("INIT_ENCODER:OK")
+except NotImplementedError as e:
+    print(f"INIT_ENCODER:NOT_IMPLEMENTED:{e}")
+except Exception as e:
+    # Other errors are acceptable — we only care that NotImplementedError is NOT raised
+    print(f"INIT_ENCODER:OTHER_ERROR:{type(e).__name__}")
+""")
+
+if "INIT_ENCODER:NOT_IMPLEMENTED" in stdout4:
+    check("RocmAttentionImpl accepts ENCODER type (no NotImplementedError)",
+          False, "still raises NotImplementedError for ENCODER attention")
+else:
+    check("RocmAttentionImpl accepts ENCODER type (no NotImplementedError)", True)
 
 print()
 score = (checks_passed / checks_total * 100.0) if checks_total > 0 else 0.0

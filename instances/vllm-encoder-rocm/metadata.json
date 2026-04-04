@@ -5,10 +5,10 @@
   "source": {
     "repo": "vllm-project/vllm",
     "pr": 35334,
-    "parent_commit": "2ce6f3cf67934ebe199188c9a1f83ff1c2d8ba96"
+    "merge_commit": "9fa6c68fa627c7ab041c48ac9987fb093719597f"
   },
   "description": "ROCm attention backends raise NotImplementedError for encoder self-attention",
   "task_description_source": "GitHub PR #35334 (symptom only, no fix)",
-  "test_harness_type": "runtime",
+  "test_harness_type": "behavioral (supports_attn_type calls, instantiation checks)",
   "requires_gpu": true
 }

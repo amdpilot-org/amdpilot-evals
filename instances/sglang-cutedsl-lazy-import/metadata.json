@@ -1,0 +1,14 @@
+{
+  "name": "sglang-cutedsl-lazy-import",
+  "category": "bugfix",
+  "difficulty": "medium",
+  "source": {
+    "repo": "sgl-project/sglang",
+    "pr": 21428,
+    "merge_commit": "7c7b2a8c97816b84c6c90ebe28e7e1a9ea334888"
+  },
+  "description": "kda_backend crashes on ROCm due to top-level CuteDSL import requiring cuda.bindings",
+  "task_description_source": "Error trace (symptom only, no fix)",
+  "test_harness_type": "runtime",
+  "requires_gpu": false
+}

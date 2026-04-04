@@ -39,63 +39,48 @@ print("=" * 60)
 print("vllm-rocm-attn-blocksize-qwen35 test harness")
 print("=" * 60)
 
-# Check 1: Backend imports
+# Behavioral test 1: Call supports_block_size with Qwen3.5 block sizes.
+# Before fix: returns [16, 32, 544] → block_size 1056 is NOT supported.
+# After fix: returns [MultipleOf(16)] → any multiple of 16 is supported.
 stdout, stderr, rc = run_test("""
 import sys; sys.stdout = open(sys.stdout.fileno(), 'w', buffering=1)
-from vllm.v1.attention.backends.rocm_attn import RocmAttentionBackend, RocmAttentionImpl
-print("IMPORT:OK")
+from vllm.v1.attention.backends.rocm_attn import RocmAttentionBackend
+
+# Test Qwen3.5 block sizes (784 and 1056 are multiples of 16 but not pow2)
+for bs in [16, 32, 544, 784, 1056]:
+    result = RocmAttentionBackend.supports_block_size(bs)
+    print(f"SUPPORTS_{bs}:{result}")
+
+# Also check what get_supported_kernel_block_sizes returns
+sizes = RocmAttentionBackend.get_supported_kernel_block_sizes()
+print(f"SIZES_TYPE:{type(sizes[0]).__name__}")
+print(f"NUM_SIZES:{len(sizes)}")
 """)
-check("Import RocmAttentionBackend", "IMPORT:OK" in stdout, stderr[:200])
 
-# Check 2: The forward method handles block sizes that are multiples of 16
-# but not powers of 2. Without fix, only power-of-2 goes to native HIP path
-# and everything else crashes or produces garbage.
-# Behavioral check: inspect the RocmAttentionImpl.forward signature and logic
-stdout, stderr, rc = run_test("""
-import sys; sys.stdout = open(sys.stdout.fileno(), 'w', buffering=1)
-import inspect
-from vllm.v1.attention.backends.rocm_attn import RocmAttentionImpl
-
-src = inspect.getsource(RocmAttentionImpl)
-
-# The fix changes the gating logic:
-# OLD: if is_pow2: → HIP path (only pow2 block sizes use native cache)
-# NEW: if block_size in (16, 32): → HIP path (explicit small sizes only)
-# This means block_size=1056 goes to Triton path instead of broken HIP path.
-
-# Check the actual gating logic
-uses_explicit_sizes = "block_size in (16, 32)" in src or "block_size in {16, 32}" in src
-uses_pow2_gate = "if is_pow2:" in src
-
-if uses_explicit_sizes and not uses_pow2_gate:
-    print("GATE:EXPLICIT_SIZES")  # Fixed: explicit 16/32 routing
-elif uses_pow2_gate:
-    print("GATE:POW2_ONLY")  # Broken: pow2-only routing
+if rc != 0 and "SUPPORTS_" not in stdout:
+    check("Import RocmAttentionBackend", False, stderr[:200])
+    check("Supports Qwen3.5 block_size 1056", False, "import failed")
+    check("Supports Qwen3.5 block_size 784", False, "import failed")
 else:
-    print("GATE:UNKNOWN")
-""")
+    check("Import RocmAttentionBackend", True)
+    check("Supports Qwen3.5 block_size 1056",
+          "SUPPORTS_1056:True" in stdout,
+          "block_size 1056 rejected — Qwen3.5 will produce garbage output")
+    check("Supports Qwen3.5 block_size 784",
+          "SUPPORTS_784:True" in stdout,
+          "block_size 784 rejected — Qwen3.5 variant will fail")
 
-gate_ok = "GATE:EXPLICIT_SIZES" in stdout
-check("Cache write path uses explicit size routing (not pow2 gate)",
-      gate_ok,
-      "block_size gating uses is_pow2 — non-pow2 sizes hit wrong code path")
-
-# Check 3: Verify the do_kv_cache_update handles Triton fallback for non-native sizes
+# Supplementary check: do_kv_cache_update routes non-native sizes to Triton
 stdout, stderr, rc = run_test("""
 import sys; sys.stdout = open(sys.stdout.fileno(), 'w', buffering=1)
 import inspect
 from vllm.v1.attention.backends.rocm_attn import RocmAttentionImpl
-
 src = inspect.getsource(RocmAttentionImpl)
-
-# The fix routes non-(16,32) sizes to triton_reshape_and_cache_flash
 has_triton_fallback = "triton_reshape_and_cache_flash" in src
 print(f"HAS_TRITON_CACHE_FALLBACK:{has_triton_fallback}")
 """)
-
-triton_ok = "HAS_TRITON_CACHE_FALLBACK:True" in stdout
 check("Triton cache fallback path exists for non-native block sizes",
-      triton_ok,
+      "HAS_TRITON_CACHE_FALLBACK:True" in stdout,
       "no triton_reshape_and_cache_flash fallback — non-standard sizes will fail")
 
 print()

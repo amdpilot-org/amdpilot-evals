@@ -1,0 +1,19 @@
+{
+  "name": "aiter-lru-cache-pollution",
+  "category": "bugfix",
+  "difficulty": "medium",
+  "source": {
+    "repo": "ROCm/aiter",
+    "pr": 2169,
+    "merge_commit": "7d29fce147681086a26e81711bab1d6cd535a515"
+  },
+  "description": "LRU-cached GEMM config dict mutated in-place by callers, polluting cache and causing KeyError on subsequent calls",
+  "expected_files_changed": 2,
+  "affected_files": [
+    "aiter/ops/triton/utils/gemm_config_utils.py",
+    "aiter/ops/triton/gemm/fused/fused_gemm_afp4wfp4_split_cat.py"
+  ],
+  "requires_gpu": false,
+  "requires_model_download": false,
+  "tags": ["rocm", "bugfix", "cache", "gemm", "config"]
+}

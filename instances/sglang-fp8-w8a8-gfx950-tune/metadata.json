@@ -1,0 +1,14 @@
+{
+  "name": "sglang-fp8-w8a8-gfx950-tune",
+  "category": "bugfix",
+  "difficulty": "medium",
+  "source": {
+    "repo": "sgl-project/sglang",
+    "pr": 20840,
+    "merge_commit": "c0a4408f780bc60be13c78b8217fb6b8899a4b73"
+  },
+  "description": "FP8 GEMM dispatch missing DeepSeek-V3.2 shape (7168, 2304) on gfx950",
+  "task_description_source": "Error description (symptom only, no fix)",
+  "test_harness_type": "runtime",
+  "requires_gpu": true
+}

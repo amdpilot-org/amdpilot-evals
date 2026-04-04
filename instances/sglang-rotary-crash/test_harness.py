@@ -58,6 +58,7 @@ is_hip = hasattr(torch.version, "hip") and torch.version.hip is not None
 if is_hip and torch.cuda.is_available():
     try:
         device = torch.device("cuda:0")
+        rope = rope.to(device)
         positions = torch.arange(32, device=device).unsqueeze(0)
         q = torch.randn(32, 8 * 128, device=device, dtype=torch.bfloat16)
         k = torch.randn(32, 8 * 128, device=device, dtype=torch.bfloat16)
@@ -69,7 +70,7 @@ if is_hip and torch.cuda.is_available():
               "Output contains NaN" if has_nan else "")
     except RuntimeError as e:
         err = str(e)
-        if "ninja" in err or "CUDA" in err or "hipcc" in err or "expt-relaxed" in err:
+        if "ninja" in err or "hipcc" in err or "compilation" in err.lower() or "expt-relaxed" in err or "CUDA_HOME" in err:
             check("Forward pass on HIP (no CUDA JIT crash)", False,
                   f"JIT compilation failure: {err[:200]}")
         else:

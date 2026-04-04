@@ -1,7 +1,11 @@
-FROM rocm/sgl-dev:v0.5.9-rocm720-mi35x-20260226
+FROM rocm/sgl-dev:v0.5.9-rocm720-mi35x-20260317
 WORKDIR /workspace
-RUN git clone https://github.com/sgl-project/sglang.git /workspace/sglang && \
-    cd /workspace/sglang && git checkout 91230dcca890252018e04f838db7f19995a62aa1
+RUN cd /sgl-workspace/sglang && \
+    git checkout -f HEAD && \
+    git fetch --depth 100 origin 944a9f6fcfe6a56f682da9e0644abf569cb4ca2c && \
+    git checkout -f 944a9f6fcfe6a56f682da9e0644abf569cb4ca2c~1 && \
+    /opt/venv/bin/pip install --no-deps -e python/
 COPY test_harness.py /workspace/test_harness.py
 COPY task_description.md /workspace/task_description.md
+RUN ln -sf /sgl-workspace/sglang /workspace/sglang
 CMD ["sleep", "infinity"]

@@ -41,10 +41,22 @@ try:
     )
     check("Config construction with rope_parameters (no ValueError)", True)
 
+    # The real behavioral test: on buggy commit, rope_scaling becomes {} (empty dict)
+    # because rope_parameters is not normalized into rope_scaling. This causes a
+    # downstream ValueError when RoPE embedding factory looks for rope_type key.
+    # After fix: rope_scaling should contain the rope_type from rope_parameters.
+    rope_type = None
+    if hasattr(config, "rope_scaling") and isinstance(config.rope_scaling, dict):
+        rope_type = config.rope_scaling.get("rope_type")
+    check("rope_scaling has rope_type from rope_parameters",
+          rope_type == "default",
+          f"rope_scaling={getattr(config, 'rope_scaling', None)!r} — rope_parameters not normalized")
+
 except ValueError as e:
     if "RoPE" in str(e) or "rope" in str(e).lower():
         check("Config construction with rope_parameters (no ValueError)", False,
               f"ValueError: {e}")
+        check("rope_scaling has rope_type from rope_parameters", False, "config construction failed")
     else:
         check("Config construction", False, str(e))
 except ImportError as e:
@@ -70,12 +82,12 @@ else:
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
         check("Module imports without cuda.bindings crash", True)
-    except ModuleNotFoundError as e:
+    except (ModuleNotFoundError, ImportError) as e:
         if "cuda" in str(e).lower():
             check("Module imports without cuda.bindings crash", False,
-                  f"ModuleNotFoundError: {e}")
+                  f"{type(e).__name__}: {e}")
         else:
-            # Other missing modules are not this bug
+            # Other missing modules (e.g. sgl_kernel) are not this bug
             check("Module imports (other dep missing, not cuda)", True)
     except Exception as e:
         check("Module imports", False, f"{type(e).__name__}: {e}")

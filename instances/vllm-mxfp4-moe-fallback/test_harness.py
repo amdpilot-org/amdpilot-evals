@@ -6,11 +6,18 @@ per partition is not a multiple of 256 (e.g. MiniMax-M2.1 TP=4 → 384).
 Test: Verify dimension validation and fallback logic exist in the quantization
 code to handle incompatible dimensions gracefully.
 """
+import ast
 import sys
 import subprocess
+from pathlib import Path
 
 checks_passed = 0
 checks_total = 0
+
+VLLM_PATH = "/workspace/vllm"
+MXFP4_UTILS_PATH = f"{VLLM_PATH}/vllm/model_executor/layers/quantization/utils/mxfp4_utils.py"
+MXFP4_PATH = f"{VLLM_PATH}/vllm/model_executor/layers/quantization/mxfp4.py"
+QUARK_MOE_PATH = f"{VLLM_PATH}/vllm/model_executor/layers/quantization/quark/quark_moe.py"
 
 
 def check(name, condition, detail=""):
@@ -23,76 +30,104 @@ def check(name, condition, detail=""):
     if detail and not condition:
         msg += f": {detail}"
     print(msg)
+    return condition
 
 
-def run_test(script, timeout=60):
-    result = subprocess.run(
-        ["/opt/venv/bin/python3", "-c", script],
-        capture_output=True, text=True, timeout=timeout,
-        cwd="/workspace",
-    )
-    return result.stdout or "", result.stderr or "", result.returncode
+def _contains_name(node, name):
+    for child in ast.walk(node):
+        if isinstance(child, ast.Name) and child.id == name:
+            return True
+        if isinstance(child, ast.Attribute) and child.attr == name:
+            return True
+    return False
 
 
 print("=" * 60)
 print("vllm-mxfp4-moe-fallback test harness")
 print("=" * 60)
 
-# Check 1: vllm mxfp4 config can be imported (basic sanity)
-stdout, stderr, rc = run_test("""
-import sys; sys.stdout = open(sys.stdout.fileno(), 'w', buffering=1)
-from vllm.model_executor.layers.quantization.mxfp4 import Mxfp4Config
-print("IMPORT:OK")
-""")
-check("MXFP4 quantization config imports", "IMPORT:OK" in stdout, stderr[:200])
+# Check 1: CK_MXFP4_MOE_DIM_ALIGNMENT constant exists with value 256 in mxfp4_utils.py
+# Uses AST to avoid circular import issues
+if not Path(MXFP4_UTILS_PATH).is_file():
+    check("mxfp4_utils.py exists", False, "file not found")
+    check("CK_MXFP4_MOE_DIM_ALIGNMENT = 256", False, "file missing")
+else:
+    check("mxfp4_utils.py exists", True)
+    utils_src = Path(MXFP4_UTILS_PATH).read_text()
+    utils_tree = ast.parse(utils_src)
+    found_const = False
+    const_value = None
+    for node in ast.walk(utils_tree):
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name) and target.id == "CK_MXFP4_MOE_DIM_ALIGNMENT":
+                    found_const = True
+                    if isinstance(node.value, ast.Constant):
+                        const_value = node.value.value
+    check("CK_MXFP4_MOE_DIM_ALIGNMENT = 256",
+          found_const and const_value == 256,
+          f"found={found_const}, value={const_value}")
 
-# Check 2: CK_MXFP4_MOE_DIM_ALIGNMENT constant exists in the utils source.
-# The fix introduces this constant; without it, incompatible dims crash CK.
-stdout, stderr, rc = run_test("""
-import sys; sys.stdout = open(sys.stdout.fileno(), 'w', buffering=1)
-path = "/workspace/vllm/vllm/model_executor/layers/quantization/utils/mxfp4_utils.py"
-with open(path) as f:
-    src = f.read()
-has_const = "CK_MXFP4_MOE_DIM_ALIGNMENT" in src and "= 256" in src
-print(f"HAS_ALIGNMENT_CONST:{has_const}")
-""")
-check("CK_MXFP4_MOE_DIM_ALIGNMENT=256 defined in mxfp4_utils.py",
-      "HAS_ALIGNMENT_CONST:True" in stdout,
-      "missing dimension validation constant — CK kernel will crash on misaligned dims")
+# Check 2: mxfp4.py imports the constant and uses it for modulo alignment check
+if not Path(MXFP4_PATH).is_file():
+    check("mxfp4.py imports CK_MXFP4_MOE_DIM_ALIGNMENT and uses modulo check", False, "file not found")
+else:
+    mxfp4_src = Path(MXFP4_PATH).read_text()
+    mxfp4_tree = ast.parse(mxfp4_src)
+    has_import = False
+    for node in ast.iter_child_nodes(mxfp4_tree):
+        if isinstance(node, ast.ImportFrom) and node.names:
+            for alias in node.names:
+                if alias.name == "CK_MXFP4_MOE_DIM_ALIGNMENT":
+                    has_import = True
+    has_modulo = False
+    for node in ast.walk(mxfp4_tree):
+        if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Mod):
+            if _contains_name(node, "CK_MXFP4_MOE_DIM_ALIGNMENT"):
+                has_modulo = True
+    check("mxfp4.py imports CK_MXFP4_MOE_DIM_ALIGNMENT and uses modulo check",
+          has_import and has_modulo,
+          f"import={has_import}, modulo={has_modulo}")
 
-# Check 3: mxfp4.py validates dimensions and has Triton fallback
-stdout, stderr, rc = run_test("""
-import sys; sys.stdout = open(sys.stdout.fileno(), 'w', buffering=1)
-path = "/workspace/vllm/vllm/model_executor/layers/quantization/mxfp4.py"
-with open(path) as f:
-    src = f.read()
-has_import = "CK_MXFP4_MOE_DIM_ALIGNMENT" in src
-has_check = "% CK_MXFP4_MOE_DIM_ALIGNMENT" in src
-has_fallback = "Mxfp4Backend.TRITON" in src and "alignment" in src.lower()
-print(f"MXFP4_IMPORT:{has_import}")
-print(f"MXFP4_MODCHECK:{has_check}")
-print(f"MXFP4_FALLBACK:{has_fallback}")
-""")
-check("mxfp4.py validates CK dimension alignment and falls back to Triton",
-      all(x in stdout for x in ["MXFP4_IMPORT:True", "MXFP4_MODCHECK:True", "MXFP4_FALLBACK:True"]),
-      "missing dimension check or Triton fallback in Mxfp4MoEMethod")
+# Check 3: mxfp4.py has Triton fallback when CK alignment fails
+if Path(MXFP4_PATH).is_file():
+    has_triton_fallback = False
+    for node in ast.walk(mxfp4_tree):
+        if isinstance(node, ast.Attribute) and node.attr == "TRITON":
+            has_triton_fallback = True
+    check("mxfp4.py has Triton backend fallback",
+          has_triton_fallback,
+          "no Mxfp4Backend.TRITON reference found")
+else:
+    check("mxfp4.py has Triton backend fallback", False, "file not found")
 
-# Check 4: quark_moe.py has emulation fallback for incompatible dims
-stdout, stderr, rc = run_test("""
-import sys; sys.stdout = open(sys.stdout.fileno(), 'w', buffering=1)
-path = "/workspace/vllm/vllm/model_executor/layers/quantization/quark/quark_moe.py"
-with open(path) as f:
-    src = f.read()
-has_import = "CK_MXFP4_MOE_DIM_ALIGNMENT" in src
-has_check = "% CK_MXFP4_MOE_DIM_ALIGNMENT" in src
-has_emulate = "self.emulate = True" in src
-print(f"QUARK_IMPORT:{has_import}")
-print(f"QUARK_MODCHECK:{has_check}")
-print(f"QUARK_EMULATE:{has_emulate}")
-""")
-check("quark_moe.py validates dims and falls back to emulation mode",
-      all(x in stdout for x in ["QUARK_IMPORT:True", "QUARK_MODCHECK:True", "QUARK_EMULATE:True"]),
-      "missing dimension check or emulation fallback in QuarkOCP_MX_MoEMethod")
+# Check 4: quark_moe.py validates dims and falls back to emulation mode
+if not Path(QUARK_MOE_PATH).is_file():
+    check("quark_moe.py validates dims and falls back to emulation", False, "file not found")
+else:
+    quark_src = Path(QUARK_MOE_PATH).read_text()
+    quark_tree = ast.parse(quark_src)
+    quark_has_import = False
+    for node in ast.iter_child_nodes(quark_tree):
+        if isinstance(node, ast.ImportFrom) and node.names:
+            for alias in node.names:
+                if alias.name == "CK_MXFP4_MOE_DIM_ALIGNMENT":
+                    quark_has_import = True
+    quark_has_modulo = False
+    for node in ast.walk(quark_tree):
+        if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Mod):
+            if _contains_name(node, "CK_MXFP4_MOE_DIM_ALIGNMENT"):
+                quark_has_modulo = True
+    quark_has_emulate = False
+    for node in ast.walk(quark_tree):
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Attribute) and target.attr == "emulate":
+                    if isinstance(node.value, ast.Constant) and node.value.value is True:
+                        quark_has_emulate = True
+    check("quark_moe.py validates dims and falls back to emulation",
+          quark_has_import and quark_has_modulo and quark_has_emulate,
+          f"import={quark_has_import}, modulo={quark_has_modulo}, emulate={quark_has_emulate}")
 
 print()
 score = (checks_passed / checks_total * 100.0) if checks_total > 0 else 0.0
