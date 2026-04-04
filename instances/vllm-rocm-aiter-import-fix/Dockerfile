@@ -5,7 +5,11 @@ RUN git clone --depth 100 https://github.com/vllm-project/vllm.git /workspace/vl
     cd /workspace/vllm && \
     git fetch --depth 100 origin 350ca72c0423f2b094723dfea479a8f0eb7a46d5 && \
     git checkout -f 350ca72c0423f2b094723dfea479a8f0eb7a46d5~1 && \
-    pip install --no-build-isolation --no-deps -e .
+    pip install --no-build-isolation --no-deps -e . && \
+    rm -f .git/FETCH_HEAD && \
+    git remote remove origin 2>/dev/null; \
+    git reflog expire --expire=now --all && \
+    git gc --prune=now -q
 COPY test_harness.py /workspace/test_harness.py
 COPY task_description.md /workspace/task_description.md
 CMD ["sleep", "infinity"]

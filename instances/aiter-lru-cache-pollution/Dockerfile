@@ -3,7 +3,11 @@ WORKDIR /workspace
 RUN cd /sgl-workspace/aiter && \
     git checkout -f HEAD && \
     git fetch --depth 100 origin 7d29fce147681086a26e81711bab1d6cd535a515 && \
-    git checkout -f 7d29fce147681086a26e81711bab1d6cd535a515~1
+    git checkout -f 7d29fce147681086a26e81711bab1d6cd535a515~1 && \
+    rm -f .git/FETCH_HEAD && \
+    git remote remove origin 2>/dev/null; \
+    git reflog expire --expire=now --all && \
+    git gc --prune=now -q
 COPY test_harness.py /workspace/test_harness.py
 COPY task_description.md /workspace/task_description.md
 RUN ln -sf /sgl-workspace/aiter /workspace/aiter
