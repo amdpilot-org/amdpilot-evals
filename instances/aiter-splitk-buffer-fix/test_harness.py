@@ -266,7 +266,7 @@ else:
 print("\n--- Check 7: diverging formula regression (DeepSeek decode) ---")
 
 diverge_test_script = """
-import sys
+import sys, math
 sys.stdout = open(sys.stdout.fileno(), 'w', buffering=1)
 
 token_num = 1
@@ -274,17 +274,22 @@ topk = 8
 block_m = 4
 num_experts = 8
 
-# Actual aiter formula
-sorted_len = token_num * topk + num_experts * block_m - topk
 old_rows = token_num * topk
-overflow = sorted_len > old_rows
 
-sorted_size = min(token_num * topk * block_m, sorted_len)
+# Old ceil-based formula (what the harness previously used)
+ceil_sorted_len = math.ceil(old_rows / block_m) * block_m
+ceil_overflow = ceil_sorted_len > old_rows
+
+# Correct aiter formula (from _moe_sorting_impl)
+aiter_sorted_len = token_num * topk + num_experts * block_m - topk
+aiter_overflow = aiter_sorted_len > old_rows
 
 print(f"OLD_ROWS:{old_rows}")
-print(f"SORTED_LEN:{sorted_len}")
-print(f"OLD_OVERFLOWS:{overflow}")
-print(f"NEW_SUFFICIENT:{sorted_size >= sorted_len}")
+print(f"CEIL_SORTED_LEN:{ceil_sorted_len}")
+print(f"CEIL_OVERFLOW:{ceil_overflow}")
+print(f"AITER_SORTED_LEN:{aiter_sorted_len}")
+print(f"AITER_OVERFLOW:{aiter_overflow}")
+print(f"FORMULAS_DIVERGE:{ceil_overflow != aiter_overflow}")
 """
 
 try:
@@ -297,9 +302,14 @@ except Exception:
 
 if stdout7:
     check(
-        "DeepSeek decode: old allocation overflows (formula divergence case)",
-        "OLD_OVERFLOWS:True" in stdout7,
-        "DeepSeek decode params should demonstrate overflow with actual formula",
+        "Formulas diverge: ceil says no overflow, aiter says overflow",
+        "CEIL_OVERFLOW:False" in stdout7 and "AITER_OVERFLOW:True" in stdout7,
+        "Expected ceil_overflow=False and aiter_overflow=True for DeepSeek decode params",
+    )
+    check(
+        "Formula divergence confirmed",
+        "FORMULAS_DIVERGE:True" in stdout7,
+        "ceil and aiter formulas should produce different overflow results",
     )
 else:
     print("  [SKIP] Diverging formula subprocess failed")
