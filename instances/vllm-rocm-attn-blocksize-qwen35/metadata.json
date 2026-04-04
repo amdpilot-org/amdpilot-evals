@@ -1,0 +1,23 @@
+{
+  "name": "vllm-rocm-attn-blocksize-qwen35",
+  "category": "bugfix",
+  "difficulty": "medium",
+  "repo": "vllm-project/vllm",
+  "pr": 35923,
+  "merge_commit": "a40ee486f273eaaa885dafd0526f42f3a5b960c9",
+  "affected_files": [
+    "vllm/v1/attention/backends/rocm_attn.py"
+  ],
+  "tags": [
+    "vllm",
+    "rocm",
+    "attention",
+    "triton",
+    "block-size",
+    "qwen"
+  ],
+  "description": "ROCm attention Triton path only accepted power-of-two block sizes; Qwen3.5 block size 1056 caused garbage output",
+  "task_description_source": "GitHub PR #35923 (symptom only, no fix)",
+  "test_harness_type": "runtime",
+  "requires_gpu": true
+}

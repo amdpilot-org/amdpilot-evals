@@ -1,0 +1,14 @@
+{
+  "name": "vllm-corrupt-image-400",
+  "category": "bugfix",
+  "difficulty": "medium",
+  "source": {
+    "repo": "vllm-project/vllm",
+    "pr": 38253,
+    "parent_commit": "3683fe6c0651fe54a0201552ae7dfb7acb1e0cea"
+  },
+  "description": "Corrupt/truncated base64 images cause 500; should map to client input error (400)",
+  "task_description_source": "GitHub PR #38253 (symptom only, no fix)",
+  "test_harness_type": "runtime",
+  "requires_gpu": true
+}

@@ -1,0 +1,14 @@
+{
+  "name": "vllm-rocm-lru-cache-fix",
+  "category": "bugfix",
+  "difficulty": "hard",
+  "source": {
+    "repo": "vllm-project/vllm",
+    "pr": 37547,
+    "parent_commit": "bc9c6fbbe655072a0ff924a44b1069bd11ba0772"
+  },
+  "description": "paged_mqa_logits helper reimported every call; ROCm sparse MLA perf regression",
+  "task_description_source": "GitHub PR #37547 (symptom only, no fix)",
+  "test_harness_type": "runtime",
+  "requires_gpu": true
+}

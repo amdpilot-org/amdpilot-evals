@@ -1,0 +1,20 @@
+{
+  "name": "sglang-json-nonfinite-fix",
+  "category": "bugfix",
+  "difficulty": "easy",
+  "source": {
+    "repo": "sgl-project/sglang",
+    "pr": 20714,
+    "merge_commit": "e4d06b3db23d77ea21aebc14a5d398a81041e7c0"
+  },
+  "description": "/generate endpoint crashes when response contains NaN/Inf in top_logprobs",
+  "expected_loc_changed": 45,
+  "expected_files_changed": 2,
+  "affected_files": [
+    "python/sglang/srt/entrypoints/http_server.py",
+    "python/sglang/srt/utils/json_response.py"
+  ],
+  "requires_gpu": false,
+  "requires_model_download": false,
+  "tags": ["rocm", "bugfix", "sgl-project", "json", "serialization"]
+}
