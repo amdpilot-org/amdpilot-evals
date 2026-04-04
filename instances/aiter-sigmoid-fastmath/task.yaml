@@ -21,6 +21,7 @@ benchmark:
   metric_name: score
   metric_pattern: 'SCORE:\s+([\d.]+)'
   metric_direction: higher
+  metric_max: 100.0
 
 task:
   description_file: evals/instances/aiter-sigmoid-fastmath/task_description.md

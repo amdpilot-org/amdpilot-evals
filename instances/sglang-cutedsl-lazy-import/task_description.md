@@ -15,7 +15,7 @@ The error occurs when importing `sglang.srt.layers.attention.linear.kda_backend`
 ## Reproduction
 
 ```bash
-/opt/venv/bin/python3 -c "from sglang.srt.layers.attention.linear.kda_backend import KDABackend"
+/opt/venv/bin/python3 -c "from sglang.srt.layers.attention.linear.kda_backend import KDAAttnBackend"
 ```
 
 This crashes immediately with `ModuleNotFoundError: No module named 'cuda'` on ROCm.

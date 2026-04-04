@@ -69,7 +69,7 @@ def run_subprocess(script, timeout=60):
 
 import_script = (
     "import sys; sys.path.insert(0, '/workspace/sglang/python'); "
-    "from sglang.srt.layers.attention.linear.kda_backend import KDABackend; "
+    "from sglang.srt.layers.attention.linear.kda_backend import KDAAttnBackend; "
     "print('IMPORT_OK')"
 )
 stdout, stderr, rc = run_subprocess(import_script)
@@ -92,24 +92,24 @@ else:
 
 
 # ---------------------------------------------------------------------------
-# Check 2: If the import succeeded, verify KDABackend class structure
+# Check 2: If the import succeeded, verify KDAAttnBackend class structure
 # ---------------------------------------------------------------------------
 if import_ok:
     verify_script = (
         "import sys; sys.path.insert(0, '/workspace/sglang/python'); "
-        "from sglang.srt.layers.attention.linear.kda_backend import KDABackend; "
-        "assert hasattr(KDABackend, '__init__'), 'KDABackend missing __init__'; "
+        "from sglang.srt.layers.attention.linear.kda_backend import KDAAttnBackend; "
+        "assert hasattr(KDAAttnBackend, '__init__'), 'KDAAttnBackend missing __init__'; "
         "print('CLASS_OK')"
     )
     stdout2, stderr2, rc2 = run_subprocess(verify_script)
-    check("KDABackend class has __init__ method",
+    check("KDAAttnBackend class has __init__ method",
           "CLASS_OK" in stdout2,
           stderr2[-300:] if stderr2 else "")
 else:
     # Module didn't import (non-cuda reason), so we can't verify the class.
     # Give credit -- the fix is about removing the cuda dependency, and
     # whatever prevented import is a different issue.
-    check("KDABackend class structure (skipped, module not loadable)", True)
+    check("KDAAttnBackend class structure (skipped, module not loadable)", True)
 
 
 # ---------------------------------------------------------------------------
