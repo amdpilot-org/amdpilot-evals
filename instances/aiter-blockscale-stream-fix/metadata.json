@@ -1,0 +1,22 @@
+{
+  "name": "aiter-blockscale-stream-fix",
+  "category": "bugfix",
+  "difficulty": "medium",
+  "source": {
+    "repo": "ROCm/aiter",
+    "pr": 2520,
+    "issue": "sgl-project/sglang#21566",
+    "merge_commit": "357e60096b08291886b89c354a97f8fb20a64728",
+    "parent_commit": "5f88ca1cd5f097b3e408fb4afe938e74b7f59f8a"
+  },
+  "description": "FP8 GEMM kernel does not respect caller HIP stream context, breaking non-default stream callers",
+  "task_description_source": "GitHub issue sgl-project/sglang#21566 (symptom only, no fix)",
+  "test_harness_type": "source_inspection+runtime",
+  "requires_gpu": true,
+  "base_image": "rocm/sgl-dev:v0.5.9-rocm720-mi35x-20260317",
+  "version_pins": {
+    "aiter_pre_fix_commit": "5f88ca1cd5f097b3e408fb4afe938e74b7f59f8a",
+    "rocm": "7.2",
+    "note": "1 GPU sufficient - GEMM kernel test does not require tensor parallelism"
+  }
+}
