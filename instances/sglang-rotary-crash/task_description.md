@@ -13,10 +13,6 @@ Failing CI links:
 - 1-GPU unit tests
 - VLM accuracy and performance
 
-## Affected File
-
-- `python/sglang/srt/layers/rotary_embedding.py`
-
 ## Environment
 
 - SGLang at `/workspace/sglang`

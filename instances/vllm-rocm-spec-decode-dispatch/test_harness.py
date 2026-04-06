@@ -3,7 +3,6 @@
 
 Bug: AITER FA decode path hardcodes max_seqlen_q=1 in paged_attention_v1,
 producing incorrect results with speculative decoding where max_query_len > 1.
-Fix: Route multi-token decode to unified_attention instead.
 
 Tests:
 1. Import the AITER FA backend module

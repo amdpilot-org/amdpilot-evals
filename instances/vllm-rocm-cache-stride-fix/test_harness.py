@@ -10,9 +10,6 @@ This assumes k_cache/v_cache are contiguous, which is NOT true for hybrid models
 (e.g., Jamba with interleaved Mamba + attention layers) where the KV cache can
 have non-contiguous memory layout.
 
-Fix: Add k_cache_stride0/1/2 and v_cache_stride0/1/2 parameters to the kernel,
-and pass actual tensor.stride() values from the wrapper function.
-
 Tests (behavioral, not source-pattern matching):
   1. Kernel signature — verify cp_mha_gather_cache_kernel has stride parameters.
   2. Wrapper function — verify cp_mha_gather_cache extracts and passes strides.

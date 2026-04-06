@@ -1,21 +1,12 @@
 #!/usr/bin/env python3
-"""Test harness for vllm PR #33749: AITER import/env-var separation fix.
+"""Test harness for vllm-rocm-aiter-import-fix.
 
 Bug: Setting VLLM_ROCM_USE_AITER=0 then explicitly selecting the AITER backend
 via attention_config crashes with:
   AttributeError: 'builtin_function_or_method' object has no attribute
   'flash_attn_varlen_func'
 
-The env var disables the aiter import at module level, but the backend code
-still tries to call aiter.flash_attn_varlen_func directly. Explicit backend
-selection should work regardless of the env var.
-
-Tests (behavioral, subprocess-isolated):
-  1. is_aiter_found_and_supported() must NOT check VLLM_ROCM_USE_AITER env var
-  2. rocm_aiter_ops class must provide flash_attn_varlen_func and pa_fwd_asm
-     static methods (lazy-import wrappers)
-  3. rocm_aiter_fa.py backend must NOT call aiter.flash_attn_varlen_func directly;
-     it must route through rocm_aiter_ops.flash_attn_varlen_func
+Explicit backend selection should work regardless of the env var setting.
 """
 import ast
 import os
@@ -99,10 +90,6 @@ except SyntaxError as e:
 
 # =========================================================================
 # CHECK 1: is_aiter_found_and_supported() must NOT check VLLM_ROCM_USE_AITER
-#
-# Before fix: the function body contains envs.VLLM_ROCM_USE_AITER check.
-# After fix: the env var check is removed -- this function only checks
-# platform capability, not user preference.
 # =========================================================================
 print("\n--- Check 1: is_aiter_found_and_supported separation of concerns ---")
 
@@ -126,9 +113,6 @@ else:
     ]
     fn_source = "\n".join(fn_lines)
 
-    # The fix REMOVES the env var check from this function.
-    # Before fix: "envs.VLLM_ROCM_USE_AITER" appears in the body.
-    # After fix: it does not.
     has_env_check = "envs.VLLM_ROCM_USE_AITER" in fn_source
 
     check(
@@ -163,10 +147,6 @@ else:
 
 # =========================================================================
 # CHECK 2: rocm_aiter_ops class has flash_attn_varlen_func and pa_fwd_asm
-#
-# The fix adds these as static methods with lazy imports, so the backend
-# can call them without needing a module-level 'import aiter' that breaks
-# when VLLM_ROCM_USE_AITER=0.
 # =========================================================================
 print("\n--- Check 2: rocm_aiter_ops has lazy-import wrapper methods ---")
 
@@ -272,13 +252,6 @@ else:
 
 # =========================================================================
 # CHECK 3: rocm_aiter_fa.py routes through rocm_aiter_ops, not aiter directly
-#
-# Before fix: the backend calls aiter.flash_attn_varlen_func directly
-#   (module-level 'import aiter' guarded by is_enabled()).
-# After fix: calls rocm_aiter_ops.flash_attn_varlen_func (lazy import inside).
-#
-# Also: the module-level 'import aiter' guarded by is_enabled() should be
-# removed from rocm_aiter_fa.py.
 # =========================================================================
 print("\n--- Check 3: backend routes through rocm_aiter_ops, not aiter directly ---")
 
@@ -343,10 +316,6 @@ check(
 )
 
 # Check that the module-level 'import aiter' guarded by is_enabled() is removed.
-# Before fix, rocm_aiter_fa.py has:
-#   if rocm_aiter_ops.is_enabled():
-#       import aiter
-# After fix, this block should be removed (aiter is imported lazily in methods).
 
 # Look for module-level import aiter in the ROCm platform guard section
 # (not inside function bodies).
@@ -385,14 +354,6 @@ check(
 
 # =========================================================================
 # CHECK 4 (bonus): AITER_FP8_DTYPE module-level block removed
-#
-# Before fix: _aiter_ops.py had a module-level block that did:
-#   if is_aiter_found_and_supported():
-#       from aiter import dtypes
-#       AITER_FP8_DTYPE = dtypes.fp8
-# This block imported aiter at module load time, which fails when the env
-# var gates is_aiter_found_and_supported(). The fix removes this block
-# and replaces AITER_FP8_DTYPE references with FP8_DTYPE (cached platform value).
 # =========================================================================
 print("\n--- Check 4: AITER_FP8_DTYPE module-level import block removed ---")
 

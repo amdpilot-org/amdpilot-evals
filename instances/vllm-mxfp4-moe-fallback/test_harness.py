@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Test harness for vllm-mxfp4-moe-fallback (PR #35893).
+"""Test harness for vllm-mxfp4-moe-fallback.
 
-Bug: CK MXFP4 MoE GEMM kernels crash with RuntimeError when intermediate_size
-per partition is not a multiple of 256 (e.g. MiniMax-M2.1 TP=4 → 384).
+Bug: AITER fused MoE crashes with a RuntimeError at certain tensor-parallel
+sizes when the effective expert intermediate width is incompatible with the
+CK GEMM kernels.
 Test: Verify dimension validation and fallback logic exist in the quantization
 code to handle incompatible dimensions gracefully.
 """
@@ -46,8 +47,7 @@ print("=" * 60)
 print("vllm-mxfp4-moe-fallback test harness")
 print("=" * 60)
 
-# Check 1: CK_MXFP4_MOE_DIM_ALIGNMENT constant exists with value 256 in mxfp4_utils.py
-# Uses AST to avoid circular import issues
+# Check 1: Dimension alignment constant exists in utils module
 if not Path(MXFP4_UTILS_PATH).is_file():
     check("mxfp4_utils.py exists", False, "file not found")
     check("CK_MXFP4_MOE_DIM_ALIGNMENT = 256", False, "file missing")
@@ -68,7 +68,7 @@ else:
           found_const and const_value == 256,
           f"found={found_const}, value={const_value}")
 
-# Check 2: mxfp4.py imports the constant and uses it for modulo alignment check
+# Check 2: MXFP4 quantization module imports and uses alignment constant
 if not Path(MXFP4_PATH).is_file():
     check("mxfp4.py imports CK_MXFP4_MOE_DIM_ALIGNMENT and uses modulo check", False, "file not found")
 else:
@@ -89,7 +89,7 @@ else:
           has_import and has_modulo,
           f"import={has_import}, modulo={has_modulo}")
 
-# Check 3: mxfp4.py has Triton fallback when CK alignment fails
+# Check 3: MXFP4 module has fallback backend when CK alignment fails
 if Path(MXFP4_PATH).is_file():
     has_triton_fallback = False
     for node in ast.walk(mxfp4_tree):
@@ -101,7 +101,7 @@ if Path(MXFP4_PATH).is_file():
 else:
     check("mxfp4.py has Triton backend fallback", False, "file not found")
 
-# Check 4: quark_moe.py validates dims and falls back to emulation mode
+# Check 4: Quark MoE module validates dims and falls back to emulation mode
 if not Path(QUARK_MOE_PATH).is_file():
     check("quark_moe.py validates dims and falls back to emulation", False, "file not found")
 else:

@@ -6,8 +6,6 @@ TILE_SIZE is set directly to block_size. When block_size is not a power of 2
 (e.g., 48 for Qwen3-Next), Triton kernel compilation fails because TILE_SIZE
 must be a power of 2 for tl.arange() and memory coalescing.
 
-Fix: TILE_SIZE = min(64, triton.next_power_of_2(block_size))
-
 Tests (behavioral, not source-pattern matching):
   1. Call select_2d_config with block_size=48, verify TILE_SIZE is pow2.
   2. Call select_3d_config with block_size=48, verify TILE_SIZE is pow2.

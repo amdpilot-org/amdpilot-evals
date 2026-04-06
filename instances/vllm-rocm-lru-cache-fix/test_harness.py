@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Test harness for vllm-rocm-lru-cache-fix (PR #37547).
+"""Test harness for vllm-rocm-lru-cache-fix.
 
-Bug: paged_mqa_logits_module was defined inside rocm_fp8_paged_mqa_logits,
-causing a new function object and empty lru_cache on every call.
+Bug: The paged MQA logits helper reloads the underlying module on every call
+instead of reusing a cached import, defeating lru_cache.
 Test: Verify the caching function is at module scope (accessible as attribute).
 """
 import sys

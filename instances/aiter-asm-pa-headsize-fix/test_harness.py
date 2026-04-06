@@ -8,10 +8,6 @@ conditions match (e.g., int8 kv cache, or high_precision=2). Models with
 head_size=64 or 256 produce incorrect results because the ASM kernel
 reads/writes memory at the wrong offsets.
 
-Fix: Add head_size parameter to _should_use_asm_kernel(). Return False
-immediately if head_size != 128. Also consolidate high_precision handling
-into the function instead of external `or high_precision == 2`.
-
 Tests (behavioral, not source-pattern matching):
   1. Call _should_use_asm_kernel with head_size=64 → must return False
   2. Call _should_use_asm_kernel with head_size=128 → must return True (for int8)

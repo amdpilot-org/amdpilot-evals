@@ -7,8 +7,6 @@ x_q has type float8_e4m3fnuz but weight may be stored as a raw byte tensor
 (uint8/int8). gemm_a4w4 requires both operands to have matching dtype.
 This causes a dtype mismatch error on ROCm when running MX quantized models.
 
-Fix: weight.view(x_q.dtype) before passing to gemm_a4w4.
-
 Tests (behavioral, not source-pattern matching):
   1. AST extraction — locate the gemm_a4w4() call in gemm_with_dynamic_quant,
      verify the weight argument (2nd positional arg) includes a .view() call.

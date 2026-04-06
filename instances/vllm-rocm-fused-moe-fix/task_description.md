@@ -10,4 +10,4 @@ Specifically:
 
 2. The **`routed_scaling_factor`** used by the router is not consistently accepted and forwarded through the ROCm AITER grouped top-k call chain into the underlying ops, so routed expert weights are not scaled as intended.
 
-Fix the codebase so that fused MoE fake and real implementations agree on their signatures, and so that `routed_scaling_factor` is properly threaded through the relevant ROCm AITER MoE paths. Keep changes minimal and aligned with upstream vLLM style.
+Investigate and fix the MoE interface and routing issues so that the ROCm AITER MoE path produces correct results.

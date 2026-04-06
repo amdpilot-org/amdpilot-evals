@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Test harness for sglang-kscale-vscale-fix. Behavioral tests only.
 
-Bug: The call to extend_attention_fwd() in aiter_backend.py is missing
-the required positional arguments k_scale and v_scale, causing a
-TypeError at runtime when the target_verify / draft_extend path is taken.
+Bug: The extend attention forward pass crashes with a TypeError about
+missing required positional arguments during speculative decoding.
 
 Tests verify that the call site passes the correct number of arguments
 matching the function's signature.

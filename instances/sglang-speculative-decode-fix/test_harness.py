@@ -1,0 +1,176 @@
+#!/usr/bin/env python3
+"""Output quality test for SGLang speculative decoding."""
+
+import json
+import os
+import re
+import subprocess
+import sys
+import time
+import urllib.error
+import urllib.request
+
+_PY = "/opt/venv/bin/python3"
+_PORT = 30000
+_URL = f"http://localhost:{_PORT}"
+_MODEL = "/root/.cache/huggingface/hub/models--Qwen--Qwen3.5-397B-A17B-FP8/snapshots/9f1f3de9a3a48cfd340fd73ca98c02625b7afb3b"
+_TIMEOUT_STARTUP = 2400  # 40 min max for model loading
+_TIMEOUT_REQUEST = 300   # 5 min per request (first request may be slow)
+
+_SERVER_CMD = [
+    _PY, "-m", "sglang.launch_server",
+    "--model-path", _MODEL,
+    "--tp", "2",
+    "--speculative-algorithm", "EAGLE",
+    "--speculative-num-steps", "3",
+    "--speculative-eagle-topk", "1",
+    "--speculative-num-draft-tokens", "4",
+    "--enable-aiter-allreduce-fusion",
+    "--attention-backend", "triton",
+    "--disable-radix-cache",
+    "--mem-fraction-static", "0.8",
+    "--reasoning-parser", "qwen3",
+    "--port", str(_PORT),
+]
+
+_GARBAGE_RE = re.compile(r'(ERER|spER|\b[A-Z]{8,}\b|[\\\"=]{5,}|!{20,})')
+
+_PROMPTS = [
+    "Explain the theory of relativity in simple terms.",
+    "Write a short poem about the ocean.",
+    "What are the main differences between Python and C++?",
+    "Describe how a CPU works to a 10 year old.",
+    "What is the capital of France and why is it important?",
+    "Explain photosynthesis step by step.",
+    "Write a brief history of the internet.",
+    "What are three benefits of regular exercise?",
+]
+
+
+def _kill_existing():
+    subprocess.run(["pkill", "-f", "sglang.launch_server"], capture_output=True)
+    time.sleep(2)
+
+
+def _wait_for_server():
+    start = time.time()
+    while time.time() - start < _TIMEOUT_STARTUP:
+        try:
+            req = urllib.request.Request(f"{_URL}/health")
+            resp = urllib.request.urlopen(req, timeout=5)
+            if resp.status == 200:
+                return True
+        except (urllib.error.URLError, ConnectionError, OSError):
+            pass
+        time.sleep(10)
+    return False
+
+
+def _send_request(prompt):
+    payload = {
+        "model": _MODEL,
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0,
+        "max_tokens": 512,
+    }
+    data = json.dumps(payload).encode()
+    req = urllib.request.Request(
+        f"{_URL}/v1/chat/completions",
+        data=data,
+        headers={"Content-Type": "application/json"},
+    )
+    try:
+        resp = urllib.request.urlopen(req, timeout=_TIMEOUT_REQUEST)
+        result = json.loads(resp.read())
+        return result["choices"][0]["message"]["content"]
+    except Exception:
+        return None
+
+
+def _is_garbage(text):
+    if not text or len(text.strip()) < 10:
+        return True
+    if _GARBAGE_RE.search(text):
+        return True
+    words = text.split()
+    if len(words) > 20:
+        unique = len(set(w.lower() for w in words))
+        if unique / len(words) < 0.1:
+            return True
+    return False
+
+
+def main():
+    print("=" * 60)
+    print("SGLang Speculative Decoding Output Quality Test")
+    print("=" * 60)
+
+    _kill_existing()
+
+    print("\n--- Starting SGLang server ---")
+    env = os.environ.copy()
+    env["SGLANG_ENABLE_SPEC_V2"] = "1"
+    # Use a clean PYTHONPATH to avoid contamination from the caller's
+    # environment (e.g. kimi-cli's UV Python 3.14 packages on sys.path).
+    env["PYTHONPATH"] = "/sgl-workspace/aiter"
+
+    log_file = open("/tmp/sglang_harness_server.log", "w")
+    server = subprocess.Popen(
+        _SERVER_CMD,
+        env=env,
+        stdout=log_file,
+        stderr=subprocess.STDOUT,
+    )
+
+    try:
+        print("Waiting for server (model loading may take 15-30 minutes)...")
+        if not _wait_for_server():
+            print("  [FAIL] Server did not become ready within timeout")
+            print(f"\nSCORE: 0.0")
+            return
+
+        print("  Server is ready.\n")
+        print("--- Sending inference requests ---")
+
+        total = len(_PROMPTS)
+        good = 0
+        consecutive_failures = 0
+
+        for i, prompt in enumerate(_PROMPTS):
+            print(f"\n  Request {i + 1}/{total}: {prompt[:50]}...")
+            response = _send_request(prompt)
+
+            if response is None:
+                print("    ERROR: no response received (timeout or server crash)")
+                consecutive_failures += 1
+            elif _is_garbage(response):
+                print(f"    GARBAGE: {response[:120]}...")
+                consecutive_failures += 1
+            else:
+                print(f"    OK: {response[:120]}...")
+                good += 1
+                consecutive_failures = 0
+
+            if consecutive_failures >= 2:
+                print(f"\n  Short-circuiting: {consecutive_failures} consecutive failures")
+                break
+
+        print(f"\n--- Results ---")
+        print(f"  {good}/{total} responses were coherent")
+
+        score = good / total * 100.0
+        print(f"\nSCORE: {score:.1f}")
+
+    finally:
+        print("\n--- Shutting down server ---")
+        server.terminate()
+        try:
+            server.wait(timeout=30)
+        except subprocess.TimeoutExpired:
+            server.kill()
+            server.wait(timeout=10)
+        log_file.close()
+
+
+if __name__ == "__main__":
+    main()

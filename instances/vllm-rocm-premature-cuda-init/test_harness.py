@@ -6,9 +6,6 @@ module load time, initializing CUDA before Ray workers can set
 CUDA_VISIBLE_DEVICES. All workers end up using GPU 0 instead of their assigned
 GPUs.
 
-Fix: Use amdsmi for GPU arch detection instead of torch.cuda, and cache the
-result at module level. The on_gfx*() functions no longer call into torch.cuda.
-
 Tests (behavioral, subprocess-isolated):
   1. Import vllm.platforms in subprocess, verify torch.cuda is NOT initialized.
   2. After import, set CUDA_VISIBLE_DEVICES=0, verify device_count respects it.

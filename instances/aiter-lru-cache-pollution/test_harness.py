@@ -7,10 +7,6 @@ adding/removing keys. The next call to get_gemm_config() with the same
 (M, N, K) returns the mutated dict, which may be missing expected keys
 (e.g., BLOCK_SIZE_S3) → KeyError crash.
 
-Fix: Renamed the cached function to _get_gemm_config_cached() and added a
-public get_gemm_config() wrapper that returns copy.deepcopy(config), so
-callers always get a fresh copy they can freely mutate.
-
 Tests (behavioral, not source-pattern matching):
   1. Call get_gemm_config() twice with same args, verify independent dicts.
   2. Mutate first result, verify second result is NOT polluted.

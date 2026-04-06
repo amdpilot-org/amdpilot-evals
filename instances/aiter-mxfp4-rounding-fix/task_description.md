@@ -2,13 +2,9 @@
 
 ## Context
 
-The MXFP4 (Microscaling FP4) quantization utility in `aiter/utility/fp4_utils.py` has a rounding bug that causes incorrect quantized values. The rounding logic does not properly handle the FP4 format's limited mantissa bits, leading to values that should round up being truncated instead.
+The MXFP4 (Microscaling FP4) quantization utility in the MXFP4 quantization utility module has a rounding bug that causes incorrect quantized values. The rounding logic does not properly handle the FP4 format's limited mantissa bits, leading to values that should round up being truncated instead.
 
 This affects any workload using MXFP4 quantization through AITER, including FP4 MoE GEMM operations.
-
-## Affected Files
-
-- `aiter/utility/fp4_utils.py`
 
 ## Environment
 

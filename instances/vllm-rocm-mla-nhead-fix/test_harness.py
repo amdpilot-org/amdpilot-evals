@@ -7,8 +7,6 @@ be <16 with enough TP (e.g., kimi-k2.5 with TP8 → 8 heads). But aiter's
 get_mla_metadata_info_v1 / get_mla_metadata_v1 and mla_decode_fwd require
 the head count to be at least 16 for correct persistent buffer sizing.
 
-Fix: self._num_attention_heads = max(16, self.num_heads)
-
 Tests (behavioral, not source-pattern matching):
   1. AST extraction — locate _num_attention_heads assignment in __init__,
      compile the RHS expression, evaluate with self.num_heads=8 → expect 16.

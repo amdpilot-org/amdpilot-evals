@@ -7,10 +7,6 @@ for aiter unified attention and block_size = 16 otherwise. This platform-level
 hardcoding caused block_size mismatches: the backend expected 64, but if the
 config flags didn't match exactly, the platform set 16 (or vice versa).
 
-Fix: Move block_size configuration to the backend itself via a new
-get_preferred_block_size() classmethod. Remove the hardcoded block_size logic
-and the empty update_block_size_for_backend stub from the platform.
-
 Tests:
   1. Backend has get_preferred_block_size() returning 64.
   2. check_and_update_config does NOT hardcode cache_config.block_size.

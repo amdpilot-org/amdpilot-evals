@@ -6,13 +6,9 @@ DeepSeek-V3.2 accuracy drops to 0% when running on MI355 (gfx950) GPUs.
 
 ## Root Cause Area
 
-The FP8 block-scaled GEMM dispatch logic in `python/sglang/srt/layers/quantization/fp8_utils.py` does not select the Triton kernel for the shape (N=7168, K=2304). Specifically, `use_aiter_triton_gemm_w8a8_tuned_gfx950(n=7168, k=2304)` returns `False`, causing the runtime to fall back to the CK (Composable Kernel) path.
+The FP8 block-scaled GEMM dispatch logic in the FP8 quantization utilities does not select the Triton kernel for the shape (N=7168, K=2304). Specifically, the tuned GEMM dispatch returns False for certain valid (N, K) dimension combinations on GFX950, causing the runtime to fall back to the CK (Composable Kernel) path.
 
 The CK kernel produces incorrect output for this particular shape, which results in completely wrong model predictions and 0% accuracy on downstream tasks.
-
-## Affected File
-
-- `python/sglang/srt/layers/quantization/fp8_utils.py`
 
 ## Expected Behavior
 

@@ -10,13 +10,7 @@ AttributeError: 'builtin_function_or_method' object has no attribute 'flash_attn
 
 The environment variable is intended to control the **default** backend selection (auto-discovery), but it currently also prevents explicit backend selection from working. When a user disables AITER auto-discovery via the env var but explicitly requests the AITER backend in their configuration, the system should honor the explicit request. Instead, the aiter module never gets imported and calls to its functions fail with AttributeError.
 
-The same crash occurs for `pa_fwd_asm` (paged attention assembly kernel).
-
-## Affected files
-
-- `vllm/_aiter_ops.py`
-- `vllm/v1/attention/backends/rocm_aiter_fa.py`
-- `vllm/v1/spec_decode/eagle.py`
+The same crash occurs for other aiter kernel functions (e.g. paged attention assembly kernels).
 
 ## Expected behavior
 

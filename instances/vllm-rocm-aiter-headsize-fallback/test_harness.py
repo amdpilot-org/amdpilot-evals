@@ -7,11 +7,6 @@ HEAD_SIZE >= 16 * NWARPS (= 64 on ROCm with NWARPS=4). Models with smaller
 head sizes (e.g., head_size=32) crash with an obscure kernel error. Similarly,
 sliding window attention was not handled by this code path.
 
-Fix: Add a head_size check with _MIN_HEAD_SIZE_FOR_LL4MI = 64. When
-head_size < 64, fall back to the aiter unified_attention Triton kernel which
-handles small head sizes and sliding window correctly. The fallback is
-dispatched BEFORE the shuffle_kv_cache branch.
-
 Tests:
   1. _MIN_HEAD_SIZE_FOR_LL4MI constant exists (value 64).
   2. head_size comparison dispatches to unified_attention fallback.

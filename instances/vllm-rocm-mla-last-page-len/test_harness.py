@@ -11,10 +11,6 @@ This causes wrong attention scores and potential out-of-bounds memory access
 for sequences whose length is not a power of two (e.g., prime-length
 sequences).
 
-Fix: Pre-initialize a persistent buffer of all-ones in __init__ and slice it
-in _build_decode, so paged_kv_last_page_len is always 1 regardless of
-sequence length.
-
 Tests (behavioral, source-inspection, and AST-based):
   1. Import check -- AiterMLADecodeMetadata can be imported.
   2. Source inspection -- paged_kv_last_page_len is set via torch.ones (all-1s
