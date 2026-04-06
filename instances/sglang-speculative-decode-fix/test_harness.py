@@ -114,18 +114,11 @@ def _is_garbage(text):
     return False
 
 
-def main():
-    print("=" * 60)
-    print("SGLang Speculative Decoding Output Quality Test")
-    print("=" * 60)
-
+def _start_server():
+    """Start the SGLang server and return (process, log_file)."""
     _kill_existing()
-
-    print("\n--- Starting SGLang server ---")
     env = os.environ.copy()
     env["SGLANG_ENABLE_SPEC_V2"] = "1"
-    # Use a clean PYTHONPATH to avoid contamination from the caller's
-    # environment (e.g. kimi-cli's UV Python 3.14 packages on sys.path).
     env["PYTHONPATH"] = "/sgl-workspace/aiter"
 
     log_file = open("/tmp/sglang_harness_server.log", "w")
@@ -135,68 +128,90 @@ def main():
         stdout=log_file,
         stderr=subprocess.STDOUT,
     )
+    return server, log_file
+
+
+def _stop_server(server, log_file):
+    """Stop the SGLang server cleanly."""
+    server.terminate()
+    try:
+        server.wait(timeout=30)
+    except subprocess.TimeoutExpired:
+        server.kill()
+        server.wait(timeout=10)
+    log_file.close()
+    # Extra cleanup to ensure no zombie processes
+    _kill_existing()
+
+
+def _run_one_round(rnd, total_rounds):
+    """Start server, send all prompts, stop server. Returns round score %."""
+    print(f"\n--- Round {rnd}/{total_rounds}: Independent server launch ---")
+    server, log_file = _start_server()
 
     try:
-        print("Waiting for server (model loading may take 15-30 minutes)...")
+        print("  Waiting for server (model loading may take 15-30 minutes)...")
         if not _wait_for_server():
             print("  [FAIL] Server did not become ready within timeout")
-            print(f"\nSCORE: 0.0")
-            return
+            return 0.0
 
         print("  Server is ready.\n")
+        print(f"  Sending {len(_PROMPTS)} inference requests...")
 
-        round_scores = []
-        for rnd in range(1, _NUM_ROUNDS + 1):
-            print(f"--- Round {rnd}/{_NUM_ROUNDS}: Sending {len(_PROMPTS)} inference requests ---")
+        total = len(_PROMPTS)
+        good = 0
+        consecutive_failures = 0
 
-            total = len(_PROMPTS)
-            good = 0
-            consecutive_failures = 0
+        for i, prompt in enumerate(_PROMPTS):
+            print(f"\n  [{rnd}] Request {i + 1}/{total}: {prompt[:50]}...")
+            response = _send_request(prompt)
 
-            for i, prompt in enumerate(_PROMPTS):
-                print(f"\n  [{rnd}] Request {i + 1}/{total}: {prompt[:50]}...")
-                response = _send_request(prompt)
+            if response is None:
+                print("    ERROR: no response received (timeout or server crash)")
+                consecutive_failures += 1
+            elif _is_garbage(response):
+                print(f"    GARBAGE: {response[:120]}...")
+                consecutive_failures += 1
+            else:
+                print(f"    OK: {response[:120]}...")
+                good += 1
+                consecutive_failures = 0
 
-                if response is None:
-                    print("    ERROR: no response received (timeout or server crash)")
-                    consecutive_failures += 1
-                elif _is_garbage(response):
-                    print(f"    GARBAGE: {response[:120]}...")
-                    consecutive_failures += 1
-                else:
-                    print(f"    OK: {response[:120]}...")
-                    good += 1
-                    consecutive_failures = 0
-
-                if consecutive_failures >= 2:
-                    print(f"\n  Short-circuiting: {consecutive_failures} consecutive failures")
-                    break
-
-            round_pct = good / total * 100.0
-            round_scores.append(round_pct)
-            print(f"\n  Round {rnd}: {good}/{total} coherent ({round_pct:.1f}%)")
-
-            if round_pct < 100.0:
-                print(f"  Round {rnd} failed — skipping remaining rounds")
+            if consecutive_failures >= 2:
+                print(f"\n  Short-circuiting: {consecutive_failures} consecutive failures")
                 break
 
-        print(f"\n--- Results ---")
-        for rnd, pct in enumerate(round_scores, 1):
-            print(f"  Round {rnd}: {pct:.1f}%")
-
-        # Score is 100.0 only if ALL rounds pass at 100%
-        score = 100.0 if all(s == 100.0 for s in round_scores) and len(round_scores) == _NUM_ROUNDS else min(round_scores)
-        print(f"\nSCORE: {score:.1f}")
+        round_pct = good / total * 100.0
+        print(f"\n  Round {rnd}: {good}/{total} coherent ({round_pct:.1f}%)")
+        return round_pct
 
     finally:
-        print("\n--- Shutting down server ---")
-        server.terminate()
-        try:
-            server.wait(timeout=30)
-        except subprocess.TimeoutExpired:
-            server.kill()
-            server.wait(timeout=10)
-        log_file.close()
+        print(f"  Shutting down server (round {rnd})...")
+        _stop_server(server, log_file)
+
+
+def main():
+    print("=" * 60)
+    print("SGLang Speculative Decoding Output Quality Test")
+    print(f"  {len(_PROMPTS)} prompts x {_NUM_ROUNDS} independent rounds")
+    print("=" * 60)
+
+    round_scores = []
+    for rnd in range(1, _NUM_ROUNDS + 1):
+        pct = _run_one_round(rnd, _NUM_ROUNDS)
+        round_scores.append(pct)
+
+        if pct < 100.0:
+            print(f"\n  Round {rnd} failed — skipping remaining rounds")
+            break
+
+    print(f"\n--- Results ---")
+    for rnd, pct in enumerate(round_scores, 1):
+        print(f"  Round {rnd}: {pct:.1f}%")
+
+    # Score is 100.0 only if ALL rounds pass at 100%
+    score = 100.0 if all(s == 100.0 for s in round_scores) and len(round_scores) == _NUM_ROUNDS else min(round_scores)
+    print(f"\nSCORE: {score:.1f}")
 
 
 if __name__ == "__main__":

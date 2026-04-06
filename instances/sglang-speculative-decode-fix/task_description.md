@@ -4,7 +4,7 @@
 
 When serving the Qwen3.5-397B-A17B-FP8 model with EAGLE speculative decoding enabled on ROCm, the server fails to produce coherent output. The failure may manifest as a server deadlock (no response), corrupted/garbage output with repeated characters and random strings, or a GPU hardware fault.
 
-The issue is triggered by the speculative decoding execution path on ROCm. On this environment, the underlying bug may also affect non-speculative inference under TP=2 parallelism, causing GPU exceptions.
+The issue is triggered by the speculative decoding execution path on ROCm.
 
 ## Reproduction
 
