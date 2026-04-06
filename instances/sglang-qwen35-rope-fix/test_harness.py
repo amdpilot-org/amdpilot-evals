@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Test harness for sglang-qwen35-rope-fix. RUNTIME CHECKS.
 
-Bug 1: Qwen3.5 config loses rope_parameters -> ValueError
-Bug 2: hybrid_linear_attn_backend imports cuda.bindings unconditionally -> ModuleNotFoundError
+Bug 1: Qwen3.5 startup fails with ValueError: Unknown RoPE scaling type
+Bug 2: Attention backend import fails with ModuleNotFoundError for cuda module on ROCm
 """
 import sys
 sys.path.insert(0, "/workspace/sglang/python")

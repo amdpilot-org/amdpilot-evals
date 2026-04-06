@@ -4,10 +4,6 @@
 Bug: ROCm attention Triton kernels assume power-of-2 block sizes using
 bitwise addressing. Qwen3-Next uses block_size=544 (not power of 2),
 causing crashes or incorrect results.
-
-Fix: Add PHYSICAL_BLOCK_SIZE constexpr to Triton kernels for generalized
-addressing, use BLOCK_SIZE=32 tile with modular arithmetic, and fall back
-to triton_reshape_and_cache_flash for non-pow2 cache writes.
 """
 import sys
 import subprocess

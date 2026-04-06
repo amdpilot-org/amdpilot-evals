@@ -8,11 +8,6 @@ Triton kernel path even during normal single-token decode. The unified_attention
 path is incompatible with CUDA graph capture, causing a crash when the engine
 tries to capture the decode graph.
 
-Fix: Remove the sliding_window condition from the dispatch. Only route to
-unified_attention for speculative decoding (decode_max_query_len > 1). Sliding
-window models now use the standard paged_attention path, which is CUDA graph
-compatible.
-
 Tests:
   1. Dispatch condition references max_query_len but NOT sliding_window.
   2. Assert message mentions speculative decoding only, not sliding window.

@@ -6,10 +6,6 @@ _get_gcn_arch_via_amdsmi() → amdsmi_init() at runtime. When called inside
 a torch.compile region, Dynamo can't trace through the amdsmi FFI call →
 torch._dynamo.exc.Unsupported crash.
 
-Fix: Resolve arch detection once at module load time into plain Python bool
-constants (_ON_GFX9, _ON_GFX942, etc.). The on_gfx*() functions just return
-these constants — no runtime FFI calls, fully Dynamo-safe.
-
 Tests (behavioral):
   1. on_gfx*() functions are Dynamo-safe — calling inside torch.compile works.
   2. on_gfx*() returns plain bool (not wrapped/traced object).

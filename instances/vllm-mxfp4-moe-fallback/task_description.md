@@ -6,9 +6,9 @@ The failure appears when combining MXFP4-quantized MoE weights, ROCm AITER MoE, 
 
 ## Affected areas (for orientation)
 
-- `vllm/model_executor/layers/quantization/mxfp4.py`
-- `vllm/model_executor/layers/quantization/quark/quark_moe.py`
-- `vllm/model_executor/layers/quantization/utils/mxfp4_utils.py`
+- the MXFP4 quantization module
+- the Quark MoE module
+- the MXFP4 utility module
 
 ## Environment
 

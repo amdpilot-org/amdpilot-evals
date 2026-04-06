@@ -3,7 +3,6 @@
 
 Bug: Importing kda_backend crashes on ROCm with ModuleNotFoundError because
 CuteDSL (which requires cuda.bindings) is imported at module top level.
-Fix: Move the CuteDSL import inside __init__() with an is_cuda() guard.
 
 Tests are behavioral -- they verify the import succeeds and the module
 structure is correct, without checking for specific code patterns of the fix.

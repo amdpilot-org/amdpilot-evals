@@ -4,7 +4,6 @@
 Bug: In unquant.py, MoE weight shuffling uses direct Parameter() reassignment
 like `layer.w13_weight = torch.nn.Parameter(shuffle_weight(...))`, which loses
 custom attributes (like weight_loader) on the original parameter.
-Fix: Use copy_or_rebind_param() which preserves custom attributes.
 
 Tests verify the fix via AST analysis of the correct file (unquant.py).
 """

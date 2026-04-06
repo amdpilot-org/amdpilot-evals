@@ -2,13 +2,9 @@
 
 ## Context
 
-The `ck_moe_stage1()` function in `aiter/ops/triton/fused_moe.py` allocates an intermediate output buffer (`tmp_out`) with shape `(token_num, topk, D)` based on the original token count. However, when `splitK > 1`, the sorted token index list is padded to be larger than `token_num * topk`. The CK kernel iterates over this padded sorted index list and writes results into `tmp_out`, but the buffer is too small to hold all the entries, causing the kernel to write past the buffer bounds.
+The fused MoE kernel allocates an intermediate output buffer based on the original token count. However, when `splitK > 1`, the sorted token index list is padded to be larger than the original size. The kernel iterates over this padded list and writes results into the buffer, but the buffer is too small to hold all the entries, causing out-of-bounds writes.
 
 This results in either a crash or silently incorrect MoE output during inference when the splitK configuration is greater than 1.
-
-## Affected Files
-
-- `aiter/ops/triton/fused_moe.py`
 
 ## Environment
 

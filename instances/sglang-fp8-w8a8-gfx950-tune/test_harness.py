@@ -6,8 +6,6 @@ causing the FP8 block-scaled GEMM (DeepSeek-V3.2 shape) to fall back to the CK
 kernel on MI355 (gfx950). The CK kernel produces incorrect output for this shape,
 dropping DeepSeek-V3.2 accuracy from ~95% to 0%.
 
-Fix: Add (7168, 2304) to the tuned config list so the Triton kernel is selected.
-
 Tests (behavioral, not source-pattern matching):
   1. Static dispatch logic — extract and call the dispatch function to verify it
      returns True for (7168, 2304), False for untested shapes, True for pre-existing
