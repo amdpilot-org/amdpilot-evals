@@ -1,0 +1,58 @@
+# Learned Insights
+
+- **Trial 1**: KernelBench Level 3 Problem 8 is a ResNet BasicBlock with two conv3x3+BN paths plus a 1x1 downsample shortcut
+- **Trial 1**: The test harness is at /workspace/test_harness.py and expects a ModelNew class in /workspace/submission.py
+- **Trial 1**: Score of 0.00 means either no submission existed or correctness check failed
+- **Trial 2**: KernelBench Level 3 Problem 8 is a ResNet BasicBlock with two conv3x3+BN paths plus a 1x1 downsample shortcut
+- **Trial 2**: The test harness is at /workspace/test_harness.py and expects a ModelNew class in /workspace/submission.py
+- **Trial 2**: Score of 0.00 means either no submission existed or correctness check failed
+- **Trial 2**: Agent produced no output in trial 2 - likely a silent failure or timeout before any work was done
+- **Trial 1**: Agent was killed with exit code 137 (OOM/timeout) - need to be much more efficient with time
+- **Trial 1**: The agent needs to create /workspace/submission.py with a ModelNew class
+- **Trial 1**: Start with a PyTorch-identical baseline to get score > 0, then optimize
+- **Trial 1**: Problem params appear to be: in_channels=64, out_channels=128, stride=2, batch_size=128, height=56, width=56
+- **Trial 3**: Agent has failed 3 consecutive trials with no output - likely a silent crash or the agent not executing any commands
+- **Trial 3**: The minimum viable submission.py is just the reference Model class renamed to ModelNew
+- **Trial 3**: Must verify the test harness interface by reading it before attempting any submission
+- **Trial 2**: Agent has been killed (exit 137) in both trials 1 and 2 without producing any work - needs extremely direct copy-paste instructions
+- **Trial 2**: The minimum viable submission.py is the reference Model class renamed to ModelNew with identical forward logic
+- **Trial 2**: Agent must write submission.py and run benchmark within first 30 seconds to avoid timeout/kill
+- **Trial 4**: Agent has crashed/failed silently in 4 consecutive trials - need extremely explicit step-by-step instructions with exact file content
+- **Trial 4**: The minimum viable approach is to copy the reference Model as ModelNew in /workspace/submission.py
+- **Trial 4**: Do not attempt any optimization until a baseline score > 0 is established
+- **Trial 3**: Agent has crashed/failed silently in all 3 trials with exit code 137 - need extremely explicit step-by-step instructions with exact file content
+- **Trial 3**: The minimum viable approach is to copy the reference Model as ModelNew in /workspace/submission.py
+- **Trial 3**: Do not attempt any optimization until a baseline score > 0 is established
+- **Trial 3**: Agent must write submission.py and run benchmark within first 30 seconds to avoid timeout/kill
+- **Trial 5**: Agent has failed 5 consecutive trials with no output - the agent process may be crashing before executing any commands
+- **Trial 5**: Ultra-minimal instructions with exact copy-paste commands are needed since the agent cannot handle complex multi-step plans
+- **Trial 5**: The submission.py must contain ModelNew (not Model) class that mirrors the reference implementation
+- **Trial 4**: Agent has failed 5 consecutive trials with no output - the agent process may be crashing before executing any commands
+- **Trial 4**: Ultra-minimal instructions with exact copy-paste commands are needed since the agent cannot handle complex multi-step plans
+- **Trial 4**: The submission.py must contain ModelNew (not Model) class that mirrors the reference implementation
+- **Trial 6**: Agent has failed 6 consecutive trials with no output - likely a systemic agent crash issue, not a task complexity issue
+- **Trial 6**: Ultra-minimal instructions with exact copy-paste commands are needed since the agent cannot handle complex multi-step plans
+- **Trial 6**: The submission.py must contain ModelNew (not Model) class that mirrors the reference implementation
+- **Trial 6**: The minimum viable submission is the reference Model renamed to ModelNew - no Triton needed for baseline
+- **Trial 7**: Agent crashed/was killed in all 7 trials for KernelBench L3P8 without producing any output - systemic infrastructure issue
+- **Trial 7**: Exit code 137 (OOM/killed) observed in early trials suggests the agent environment cannot sustain the workload
+- **Trial 7**: Even ultra-minimal single-command instructions could not prevent the agent from crashing before execution
+- **Trial 7**: After 7 consecutive zero-output failures, the issue is not solvable by changing hints - requires infrastructure investigation
+- **Trial 5**: Agent has failed 5 consecutive trials with exit code 137 (OOM/killed) - the agent process is consistently dying before producing any work
+- **Trial 5**: Agent appears to spend time reading optimization_state.json and SKILL.md files before acting, which wastes time before the kill
+- **Trial 5**: Ultra-minimal instructions telling the agent to NOT read any files and just execute two commands immediately may be the only way forward
+- **Trial 5**: The minimum viable submission is the reference Model renamed to ModelNew - no Triton needed for baseline
+- **Trial 6**: ResNet BasicBlock is convolution-dominated (~80%+ compute) - Triton elementwise ops can only give ~2-3% speedup
+- **Trial 6**: torch.compile fails on ROCm gfx950 with MLIR async_copy_global_to_local errors
+- **Trial 6**: KernelBench test harness runs models in training mode - must use batch statistics not running_mean/var for BatchNorm
+- **Trial 6**: Triton nested loops for batch statistics computation are extremely slow (4x slower than PyTorch BN)
+- **Trial 6**: channels_last memory format conversion overhead negates conv speedup for small problem sizes (128x64x56x56)
+- **Trial 6**: torch.backends.cudnn.benchmark=True has not been tried and could help conv-dominated workloads
+- **Trial 6**: BN(affine=False) + Triton affine+ReLU fusion saves a memory round-trip vs separate BN affine and ReLU
+- **Trial 7**: Agent has crashed in 6 out of 7 trials for this task - only trial 6 succeeded after ~1000s
+- **Trial 7**: Score 60.30 achieved with Triton ReLU kernels only; target 62.0 needs ~3% more speedup
+- **Trial 7**: Fusing BN affine + ReLU into single Triton kernel eliminates one memory round-trip and is the most promising remaining optimization
+- **Trial 7**: torch.backends.cudnn.benchmark=True has not been tried and could help MIOpen conv kernel selection
+- **Trial 8**: Agent has crashed in 7 out of 8 trials for KernelBench L3P8 - only trial 6 produced output after ~1000s
+- **Trial 8**: Score 60.30 achieved with Triton ReLU only; target 62.0 needs ~3% more from either cudnn.benchmark or BN affine+ReLU fusion
+- **Trial 8**: torch.backends.cudnn.benchmark=True is the easiest untried optimization for conv-dominated workloads on MIOpen

@@ -1,0 +1,26 @@
+# Learned Insights
+
+- **Trial 1**: KernelBench eval runs models in training mode (not eval), so BatchNorm2d uses batch statistics (mean/var over N,H,W) not running statistics
+- **Trial 1**: Writing custom Triton BatchNorm2d kernels is extremely error-prone due to multi-dimensional reduction and running statistics updates — use PyTorch's F.batch_norm or nn.BatchNorm2d instead
+- **Trial 1**: For UNet optimization, the Softmax(dim=-1) is the easiest target for Triton fusion since it's a simple 1D row-wise reduction
+- **Trial 1**: KernelBench score of 25.00 is the baseline for Level 3 Problem 45 (UNetSoftmax)
+- **Trial 1**: The model structure: encoder1-4 (DoubleConv + MaxPool), bottleneck, decoder1-4 (ConvTranspose2d + DoubleConv), final_conv. DoubleConv = Conv2d+BN+Softmax+Conv2d+BN+Softmax
+- **Trial 2**: KernelBench score of 25.00 is the baseline for Level 3 Problem 45 (UNetSoftmax)
+- **Trial 2**: KernelBench eval runs models in training mode (not eval), so BatchNorm2d uses batch statistics
+- **Trial 2**: For UNet optimization, the Softmax(dim=-1) is the easiest target for Triton fusion since it's a simple 1D row-wise reduction
+- **Trial 2**: Writing custom Triton BatchNorm2d kernels is extremely error-prone — use PyTorch's F.batch_norm or nn.BatchNorm2d instead
+- **Trial 2**: The model structure: encoder1-4 (DoubleConv + MaxPool), bottleneck, decoder1-4 (ConvTranspose2d + DoubleConv), final_conv. DoubleConv = Conv2d+BN+Softmax+Conv2d+BN+Softmax
+- **Trial 3**: KernelBench score of 25.00 is the baseline for Level 3 Problem 45 (UNetSoftmax)
+- **Trial 3**: Trial 3 produced no output - possibly agent got stuck on environment or code generation issues
+- **Trial 3**: The model has 9 DoubleConv blocks × 2 Softmax each = 18 Softmax operations to optimize
+- **Trial 4**: Trials 3 and 4 produced no output - agent may be stuck on overly complex implementations
+- **Trial 4**: A minimal approach replacing only nn.Softmax with Triton softmax is the safest path to get a working submission
+- **Trial 4**: For NCHW tensors with Softmax(dim=-1), the last dimension is W, so reshape to (-1, W) for the Triton kernel
+- **Trial 5**: Agent has failed 3 consecutive trials with zero output on UNet optimization - likely getting stuck on planning/complexity before writing any code
+- **Trial 5**: Providing near-complete copy-paste code is necessary when agent produces zero output multiple times
+- **Trial 6**: Agent has failed 4 consecutive trials (3-6) with zero output on UNet Triton optimization - likely overwhelmed by complexity
+- **Trial 6**: Must provide complete copy-paste code when agent repeatedly fails to produce output
+- **Trial 6**: For KernelBench, the solution file location must be discovered first - check test_harness.py for expected path
+- **Trial 7**: Agent has failed 5 consecutive trials (3-7) with zero output on UNet Triton optimization
+- **Trial 7**: When agent produces no output, it may be stuck in planning/thinking without executing any commands
+- **Trial 7**: Must force agent to execute diagnostic commands FIRST before any code writing

@@ -1,0 +1,25 @@
+# Learned Insights
+
+- **Trial 1**: torch.compile fails on this ROCm setup with 'ttg.async_copy_global_to_local' legalization error — avoid it
+- **Trial 1**: SwinMLP profiling breakdown: elementwise=29.6%, layernorm=15.7%, conv1d(spatial_mlp)=10.9%, gemm=3.6%, other=40.2%
+- **Trial 1**: Triton LayerNorm kernels on this model need float32 accumulation — previous attempt had max_difference=0.42 which suggests fp16 accumulation or wrong reduction
+- **Trial 1**: Baseline runtime is ~3.18ms for SwinMLP Level 3 Problem 29, score=60
+- **Trial 1**: The model uses SwinMLPBlock with spatial_mlp (Conv1d) instead of attention — Conv1d accounts for 10.9% via MIOpen
+- **Trial 2**: Trial 2 produced no output - agent may have been stuck on planning without executing anything
+- **Trial 2**: torch.compile fails on this ROCm setup with 'ttg.async_copy_global_to_local' legalization error — avoid it
+- **Trial 2**: SwinMLP profiling breakdown: elementwise=29.6%, layernorm=15.7%, conv1d(spatial_mlp)=10.9%, gemm=3.6%, other=40.2%
+- **Trial 2**: Triton LayerNorm kernels on this model need float32 accumulation — previous attempt had max_difference=0.42 which suggests fp16 accumulation or wrong reduction
+- **Trial 2**: Baseline runtime is ~3.18ms for SwinMLP Level 3 Problem 29, score=60
+- **Trial 2**: Start with simplest possible optimization (just GELU fusion) before attempting complex multi-op fusions
+- **Trial 3**: Agent got stuck without producing any output in trials 2 and 3 - needs extremely concrete step-by-step instructions
+- **Trial 3**: For SwinMLP problem 29, the simplest first optimization is a Triton GELU kernel replacing nn.GELU in the Mlp class
+- **Trial 3**: Baseline runtime is ~3.18ms giving score=60, higher score means faster execution
+- **Trial 4**: Agent has been stuck for 3 consecutive trials producing no output — needs copy-paste-ready code, not abstract guidance
+- **Trial 4**: Baseline runtime is ~3.18ms giving score=60, higher score means faster execution
+- **Trial 4**: torch.compile fails on this ROCm setup — avoid it entirely
+- **Trial 4**: Triton LayerNorm failed with max_difference=0.42 — avoid LayerNorm fusion, focus on elementwise ops
+- **Trial 4**: SwinMLP profiling: elementwise=29.6%, layernorm=15.7%, conv1d=10.9%, gemm=3.6%
+- **Trial 4**: Start with fused GELU kernel as simplest possible Triton optimization for this model
+- **Trial 5**: Agent has been completely stuck for 4 consecutive trials with no output on SwinMLP problem 29
+- **Trial 5**: For Triton GELU on ROCm, use tl.math.erf for exact match with PyTorch default GELU (not tanh approximation)
+- **Trial 5**: The simplest optimization for SwinMLP is replacing nn.GELU with a Triton GELU kernel in the Mlp class

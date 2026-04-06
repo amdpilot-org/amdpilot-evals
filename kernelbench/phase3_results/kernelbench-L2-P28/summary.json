@@ -1,0 +1,29 @@
+{
+  "job": "kernelbench-L2-P28",
+  "type": "optimize",
+  "best_metric": "25.00",
+  "metric_name": "score",
+  "metric_direction": "higher",
+  "total_elapsed_s": 304,
+  "stages_completed": 0,
+  "total_trials": 1,
+  "failures": 0,
+  "trials": [
+    {
+      "trial": 1,
+      "stage": "stage1_baseline_and_profile",
+      "metric": "25.00",
+      "elapsed_s": 81,
+      "verified": true,
+      "verified_metric": 25.0,
+      "supervisor_action": "retry_with_hints",
+      "supervisor_analysis": "Trial 1 established a baseline score of 25.00 but profiling was not completed \u2014 the agent was cut off by an LLM provider error mid-execution. Need to retry to complete profiling and validate the baseline.",
+      "nudge": {
+        "polls": 1,
+        "noops": 1,
+        "nudges_sent": 0,
+        "nudges": []
+      }
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+# ============================================================
+# vLLM Eval Instance Dockerfile Template
+# ============================================================
+# Structural fixes applied (from vllm-run-lessons.md):
+#   - PYTHONPATH set to source tree (lesson #1)
+#   - Wheel removed, editable install for C extensions (lesson #3)
+#   - Safe kill pattern (lesson #4)
+#   - Correct Python path for vLLM image (lesson #6)
+#   - No conflicting instructions (lesson #7)
+#
+# Usage:
+#   Replace {{PLACEHOLDER}} values before building.
+#   ARG BASE_IMAGE can be overridden at build time:
+#     docker build --build-arg BASE_IMAGE=rocm/vllm-dev:... -t eval-name .
+#
+# Quick Reference (vLLM):
+#   Python:      /usr/bin/python3
+#   Source:      /workspace/vllm
+#   Kill:        pgrep -f 'python3 -m vllm' | xargs -r kill -9
+#   PYTHONPATH:  Must be /workspace/vllm (source over wheel)
+#   C extensions: Pre-built via pip install -e . in Dockerfile
+# ============================================================
+
+ARG BASE_IMAGE=rocm/vllm-dev:rocm7.2.1_v0.18.0_20260330
+FROM ${BASE_IMAGE}
+
+WORKDIR /workspace
+
+# --- Checkout source at pre-fix commit ---
+# {{COMMIT}}: the merge_commit~1 (state BEFORE the fix)
+RUN if [ -d /workspace/vllm ]; then \
+        cd /workspace/vllm && git fetch origin && git checkout {{COMMIT}}; \
+    else \
+        git clone --depth 100 https://github.com/vllm-project/vllm.git /workspace/vllm && \
+        cd /workspace/vllm && git checkout {{COMMIT}}; \
+    fi
+
+# --- Structural fix: remove wheel, rebuild C extensions in source tree ---
+# (lesson #1 + #3: source-over-wheel + pre-built .so)
+RUN pip uninstall -y vllm 2>/dev/null || true
+RUN cd /workspace/vllm && pip install -e . --no-deps --no-build-isolation
+
+# --- Force source-over-wheel at runtime ---
+ENV PYTHONPATH=/workspace/vllm
+
+# --- Copy eval artifacts ---
+COPY test_harness.py /workspace/test_harness.py
+COPY task_description.md /workspace/task_description.md
+
+# --- Structural safety: safe kill script ---
+# This script kills vLLM server processes without hitting the agent
+RUN printf '#!/bin/bash\npgrep -f "python3 -m vllm" | xargs -r kill -9\nsleep 3\n' \
+    > /usr/local/bin/safe-kill-server && chmod +x /usr/local/bin/safe-kill-server
+
+CMD ["sleep", "infinity"]

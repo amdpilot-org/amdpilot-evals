@@ -1,0 +1,208 @@
+# Task: Optimize Optimize fused_moe_triton performance for Kimi K2.5 (PR #19228) on AMD GPU -- Stage1 Profile And Infra
+
+## Starting Point
+
+You are starting from a **clean environment**.
+- Base image: `sglang-moe-tune-sft:base`
+- Repo cloned at `/workspace/` from `https://github.com/sgl-project/sglang.git`
+- **CHECK FIRST**: Run `ls /workspace/` to see if a previous trial left benchmark scripts or results. Reuse them if they exist.
+
+## Task Description
+
+# Optimize Kimi K2.5 fused_moe_triton Performance
+
+## Context
+
+Kimi K2.5 is a multimodal encoder-decoder model (architectures: KimiK25ForConditionalGeneration, based on DeepseekV3) that uses Mixture of Experts (MoE).
+
+When serving Kimi K2.5 with sglang, the fused_moe_triton kernel uses default config, resulting in poor performance. The model uses int4_w4a16 quantization with 384 experts.
+
+Profiling shows the fused_moe kernel is a significant bottleneck:
+- Prefill first MoE: ~9.11ms, second MoE: ~4.28ms
+- Decode first MoE: ~501us, second MoE: ~180us
+
+The fused_moe_triton kernel has a config lookup mechanism that loads tuned configurations based on model parameters (E, N, dtype), but the appropriate tuned configs may be missing for this model's specific configuration.
+
+## Task
+
+Investigate and resolve the poor fused_moe_triton performance for Kimi K2.5. The solution should ensure the kernel uses optimized configurations rather than defaults.
+
+## Key Model Parameters
+
+- `num_local_experts: 384` (E=384)
+- `moe_intermediate_size: 2048`
+- Quantization: int4_w4a16 (4-bit weights, group_size=32)
+- Served with TP=8
+
+## Required Approach
+
+**You MUST follow this workflow — do not skip steps:**
+
+1. **Read the MoE config tuning reference**: Read `/workspace/skills/amd-kernel-optimization/references/moe-config-tuning.md` — it explains how config lookup works, what parameters mean, and the correct tuning workflow.
+
+2. **Understand the config lookup mechanism**: Read `python/sglang/srt/layers/moe/fused_moe_triton/fused_moe_triton_config.py` to understand how configs are loaded. Check what config files exist and what's missing.
+
+3. **Read the existing tuning infrastructure**: The `benchmark/kernels/fused_moe_triton/` directory contains:
+   - `tuning_fused_moe_triton.py` — main tuning script with ray-based config search
+   - `tuning_fused_moe_triton_sep.py` — separate up/down projection tuning
+   - `common_utils.py` — shared utilities for config generation
+   - `README.md` — usage instructions
+
+   **Read these files BEFORE writing any configs.** They contain the correct methodology.
+
+4. **Run systematic config benchmarking**: Either use the existing tuning script or write a systematic config search that tests multiple configs per batch size. Do NOT fabricate config values — benchmark each config to find the actual best.
+
+5. **Benchmark with exclusive GPU access**: When running final benchmarks, ensure no other GPU-intensive processes are running.
+
+## Environment
+
+- Repository: sgl-project/sglang (code at `/workspace/sglang`)
+- Docker container with ROCm, PyTorch, AMD GPU (8x MI300X)
+- Use `/opt/venv/bin/python3` for all commands
+- Model weights at `/sgl-workspace/models/models--moonshotai--Kimi-K2.5/`
+- The benchmark/kernels/fused_moe_triton/ directory contains tuning scripts and utilities
+
+## Verification
+
+Run the test harness after applying your fix:
+```bash
+cd /workspace/sglang && /opt/venv/bin/python3 /workspace/test_harness.py
+```
+
+## Optimization Playbook
+
+Read both the `amd-kernel-optimization` and `gpu-profiling` skills before making source changes.
+Use this sequence unless the task description gives a stronger task-specific instruction:
+1. Establish the real baseline with the standard benchmark.
+2. Reuse the existing profiling picture unless a code change invalidated it.
+   Do not spend the whole stage rebuilding the profiling picture if previous trials already identified the hotspot.
+3. If optimization_state already names a hotspot kernel, backend, file, or symbol, start there before broad code exploration.
+4. Prefer source-level changes tied to hotspot_targets over generic env-var or backend sweeps.
+5. Do NOT spend the stage on broad backend/env-var sweeps when profiling already points at the hotspot.
+6. Create or reuse a fast profiling path when the standard benchmark is too slow (for graph-heavy workloads, disable CUDA graphs first).
+7. Before treating `torch.compile` as unexplored, confirm whether compiled regions are already active in the current checkpoint. If they are not, try `torch.compile(mode="default")` as the first major optimization lever, then fix graph breaks.
+8. Use profiler output to choose the next concrete source-level optimization instead of guessing.
+9. When profiling shows GEMM-dominated time, check whether the active backend has tuning configs optimized for the actual tensor shapes used by the workload. Defaults often use large block sizes that are suboptimal for small-batch decode. Read the model config to find the exact dimensions, then look for shape-specific configs or create them. Shape-targeted config changes typically give much larger gains than env-var tuning.
+10. If the metric is not improving, stop broad re-profiling, make one targeted change or benchmark, and run the standard benchmark as the final measurement and last command.
+
+## Optimization State
+
+
+### Current stage carry-over: stage1_profile_and_infra
+
+## Execution Environment
+
+You are running inside a Docker container with ROCm, PyTorch, and GPU access.
+All commands run directly in this container — no `docker exec` needed.
+- Repo at `/workspace/`
+
+## Goal
+
+Achieve **>=40.0 score** for `` on AMD GPU.
+Run the verification command: `cd /workspace/sglang && /opt/venv/bin/python3 /workspace/test_harness.py`
+
+## Stage Hints
+
+FIRST: Read the skill docs (SKILL.md AND references/moe-config-tuning.md). SECOND: Profile the kernel with rocprof: run "rocprof --stats /opt/venv/bin/python3 /workspace/test_harness.py 2>&1 | tail -40" and analyze which kernels dominate GPU time. THEN: Investigate why fused_moe uses default config — read the config lookup code, check what config files exist, understand what's missing. Add int4_w4a16 support and create initial config files by running benchmarks.
+
+## Workflow
+
+1. **Read skills**: Read your `amd-kernel-optimization` and `gpu-profiling` skills for AMD-specific guidance.
+2. **Read the task description** at `/workspace/task_description.md` — it contains task-specific instructions, including which benchmark to run, environment details, and recommended approaches.
+3. **Baseline FIRST**: Run the benchmark IMMEDIATELY to establish the starting metric. Set a high `timeout` on the Shell tool (e.g. 600–1800s) for the first run since model loading can be slow. Do NOT spend time reading source code before you have a baseline number.
+4. **Profile**: Identify which implementations/backends are active from the benchmark logs when that is relevant (attention, MoE, all-reduce, etc.). If practical, profile with CUDA graphs disabled to get kernel-level breakdown.
+5. **Optimize**: If you have clear optimization opportunities from profiling, apply them one at a time and benchmark after each change. Revert immediately if performance regresses. Follow the skill docs and task description for recommended techniques.
+6. **Update state**: Write results to `/workspace/optimization_state.json` after each change.
+   Record `active_backends`, `hotspot_targets`, and `next_moves` when they are relevant and you know them.
+7. **Final benchmark**: Run the standard benchmark command as your LAST action.
+
+## Key Principles
+
+- **Run the benchmark EARLY** — get a baseline number within the first few minutes. Do NOT spend time on code exploration before having a metric.
+- Follow the task description's recommended approach first — it contains domain-specific guidance.
+- Do NOT modify the benchmark script or its parameters.
+- After making changes to compiled code, rebuild the affected package before benchmarking.
+- If the benchmark script sources a config file (e.g. `bench_config.env`), use it for backend configuration to ensure verification reproduces your setup.
+
+## Integrity Rules (MANDATORY)
+
+- Do NOT modify `test_harness.py` or the benchmark script.
+- Do NOT change benchmark parameters (warmup, iterations, batch size, input dimensions).
+- Do NOT redirect or filter benchmark output (no `grep`, no `| tail`).
+- The orchestrator independently re-runs the benchmark to verify your results. Any discrepancy between your claimed result and the verification run causes the trial to be marked as FAILED.
+- Achieve improvements through legitimate code changes only.
+
+## CRITICAL: Output Format
+
+Your LAST action before finishing MUST be running the benchmark command **directly** —
+do NOT pipe through `grep` or redirect output. The FULL benchmark output must appear
+in your output so the orchestrator can capture the metric via regex: `SCORE:\s+([\d.]+)`
+
+The output must include a line matching: `score: <value>`
+
+Without this line, the trial is recorded as a FAILURE even if you achieved great results.
+
+## State File
+
+After completing work, update `/workspace/optimization_state.json`:
+```json
+{
+  "job_name": "...",
+  "repo": "...",
+  "current_best_ms": 43.4,
+  "stages_completed": [...],
+  "current_stage": {
+    "stage": "<stage name>",
+    "current_best_ms": 41.2,
+    "active_backends": {
+      "attention": "<backend in use>",
+      "moe": "<backend in use>"
+    },
+    "hotspot_targets": [
+      {
+        "kernel": "<hottest kernel>",
+        "share_pct": 26.7,
+        "file": "<exact file path if known>",
+        "symbol": "<exact symbol/function if known>",
+        "backend": "<backend tied to this hotspot>",
+        "reason": "<why this hotspot matters>",
+        "next_step": "<next source-level change to try>"
+      }
+    ],
+    "next_moves": [
+      "<concrete next move>",
+      "<concrete next move>"
+    ],
+    "applied_optimizations": [
+      {
+        "name": "<technique>",
+        "impact_ms": -5.0,
+        "files_changed": ["<path>"],
+        "description": "<what changed>"
+      }
+    ],
+    "attempted_but_failed": [
+      {"name": "<technique>", "reason": "<why>", "error": "<snippet>"}
+    ],
+    "profiling_summary": {
+      "top_bottlenecks": ["<kernel> <pct>"],
+      "gpu_utilization": 0.72,
+      "kernel_breakdown": {"gemm": 61.0, "attention": 24.0}
+    },
+    "environment_changes": ["pip install <pkg>"],
+    "notes": ["<important learning from this trial>"]
+  }
+}
+```
+Prefer structured fields like `active_backends`, `hotspot_targets`, and `next_moves`
+for actionable handoff information when they are relevant to the task. Use `notes`
+for supporting detail, not as the only place where critical hotspot/file/symbol
+guidance is recorded.
+Prefer `next_moves` that point to concrete source-level changes tied to
+`hotspot_targets`; generic env-var/backend tuning should be secondary unless the
+profiling evidence specifically supports it.
+
+The file already exists when the trial starts. Preserve the existing top-level
+structure and update the `current_stage` section with what you learned in this
+trial. If you only know part of the state, add just those fields and leave the
+rest intact. The orchestrator merges this file into the next trial's prompt.

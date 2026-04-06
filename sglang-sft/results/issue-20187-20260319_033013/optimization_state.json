@@ -1,0 +1,53 @@
+{
+  "job_name": "sglang-issue-20187",
+  "repo": "https://github.com/sgl-project/sglang.git",
+  "initial_baseline_ms": 100.0,
+  "current_best_ms": 100.0,
+  "stages_completed": [
+    {
+      "stage": "stage1_implement_fp8_prefill_radix_cache",
+      "baseline_ms": null,
+      "current_best_ms": 100.0,
+      "applied_optimizations": [
+        {
+          "name": "FP8 prefill attention for radix-cache path",
+          "impact_ms": null,
+          "files_changed": [
+            "/sgl-workspace/sglang/python/sglang/srt/layers/attention/aiter_backend.py"
+          ],
+          "description": "Added FP8 prefill support in the radix-cache (prefix) branch of forward_extend. When _use_fp8_prefill_attn is true and kv_b_proj uses MXFP4 weights (uint8 dtype), uses fused_gemm_afp4wfp4_split_cat to fuse GEMM + split + cat operations producing FP8 k/v directly. Casts q/k_pe to FP8, calls mla_prefill_ps_asm_fwd + mla_reduce_v1 for FP8 attention. Falls back to BF16 flash_attn_varlen_func when PS metadata is not available. Also imported fused_gemm_afp4wfp4_split_cat and dynamic_mxfp4_quant from aiter.",
+          "technique_category": "",
+          "timestamp": ""
+        }
+      ],
+      "attempted_but_failed": [],
+      "profiling_summary": {
+        "top_bottlenecks": [],
+        "gpu_utilization": 0.0,
+        "memory_usage_gb": 0.0,
+        "kernel_breakdown": {},
+        "raw_profile_path": "",
+        "timestamp": ""
+      },
+      "active_backends": {
+        "attention": "aiter",
+        "moe": "default"
+      },
+      "hotspot_targets": [],
+      "next_moves": [],
+      "environment_changes": [],
+      "notes": [
+        "Changes were already applied from a previous trial - all 4 test harness checks pass",
+        "The non-radix path already had FP8 prefill via _use_fp8_prefill_attn flag",
+        "The radix-cache path (elif layer.qk_head_dim != kv_lora_rank+qk_rope_head_dim) now mirrors that FP8 logic",
+        "fused_gemm_afp4wfp4_split_cat avoids extra element-wise casts by fusing GEMM with split+cat into FP8 output"
+      ],
+      "started_at": "2026-03-19T03:31:53.991296",
+      "completed_at": "2026-03-19T03:37:54.515556"
+    }
+  ],
+  "current_stage": null,
+  "attempt_history": [],
+  "technique_attempts": {},
+  "global_notes": []
+}

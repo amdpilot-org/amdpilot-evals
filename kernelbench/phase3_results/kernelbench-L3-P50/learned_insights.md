@@ -1,0 +1,25 @@
+# Learned Insights
+
+- **Trial 1**: KernelBench problem 50 is ReLU Self-Attention from minGPT - uses ReLU instead of softmax in attention, which may enable different fusion strategies than standard flash attention
+- **Trial 1**: The test harness is at /workspace/test_harness.py and is run with --level 3 --problem-id 50
+- **Trial 2**: Agent has failed silently twice - likely needs explicit instructions on file paths and test harness interaction
+- **Trial 2**: The test harness is /workspace/test_harness.py run with --level 3 --problem-id 50
+- **Trial 2**: The solution must be written into /workspace/KernelBench/level3/50_ReLUSelfAttention.py as a ModelNew class
+- **Trial 2**: ReLU self-attention avoids softmax, making kernel fusion potentially simpler than standard flash attention
+- **Trial 3**: Agent has failed silently 3 times - needs extremely explicit step-by-step instructions with exact shell commands
+- **Trial 3**: The solution must be a ModelNew class added to /workspace/KernelBench/level3/50_ReLUSelfAttention.py
+- **Trial 3**: ReLU attention is simpler than softmax attention - the key fusion opportunity is matmul + ReLU + matmul
+- **Trial 4**: Agent has failed silently 4 times - needs complete code templates with exact commands
+- **Trial 4**: The ModelNew class must be appended to /workspace/KernelBench/level3/50_ReLUSelfAttention.py, not a separate file
+- **Trial 4**: Start with simplest possible Triton kernel (fused ReLU) before attempting complex fusions
+- **Trial 4**: The attention uses masked_fill with -inf before ReLU, and ReLU zeros out -inf values, effectively applying the causal mask
+- **Trial 5**: Agent has failed silently 5 times - may be an infrastructure issue or the agent is not executing any commands at all
+- **Trial 5**: Providing complete self-contained scripts that write the solution file and run the benchmark may help bypass agent confusion
+- **Trial 5**: The fused scale+mask+relu kernel needs to handle causal masking by computing row/col from flat offsets: row = (offset % (T*T)) // T, col = (offset % (T*T)) % T
+- **Trial 5**: For ReLU attention, causal masking before ReLU is equivalent to zeroing out positions where col > row (since ReLU(-inf) = 0)
+- **Trial 6**: Agent has failed silently 6 consecutive times - may be an infrastructure/agent execution issue rather than a code problem
+- **Trial 6**: For ReLU attention, the fused kernel combines: scale by 1/sqrt(d), causal masking (set col>row to 0), and ReLU activation
+- **Trial 6**: The causal mask and ReLU can be combined since ReLU(-inf)=0, so we can just set masked positions to 0 directly instead of -inf then ReLU
+- **Trial 7**: Agent has failed silently 7 consecutive times - this is likely an infrastructure/agent execution issue rather than a code problem
+- **Trial 7**: If the agent produces no output at all, the hints content doesn't matter - the agent isn't executing any commands
+- **Trial 7**: For ReLU attention, the simplest Triton optimization is a fused ReLU kernel replacing F.relu, keeping the rest as standard PyTorch

@@ -1,0 +1,66 @@
+{
+  "job_name": "kernelbench-L1-P76",
+  "repo": "",
+  "initial_baseline_ms": 233.0,
+  "current_best_ms": 233.0,
+  "stages_completed": [
+    {
+      "stage": "stage1_baseline_and_profile",
+      "baseline_ms": null,
+      "current_best_ms": 60.0,
+      "applied_optimizations": [
+        {
+          "name": "F.conv1d wrapper",
+          "impact_ms": 0.0,
+          "files_changed": [
+            "generated_kernel.py"
+          ],
+          "description": "Wrapped torch.nn.functional.conv1d in ModelNew class. Correct implementation matching PyTorch reference.",
+          "technique_category": "",
+          "timestamp": ""
+        }
+      ],
+      "attempted_but_failed": [
+        {
+          "name": "Triton conv1d kernel with 2D grid",
+          "reason": "Kernel correct but ~100x slower than baseline and causes compilation timeout",
+          "error": "300s timeout exceeded during Triton compilation in fresh harness run",
+          "approaches_tried": 1,
+          "timestamp": ""
+        },
+        {
+          "name": "torch.compile on F.conv1d",
+          "reason": "No speedup observed",
+          "error": "MIOpen already highly optimized, torch.compile provides no benefit",
+          "approaches_tried": 1,
+          "timestamp": ""
+        }
+      ],
+      "profiling_summary": {
+        "top_bottlenecks": [
+          "conv1d memory-bound operation"
+        ],
+        "gpu_utilization": 0.0,
+        "memory_usage_gb": 0.0,
+        "kernel_breakdown": {},
+        "raw_profile_path": "",
+        "timestamp": ""
+      },
+      "environment_changes": [],
+      "notes": [
+        "Problem 76: 1D conv with batch=64, in_channels=64, out_channels=128, length=524280, stride=3, dilation=4",
+        "Output shape: (64, 128, 174758)",
+        "Baseline: 233ms (PyTorch F.conv1d using MIOpen backend)",
+        "Achieved score: 60 (correct, same speed as baseline)",
+        "Naive Triton kernels cannot beat MIOpen for this memory-bound conv1d operation",
+        "Triton compilation overhead causes timeout in fresh harness runs"
+      ],
+      "started_at": "2026-03-16T23:40:27.123631",
+      "completed_at": "2026-03-17T00:36:23.282463"
+    }
+  ],
+  "current_stage": null,
+  "attempt_history": [],
+  "technique_attempts": {},
+  "global_notes": []
+}

@@ -1,0 +1,24 @@
+# Learned Insights
+
+- **Trial 1**: On ROCm gfx950, torch._inductor.config.triton.use_block_ptr must be set to False to avoid 'failed to legalize operation ttg.async_copy_global_to_local' errors
+- **Trial 1**: torch.compile mode='reduce-overhead' causes 3x performance regression on this ROCm setup
+- **Trial 1**: torch.compile mode='max-autotune-no-cudagraphs' also triggers the async_copy error on ROCm
+- **Trial 1**: For Conv3d+Min+Softmax workload: MIOpen convolution accounts for ~86% of runtime, min+softmax is ~14%
+- **Trial 1**: Manual Triton kernels had higher overhead than torch.compile-generated kernels for this workload (1.42ms vs 1.07ms)
+- **Trial 1**: torch.compile(mode='default') with use_block_ptr=False achieves 1.07ms (1.13x speedup) by fusing conv bias add with downstream ops
+- **Trial 2**: Trial 2 produced no output — agent may have gotten stuck without starting from the known-working solution
+- **Trial 2**: For Conv3d+Min+Softmax workload: MIOpen convolution accounts for ~86% of runtime, min+softmax is ~14%
+- **Trial 2**: On ROCm gfx950, torch._inductor.config.triton.use_block_ptr must be set to False to avoid async_copy errors
+- **Trial 2**: torch.compile(mode='default') with use_block_ptr=False achieves 1.07ms (1.13x speedup, score 61.30)
+- **Trial 3**: Agent got stuck in trials 2 and 3 with no output — need to provide the exact working code to copy-paste as a starting point
+- **Trial 3**: torch.compile(mode='default') with use_block_ptr=False is the known-working baseline achieving score 61.30 (1.07ms)
+- **Trial 3**: Conv3d output shape for this problem: (128, 24, 22, 30, 30); min along dim=2 gives (128, 24, 30, 30); softmax along dim=1
+- **Trial 3**: MIOpen convolution dominates at 86% of runtime — optimizing min+softmax (14%) has limited upside unless conv can also be improved
+- **Trial 4**: Agent has failed 3 consecutive trials with no output on this problem - needs exact copy-paste code as starting point
+- **Trial 4**: torch.compile(mode='default') with use_block_ptr=False is the only approach that worked, scoring 61.30 (1.07ms)
+- **Trial 4**: MIOpen conv3d dominates at 86% of runtime - major speedups require either conv optimization or precision changes
+- **Trial 5**: Agent got stuck for 4 consecutive trials (2-5) with no output on KernelBench L2 P24 — the exact copy-paste code approach in hints did not help
+- **Trial 5**: torch.compile(mode='default') with use_block_ptr=False achieved score 61.30 (1.07ms vs 1.21ms baseline) — this was the only working optimization
+- **Trial 5**: For Conv3d+Min+Softmax on ROCm gfx950: MIOpen conv3d accounts for ~86% of runtime, making it the fundamental performance bottleneck
+- **Trial 5**: On ROCm gfx950, torch.compile modes 'reduce-overhead' and 'max-autotune-no-cudagraphs' both fail or regress — only mode='default' works
+- **Trial 5**: Manual Triton kernels were slower than torch.compile-generated kernels (1.42ms vs 1.07ms) for this workload

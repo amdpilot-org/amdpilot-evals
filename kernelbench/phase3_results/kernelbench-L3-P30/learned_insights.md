@@ -1,0 +1,23 @@
+# Learned Insights
+
+- **Trial 1**: SwinTransformerV2 with torch.compile(mode='default') achieves 2.30x speedup (7.76ms→3.38ms) on MI355X, scoring 73.20
+- **Trial 1**: Post-compile GPU time is split almost evenly: Elementwise fused ops 45.7% and GEMM (rocBLAS Cijk) 45.6%, with attention softmax 5.4% and window ops 3.1%
+- **Trial 1**: torch.compile already fuses addmm+relu, addmm+bmm+clamp patterns — custom Triton kernels need to beat these fused kernels
+- **Trial 1**: Window partition/reverse operations (permute+roll+view) account for only ~3% — low priority optimization target
+- **Trial 1**: KernelBench score formula rewards speedup: score=73.20 corresponds to ~2.3x speedup over reference
+- **Trial 2**: SwinTransformerV2 is too complex to rewrite entirely with Triton kernels — incremental optimization on top of torch.compile is the practical approach
+- **Trial 2**: Agent produced no output in trial 2, likely due to attempting too ambitious a rewrite — keep solutions incremental and testable
+- **Trial 3**: SwinTransformerV2 is too complex for full Triton rewrite — agent fails with no output when attempting it
+- **Trial 3**: Incremental approach required: start from working torch.compile solution and add small improvements
+- **Trial 3**: Two consecutive failed trials (2 and 3) from attempting ambitious rewrites — must constrain scope
+- **Trial 4**: SwinTransformerV2 optimization: 3 consecutive failures from attempting full rewrites — must use incremental approach on top of torch.compile
+- **Trial 4**: When agent produces no output repeatedly, the solution scope must be severely constrained — start from copy of working solution and make ONE change at a time
+- **Trial 4**: torch.compile mode='max-autotune' is an untested improvement path that could help GEMM-bound workloads (45.6% GEMM)
+- **Trial 5**: SwinTransformerV2: 4 consecutive failures from attempting complex rewrites — agent cannot handle full model rewrite within time/complexity constraints
+- **Trial 5**: When agent fails repeatedly, provide exact shell commands and single-line changes rather than conceptual guidance
+- **Trial 6**: SwinTransformerV2: 5 consecutive failures (trials 2-6) when attempting anything beyond torch.compile — agent cannot handle complex model optimization
+- **Trial 6**: When providing hints for complex models, give literal shell commands (sed, cp) rather than asking agent to write code
+- **Trial 6**: torch.compile mode='max-autotune' is still untested after 5 failed trials — simplest untried optimization
+- **Trial 7**: SwinTransformerV2: 6 consecutive failures (trials 2-7) — agent cannot produce working output for complex model optimization beyond torch.compile
+- **Trial 7**: When agent fails repeatedly, the root cause may be timeout or the agent getting lost in complexity — ultra-minimal instructions with exact commands are essential
+- **Trial 7**: torch.compile mode='max-autotune' remains untested after 6 failed attempts — this is the single simplest optimization to try

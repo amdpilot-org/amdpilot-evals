@@ -1,0 +1,21 @@
+# Learned Insights
+
+- **Trial 1**: KernelBench L2P60: ConvTranspose3d (MIOpen) is 56% of runtime, Triton fused Swish+GroupNorm+HardSwish is 31%, data layout transpose is 25%
+- **Trial 1**: KernelBench L2P60: tl.sigmoid() is needed for Swish; tl.exp()-based x/(1+exp(-x))*x has numerical precision issues on MI355X
+- **Trial 1**: KernelBench L2P60: BLOCK_SIZE=8192 with precomputed strides is optimal for 491K elements per group
+- **Trial 1**: KernelBench L2P60: Two-pass GroupNorm (pass1=mean/var, pass2=normalize) dominates the Triton kernel time; Welford online algorithm could enable single-pass
+- **Trial 1**: KernelBench L2P60: batched_transpose overhead comes from MIOpen NCHW/NHWC conversion; channels_last_3d memory format may eliminate this
+- **Trial 1**: KernelBench L2P60: Baseline PyTorch is 4.71ms, 1.35x speedup achieved with fused Triton kernel = score 63.50
+- **Trial 2**: KernelBench L2P60: Trial 2 produced no output - agent may have stalled trying to write code without running benchmark
+- **Trial 2**: KernelBench L2P60: channels_last_3d memory format on inputs and conv weights should eliminate MIOpen's batched_transpose overhead (25% of runtime)
+- **Trial 2**: KernelBench L2P60: Welford online algorithm enables single-pass GroupNorm, halving memory traffic in the Triton kernel
+- **Trial 3**: KernelBench L2P60: Agent stalled 2 consecutive trials — needs explicit step-by-step instructions with mandatory benchmark runs after each change
+- **Trial 3**: KernelBench L2P60: channels_last_3d memory format is the highest-ROI optimization (eliminates 25% runtime from batched_transpose)
+- **Trial 4**: KernelBench L2P60: Agent has stalled 3 consecutive trials (2,3,4) — needs atomic step-by-step instructions with mandatory benchmark runs
+- **Trial 4**: KernelBench L2P60: channels_last_3d on conv weights and inputs should eliminate MIOpen batched_transpose (11.6ms, 25% of runtime)
+- **Trial 5**: KernelBench L2P60: Agent stalled 4 consecutive trials (2-5) — needs atomic single-change instructions with mandatory benchmark runs
+- **Trial 5**: KernelBench L2P60: channels_last_3d remains the highest-ROI untried optimization (eliminates 11.6ms batched_transpose, 25% of runtime)
+- **Trial 6**: KernelBench L2P60: Agent has stalled 5 consecutive trials (2-6) — needs copy-paste-ready code snippets, not conceptual guidance
+- **Trial 6**: KernelBench L2P60: channels_last_3d remains untried after 6 trials despite being identified as highest-ROI optimization in trial 1
+- **Trial 7**: KernelBench L2P60: Agent has stalled 6 consecutive trials (2-7) — fundamental execution issue, not a knowledge gap
+- **Trial 7**: KernelBench L2P60: channels_last_3d remains the highest-ROI untried optimization after 7 trials

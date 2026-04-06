@@ -1,0 +1,23 @@
+# Learned Insights
+
+- **Trial 1**: GroupNorm score=50 means Triton kernel is ~2x slower than PyTorch (score = pytorch_time/triton_time * 100)
+- **Trial 1**: PyTorch GroupNorm uses 2 kernels: RowwiseMoments (51%, single-pass mean+var) + elementwise_kernel (49%, normalize+scale+bias)
+- **Trial 1**: Current Triton GroupNorm does 3 sequential passes over data (mean, variance, normalize) vs PyTorch's 2 passes — fusing mean+variance via Welford's algorithm is the top priority
+- **Trial 1**: Problem dimensions: batch=112, features=64, num_groups=8, spatial=512x512. Each group processes 8 channels * 262144 spatial = 2M elements
+- **Trial 1**: BLOCK_SIZE=8192 was slower than 4096; 2D block processing caused shape errors
+- **Trial 2**: GroupNorm score=50 means Triton kernel is ~2x slower than PyTorch (score = pytorch_time/triton_time * 100)
+- **Trial 2**: PyTorch GroupNorm uses 2 kernels: RowwiseMoments (51%, single-pass mean+var) + elementwise_kernel (49%, normalize+scale+bias)
+- **Trial 2**: Current Triton GroupNorm does 3 sequential passes over data (mean, variance, normalize) vs PyTorch's 2 passes — fusing sum+sum_sq accumulation is the top priority
+- **Trial 2**: Problem dimensions: batch=112, features=64, num_groups=8, spatial=512x512. Each group processes 8 channels * 262144 spatial = 2M elements per group
+- **Trial 2**: BLOCK_SIZE=8192 was slower than 4096 for this problem; stick with 2048-4096
+- **Trial 2**: Trial 2 produced no output — agent may need explicit instruction to read existing kernel first and make incremental changes rather than rewriting
+- **Trial 3**: Agent failed 2 consecutive trials with no output in optimization stage — needs extremely concrete code snippets and step-by-step instructions
+- **Trial 3**: For GroupNorm, the simplest optimization is sum+sum_sq accumulation (not Welford's) which reduces 3 passes to 2 passes
+- **Trial 3**: Always instruct agent to backup working kernel before modifications and to read existing code first
+- **Trial 4**: Agent has failed 3 consecutive trials with no output — needs complete copy-pasteable code, not optimization hints
+- **Trial 4**: For GroupNorm with 2M elements per group, the 2-pass approach (sum+sum_sq then normalize) should match PyTorch's 2-kernel approach
+- **Trial 4**: tl.store of scalar values causes errors — always store vector results, not reduced scalars
+- **Trial 5**: Agent has failed 4 consecutive trials with no output — always provide complete copy-pasteable code rather than optimization hints
+- **Trial 5**: For GroupNorm 2-pass kernel: accumulate sum and sum_sq in first pass using vector accumulators, reduce to scalars, then normalize in second pass
+- **Trial 5**: When loading weight/bias per-channel inside a spatial loop, use c_global (vector index) with mask to handle boundary conditions
+- **Trial 5**: group_size for this problem is C_per_G * HxW = 8 * 262144 = 2M elements; with BLOCK_SIZE=4096 that's 512 iterations per pass

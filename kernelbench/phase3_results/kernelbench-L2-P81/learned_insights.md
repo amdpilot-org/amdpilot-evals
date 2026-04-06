@@ -1,0 +1,23 @@
+# Learned Insights
+
+- **Trial 6**: Exit code 137 means process killed - agent must minimize file reads and write code immediately
+- **Trial 6**: For AMD ROCm Triton: use tl.sigmoid for sigmoid, manual tanh via 2*sigmoid(2x)-1, tl.minimum/tl.maximum for clamp
+- **Trial 6**: The fused post-GEMM kernel (swish+divide+clamp+tanh+clamp) is a straightforward elementwise fusion
+- **Trial 6**: Agent has been killed in all 6 trials without producing any metric - time management is critical
+- **Trial 1**: For problem 81 (1024x8192 GEMM + elementwise), GEMM dominates at 98.3% of GPU time
+- **Trial 1**: Fused elementwise Triton kernel (swish+divide+clamp+tanh+clamp) only takes 1.7% of GPU time - already efficient
+- **Trial 1**: Baseline score 60.50 corresponds to 0.94ms total runtime (1.057x speedup over PyTorch 0.994ms)
+- **Trial 1**: Main optimization opportunity is fusing GEMM with activation to eliminate intermediate memory traffic for the (1024, 8192) output tensor
+- **Trial 1**: ROCm Triton: use tl.math.exp for exp, manual tanh via (exp(2x)-1)/(exp(2x)+1), BLOCK_SIZE multiple of 64 for MI355X wavefront
+- **Trial 2**: Agent was killed with no output in trial 2 — must write code immediately without file reads
+- **Trial 2**: For 1024x8192 GEMM, hipBLASLt at 98.3% of runtime is likely near-optimal; fusing GEMM+activation saves ~10µs (1% of total)
+- **Trial 2**: torch.compile with max-autotune is a viable alternative to manual Triton GEMM for this problem size
+- **Trial 3**: Agent has been killed 3 times on stage2 — must write code in first action without any file reads
+- **Trial 3**: For problem 81, the existing fused activation kernel is already efficient (1.7% of runtime) — GEMM at 98.3% is the bottleneck
+- **Trial 3**: Score 60.50 corresponds to 1.057x speedup; further gains require GEMM optimization which is hard since hipBLASLt is near-optimal for 1024x8192
+- **Trial 4**: Agent has been killed in 4 out of 5 trials - must write code in first action with zero file reads
+- **Trial 4**: Score 60.50 is a solid baseline (1.057x over PyTorch) - GEMM at 98.3% leaves little room for improvement
+- **Trial 4**: torch.compile with max-autotune is the easiest path to potentially improve GEMM performance without manual Triton GEMM kernels
+- **Trial 5**: Agent killed 5 out of 6 trials - must provide complete code in hints to avoid any file reading
+- **Trial 5**: torch.compile with max-autotune on the Linear layer may find a better GEMM configuration than default hipBLASLt
+- **Trial 5**: For problem 81, the only real optimization lever is GEMM (98.3% of runtime) since elementwise fusion is already done

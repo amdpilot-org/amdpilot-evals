@@ -1,0 +1,5 @@
+• I'll start by reading the test harness to understand the interface, then creat
+  e a baseline implementation and run the benchmark.
+
+--- EXIT CODE ---
+137

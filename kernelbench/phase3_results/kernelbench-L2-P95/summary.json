@@ -1,0 +1,29 @@
+{
+  "job": "kernelbench-L2-P95",
+  "type": "optimize",
+  "best_metric": "60.50",
+  "metric_name": "score",
+  "metric_direction": "higher",
+  "total_elapsed_s": 431,
+  "stages_completed": 1,
+  "total_trials": 1,
+  "failures": 0,
+  "trials": [
+    {
+      "trial": 1,
+      "stage": "stage1_baseline_and_profile",
+      "metric": "60.50",
+      "elapsed_s": 127,
+      "verified": true,
+      "verified_metric": 60.5,
+      "supervisor_action": "continue",
+      "supervisor_analysis": "Baseline established at score 60.50 (0.954ms kernel vs 0.999ms baseline, 1.047x speedup). The fused activation kernel works correctly on ROCm. Advancing to optimization stage.",
+      "nudge": {
+        "polls": 2,
+        "noops": 2,
+        "nudges_sent": 0,
+        "nudges": []
+      }
+    }
+  ]
+}

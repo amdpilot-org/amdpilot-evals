@@ -1,0 +1,29 @@
+{
+  "job": "kernelbench-L2-P17",
+  "type": "optimize",
+  "best_metric": "25.00",
+  "metric_name": "score",
+  "metric_direction": "higher",
+  "total_elapsed_s": 595,
+  "stages_completed": 0,
+  "total_trials": 1,
+  "failures": 0,
+  "trials": [
+    {
+      "trial": 1,
+      "stage": "stage1_baseline_and_profile",
+      "metric": "25.00",
+      "elapsed_s": 371,
+      "verified": true,
+      "verified_metric": 25.0,
+      "supervisor_action": "continue",
+      "supervisor_analysis": "Baseline score of 25.00 established. Agent was deep into debugging correctness of the InstanceNorm Triton kernel and found it works correctly at actual dimensions (H=126, W=126, hw=15876). The agent was interrupted by an LLM provider error. Advancing to optimization stage with detailed hints from the debugging session.",
+      "nudge": {
+        "polls": 4,
+        "noops": 4,
+        "nudges_sent": 0,
+        "nudges": []
+      }
+    }
+  ]
+}

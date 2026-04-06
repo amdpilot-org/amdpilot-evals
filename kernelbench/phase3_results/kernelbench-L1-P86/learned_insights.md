@@ -1,0 +1,23 @@
+# Learned Insights
+
+- **Trial 1**: Problem 86 has in_channels=3 — depthwise conv is only 3 groups of 1 channel each, which is pathological for MIOpen and potentially advantageous for custom Triton kernels
+- **Trial 1**: torch.compile mode=max-autotune on AMD can cause performance degradation over time during benchmarks due to autotuning overhead
+- **Trial 1**: channels_last memory format added overhead (6.94ms vs 4.58ms) for this problem on AMD
+- **Trial 1**: MIOpen-backed nn.Conv2d achieves ~4.58ms for this depthwise-separable conv; custom Triton kernels must beat this
+- **Trial 1**: Pointwise 1x1 conv with 3→64 channels is essentially a batched matmul of shape (N*H*W, 3) @ (3, 64) — expressible as Triton GEMM
+- **Trial 1**: The fused approach (depthwise+pointwise in one kernel) avoids writing the intermediate (16,3,254,254) tensor to global memory
+- **Trial 2**: Trial 2 produced no output — agent likely got stuck in kernel development without producing a runnable file
+- **Trial 2**: For pointwise 1x1 conv with K=3, a Triton kernel with explicit K loop (3 iterations) can avoid GEMM library overhead
+- **Trial 2**: The depthwise conv with groups=3 should stay as nn.Conv2d (MIOpen) — custom Triton depthwise for 3 channels is not worth the complexity
+- **Trial 2**: Always .permute(0,2,3,1).contiguous().view(-1,C) to convert NCHW to (M,K) for the pointwise GEMM
+- **Trial 3**: Trial 3 produced no output — agent likely got stuck in implementation without ever producing a runnable file. Need extremely concrete code templates.
+- **Trial 3**: With K=3 (in_channels=3), the Triton GEMM inner loop is only 3 iterations — should be fast if memory access is efficient
+- **Trial 3**: The permute NCHW->NHWC + reshape is required to set up the (M,K) matrix for the pointwise GEMM
+- **Trial 4**: Agent has failed 3 consecutive trials (2,3,4) producing no output — needs near-complete code templates to succeed
+- **Trial 4**: The permute+contiguous+view path to convert NCHW to (M,K) for pointwise GEMM adds overhead that must be offset by kernel speedup
+- **Trial 4**: For in_channels=3, the Triton GEMM inner loop is only 3 iterations — memory bandwidth dominates over compute
+- **Trial 5**: For depthwise-separable conv with in_channels=3, MIOpen-backed nn.Conv2d is extremely hard to beat with custom Triton kernels on AMD
+- **Trial 5**: Agents consistently fail to produce runnable custom Triton conv kernels when given abstract instructions — need complete, tested code templates
+- **Trial 5**: torch.compile(mode='default') achieves parity (score=50) but not speedup over MIOpen for small-channel depthwise-separable convolution
+- **Trial 5**: The pointwise 1x1 conv (3->64) as Triton GEMM with K=3 is memory-bandwidth-bound; the permute+contiguous+view overhead to convert NCHW to (M,K) likely negates any kernel-level speedup
+- **Trial 5**: For KernelBench problems where vendor-tuned libraries (MIOpen) already handle the core operations, the overhead of custom kernel development rarely pays off

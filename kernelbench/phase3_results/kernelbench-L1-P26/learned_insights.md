@@ -1,0 +1,23 @@
+# Learned Insights
+
+- **Trial 1**: GELU problem 26 has batch_size=4096, dim=393216 = ~1.6B elements, purely memory-bandwidth bound
+- **Trial 1**: Correctness tolerance is atol=rtol=1e-4; sigmoid approx (x*sigmoid(1.702*x)) fails with max_diff=6.36e-3
+- **Trial 1**: tanh-based GELU approximation has max_diff=1.53e-4 vs exact, borderline passing 1e-4 tolerance
+- **Trial 1**: torch.compile(mode='default') on F.gelu achieves ~2.15ms vs 2.16ms baseline — marginal improvement
+- **Trial 1**: Manual Triton GELU kernel with tanh formula achieved ~2.18ms, slightly slower than baseline
+- **Trial 1**: tl.math.tanh is unavailable on ROCm — must use manual exp-based implementation
+- **Trial 1**: Try tl.math.erf for exact GELU formula which matches PyTorch reference exactly
+- **Trial 2**: Trial 2 produced no output — agent may have crashed during kernel compilation or had a silent error
+- **Trial 2**: tl.math.erf should be available on ROCm Triton and gives exact GELU matching PyTorch reference
+- **Trial 2**: For memory-bound elementwise ops on MI355X, try BLOCK_SIZE=4096-8192 with num_warps=8-16
+- **Trial 3**: Trials 2 and 3 crashed silently — agent must use try/except with traceback printing
+- **Trial 3**: tl.math.erf may be available on ROCm Triton for exact GELU computation
+- **Trial 3**: For GELU on MI355X with 1.6B elements, try BLOCK_SIZE=4096 with num_warps=8 as starting point
+- **Trial 4**: Trials 2-4 all crashed silently with no output — agent needs explicit try/except and subprocess error capture
+- **Trial 4**: tl.math.erf may or may not be available on ROCm Triton for MI355X — need runtime test with fallback
+- **Trial 4**: For GELU on MI355X, torch.compile gives score 50 (baseline-equivalent) — manual Triton kernel needed to exceed
+- **Trial 4**: Agent crashes may be caused by Triton compilation errors on ROCm that aren't caught — always use try/except
+- **Trial 5**: Trials 2-5 crashed silently — ROCm Triton compilation errors are not caught by default, agent must use try/except everywhere
+- **Trial 5**: tl.math.erf availability on ROCm MI355X gfx950 is uncertain — must test at runtime with fallback to tanh approximation
+- **Trial 5**: For GELU score >50, need kernel faster than 2.16ms on 1.6B float32 elements — purely memory-bandwidth bound
+- **Trial 5**: torch.compile on F.gelu gives score exactly 50 (baseline-matching), not an improvement

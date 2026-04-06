@@ -1,0 +1,115 @@
+{
+  "job_name": "kernelbench-L1-P74",
+  "repo": "",
+  "initial_baseline_ms": 6.28,
+  "current_best_ms": 50.0,
+  "stages_completed": [
+    {
+      "stage": "stage1_baseline_and_profile",
+      "baseline_ms": null,
+      "current_best_ms": 50.0,
+      "applied_optimizations": [
+        {
+          "name": "2D grid restructuring",
+          "impact_ms": null,
+          "files_changed": [
+            "generated_kernel.py"
+          ],
+          "description": "Changed from 3D grid (batch, out_channels, output_length) to 2D grid (batch*out_channels, num_out_pos_blocks) to avoid HIP grid dimension limit of 65535. Each block handles BLOCK_OUT_POS=64 output positions for one (batch, oc) pair.",
+          "technique_category": "",
+          "timestamp": ""
+        },
+        {
+          "name": "Vectorized output channels",
+          "impact_ms": -65.4,
+          "files_changed": [
+            "generated_kernel.py"
+          ],
+          "description": "Increased parallelism by processing BLOCK_OUT_CHANNELS=64 output channels per thread block using vectorized loads and 2D accumulation. Reduced runtime from 71.7ms to 6.28ms (11.4x speedup).",
+          "technique_category": "",
+          "timestamp": ""
+        }
+      ],
+      "attempted_but_failed": [
+        {
+          "name": "3D grid with output_length dimension",
+          "reason": "HIP grid dimension limit",
+          "error": "Grid dimension z=131084 exceeds HIP limit of 65535",
+          "approaches_tried": 1,
+          "timestamp": ""
+        },
+        {
+          "name": "Blocked input channels with tl.dot",
+          "reason": "LLVM translation failure",
+          "error": "LLVM Translation failed for operation: builtin.unrealized_conversion_cast",
+          "approaches_tried": 1,
+          "timestamp": ""
+        }
+      ],
+      "profiling_summary": {
+        "top_bottlenecks": [
+          "Inner loop over in_channels (32 iterations) limits parallelism",
+          "Memory bandwidth bound - loading input and weight for each kernel position",
+          "PyTorch uses highly optimized MIOpen/rocBLAS kernels that are difficult to beat with custom Triton"
+        ],
+        "gpu_utilization": 0.0,
+        "memory_usage_gb": 0.0,
+        "kernel_breakdown": {},
+        "raw_profile_path": "",
+        "timestamp": ""
+      },
+      "environment_changes": [],
+      "notes": [
+        "PyTorch's ConvTranspose1d on ROCm uses MIOpen which is highly optimized",
+        "Current Triton implementation achieves 6.28ms vs PyTorch's 2.12ms (0.34x speedup)",
+        "Main bottleneck is the loop over in_channels (32) inside each thread block",
+        "Further optimization would require: (1) shared memory for weight caching, (2) better memory coalescing, (3) potentially using aiter's tuned GEMM for the underlying computation",
+        "SCORE: 50.0 (correct but slower than baseline)"
+      ],
+      "started_at": "2026-03-17T14:22:28.151949",
+      "completed_at": "2026-03-17T14:40:43.619950"
+    }
+  ],
+  "current_stage": {
+    "stage": "stage3_optimize_round2",
+    "baseline_ms": 50.0,
+    "current_best_ms": null,
+    "applied_optimizations": [],
+    "attempted_but_failed": [
+      {
+        "name": "trial_4",
+        "reason": "Fallback: trial 4 produced no metric, providing task-specific guidance.",
+        "error": "",
+        "approaches_tried": 1,
+        "timestamp": "2026-03-17T14:54:18.107093"
+      },
+      {
+        "name": "trial_5",
+        "reason": "Insufficient time remaining.",
+        "error": "",
+        "approaches_tried": 1,
+        "timestamp": "2026-03-17T15:00:53.526997"
+      }
+    ],
+    "profiling_summary": {
+      "top_bottlenecks": [],
+      "gpu_utilization": 0.0,
+      "memory_usage_gb": 0.0,
+      "kernel_breakdown": {},
+      "raw_profile_path": "",
+      "timestamp": ""
+    },
+    "environment_changes": [],
+    "notes": [],
+    "started_at": "2026-03-17T14:47:42.701389",
+    "completed_at": ""
+  },
+  "attempt_history": [],
+  "technique_attempts": {
+    "trial_2": 1,
+    "trial_3": 1,
+    "trial_4": 1,
+    "trial_5": 1
+  },
+  "global_notes": []
+}

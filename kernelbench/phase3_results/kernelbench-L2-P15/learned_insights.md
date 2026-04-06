@@ -1,0 +1,24 @@
+# Learned Insights
+
+- **Trial 1**: KernelBench score 50 = parity with reference. Above 50 = faster than reference.
+- **Trial 1**: BatchNorm3d must run in training mode (do NOT call .eval()) — reference Model uses training mode
+- **Trial 1**: Test harness uses set_seed for weight matching, not state_dict copying — layer creation order in __init__ must match exactly
+- **Trial 1**: torch.compile with custom @triton.jit kernels causes ImportError: cannot import specialize_impl from triton.runtime.jit — use torch.compile on pure PyTorch OR use standalone Triton kernels, not both
+- **Trial 1**: Per-slice Triton kernel launches (Python loop over batch*channels) cause 10x slowdown due to launch overhead
+- **Trial 1**: Current bottleneck: memory operations (flatten, expand, contiguous) in the mean subtraction step add ~0.1ms overhead
+- **Trial 1**: Reference runtime for ConvTranspose3d+BatchNorm3d+MeanSubtract is ~1.45ms on MI355X
+- **Trial 2**: KernelBench score 50 = parity with reference. Above 50 = faster than reference.
+- **Trial 2**: BatchNorm3d must run in training mode (do NOT call .eval()) — reference Model uses training mode
+- **Trial 2**: torch.compile with custom @triton.jit kernels causes ImportError on this ROCm setup — use one or the other
+- **Trial 2**: Per-slice Triton kernel launches (Python loop over batch*channels) cause 10x slowdown due to launch overhead
+- **Trial 2**: Reference runtime for ConvTranspose3d+BatchNorm3d+MeanSubtract is ~1.45ms on MI355X
+- **Trial 2**: For ConvTranspose3d with in=16,out=32,kernel=3,stride=2,pad=1 on input 16x16x16x32x32, output spatial dims are approximately 31x63x63
+- **Trial 3**: Trial 3 produced no output — agent may be timing out during compilation or hitting silent errors. Need explicit step-by-step instructions.
+- **Trial 3**: torch.compile on pure PyTorch (without custom Triton kernels) is the safest first optimization to try — avoids the specialize_impl ImportError
+- **Trial 3**: For fused mean+subtract Triton kernel, spatial size is approximately 31*63*63=123039 elements per (batch,channel) slice
+- **Trial 4**: Agent produced no output in trials 3 and 4 — likely timing out during compilation or hitting silent import/runtime errors
+- **Trial 4**: Need to give complete, copy-paste-ready code to avoid agent getting stuck on implementation details
+- **Trial 4**: BLOCK size for spatial_size ~123039 should be power-of-2, try 4096 or 8192 for good occupancy on MI355X
+- **Trial 5**: Agent has timed out or crashed silently 3 consecutive trials (3,4,5) — likely getting stuck in complex implementations or compilation
+- **Trial 5**: With score 50 as baseline (parity), the optimization margin is tiny (~0.1ms on 1.45ms reference) — simple torch.compile fusion is the most promising approach
+- **Trial 5**: When agent fails repeatedly with no output, provide complete copy-paste code rather than instructions

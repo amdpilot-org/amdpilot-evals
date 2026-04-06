@@ -1,0 +1,21 @@
+# Learned Insights
+
+- **Trial 1**: KernelBench Problem 78: conv_transpose2d with stride=(1,1) is mathematically equivalent to F.conv2d with flipped/transposed weights, but both use the same underlying GEMM and achieve similar performance (~2.44ms)
+- **Trial 1**: channels_last memory format causes significant regression (5.24ms vs 2.44ms) for this problem on MI355X due to format conversion overhead
+- **Trial 1**: torch.compile mode='default' provides no speedup for conv_transpose2d on MI355X (2.47ms vs 2.44ms baseline)
+- **Trial 1**: KernelBench test harness reinitializes model weights, so FP16 weight conversion in __init__ gets overwritten with FP32 weights
+- **Trial 1**: Problem 78 is 95% GEMM-bound with input 8x32x512x1024, making it hard to beat highly optimized rocBLAS kernels
+- **Trial 1**: ConvTranspose2d stores weight as (in_channels, out_channels, kh, kw), NOT (out_channels, in_channels, kh, kw) — critical for custom kernel implementations
+- **Trial 2**: KernelBench Problem 78 is 95% GEMM-bound with rocBLAS — custom Triton kernels are unlikely to beat it without advanced tiling
+- **Trial 2**: Trial 2 produced no output, suggesting agent got stuck without clear direction on a hard-to-optimize problem
+- **Trial 2**: For GEMM-bound convolutions on MI355X, torch.compile mode='max-autotune' with Inductor triton template search is the most promising approach before manual kernel work
+- **Trial 3**: Agent got stuck 2 trials in a row on Problem 78 — need very concrete code in hints to unblock
+- **Trial 3**: For GEMM-bound conv problems on MI355X, torch.compile mode='max-autotune' is the last viable approach before accepting the baseline performance
+- **Trial 4**: Agent stuck 3 consecutive trials on Problem 78 — need complete copy-paste code in hints to unblock
+- **Trial 4**: For GEMM-bound problems at 95%+ GEMM, realistic speedup over rocBLAS is unlikely without low-level HIP assembly or fundamentally different algorithm
+- **Trial 5**: Agent has been stuck for 3+ consecutive trials on Problem 78 — needs absolute minimal 2-step instructions with complete file content
+- **Trial 5**: For GEMM-bound conv problems where agent is stuck, fallback to torch.compile(mode='max-autotune') wrapping the original nn module is the safest approach
+- **Trial 6**: KernelBench Problem 78 (conv_transpose2d with stride=1, kernel 3x7, input 8x32x512x1024) is 95% GEMM-bound and cannot be meaningfully improved over rocBLAS on MI355X
+- **Trial 6**: When an agent gets stuck for 3+ consecutive trials with no output, even providing complete copy-paste code in hints is insufficient to unblock — consider stopping early
+- **Trial 6**: For GEMM-bound convolution problems at 95%+, score=50 (correct but not faster) may be the realistic ceiling without HIP assembly optimization
+- **Trial 6**: All standard optimization approaches exhausted for Problem 78: torch.compile (default and max-autotune), channels_last, FP16, forward conv equivalence, custom Triton kernels — none beat rocBLAS

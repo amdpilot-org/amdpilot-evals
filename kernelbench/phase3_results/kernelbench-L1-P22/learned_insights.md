@@ -1,0 +1,21 @@
+# Learned Insights
+
+- **Trial 1**: tl.math.tanh and tl.libdevice.tanh are NOT available on ROCm Triton for MI355X
+- **Trial 1**: Manual tanh using tl.exp2(x * 2.885390081777927) maps to single hardware instruction on AMD
+- **Trial 1**: For elementwise tanh on large tensors (4096x393216), PyTorch native achieves 2.14ms which is near memory bandwidth limit
+- **Trial 1**: torch.compile mode=max-autotune and mode=reduce-overhead add significant overhead (~5ms) on ROCm for simple ops
+- **Trial 1**: This problem is 100% memory-bandwidth-bound - computation is trivial compared to data movement
+- **Trial 1**: Best Triton config so far: BLOCK_SIZE=1024, num_warps=4 achieves 2.16ms
+- **Trial 2**: Trial 2 produced no output - agent may have spent all time on setup/investigation without running benchmark
+- **Trial 2**: For memory-bandwidth-bound elementwise ops, eviction_policy='evict_first' on load/store can help by not polluting L2 cache
+- **Trial 2**: Polynomial tanh approximation (Padé) avoids expensive exp computation but must pass correctness check
+- **Trial 3**: Two consecutive trials with no output suggest agent is spending too much time on analysis - need extremely prescriptive instructions
+- **Trial 3**: For memory-bandwidth-bound elementwise ops on MI355X, try BLOCK_SIZE up to 65536 with 8 warps to maximize memory coalescing
+- **Trial 3**: eviction_policy='evict_first' on both load and store avoids L2 cache pollution for streaming workloads
+- **Trial 4**: Three consecutive trials with no agent output indicate the agent is over-analyzing; need extremely prescriptive copy-paste instructions
+- **Trial 4**: For KernelBench score of 50, the custom kernel matches baseline speed exactly - need to beat it for higher scores
+- **Trial 4**: On MI355X, for memory-bandwidth-bound ops, try BLOCK_SIZE up to 65536 with 8 warps for maximum coalescing
+- **Trial 4**: Mixed precision (load fp32 -> compute fp16 -> store fp32) can reduce compute time if memory bandwidth allows
+- **Trial 5**: Agent has failed to produce output in 4 consecutive trials - extremely prescriptive copy-paste instructions are needed
+- **Trial 5**: For KernelBench score 50, the kernel matches baseline exactly - need to beat 2.14ms to score higher
+- **Trial 5**: On MI355X for memory-bandwidth-bound elementwise ops, the key lever is maximizing memory throughput via large BLOCK_SIZE and optimal warp count

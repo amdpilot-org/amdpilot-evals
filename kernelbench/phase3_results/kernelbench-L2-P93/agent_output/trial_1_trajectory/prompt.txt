@@ -1,0 +1,313 @@
+# Task: Optimize Optimize KernelBench Level 2 Problem 93 with Triton on AMD MI355X on AMD GPU -- Stage1 Baseline And Profile
+
+## Starting Point
+
+You are starting from a **clean environment**.
+- Base image: `amdpilot-kernelbench-base:latest`
+- Repo cloned at `/workspace/` from ``
+- **CHECK FIRST**: Run `ls /workspace/` to see if a previous trial left benchmark scripts or results. Reuse them if they exist.
+
+## Task Description
+
+# KernelBench Level 2 Problem 93: 93_ConvTranspose2d_Add_Min_GELU_Multiply.py
+
+## Goal
+
+Write an optimized Triton kernel implementation (`ModelNew`) that:
+1. Produces the **exact same output** as the PyTorch reference `Model`
+2. Is **faster** than the PyTorch baseline
+3. Uses Triton `@triton.jit` kernels (NOT raw CUDA/HIP)
+
+## PyTorch Reference Implementation
+
+```python
+import torch
+import torch.nn as nn
+
+class Model(nn.Module):
+    """
+    Model that performs a transposed convolution, adds a value, takes the minimum, applies GELU, and multiplies by a value.
+    """
+    def __init__(self, in_channels, out_channels, kernel_size, stride, add_value, multiply_value):
+        super(Model, self).__init__()
+        self.conv_transpose = nn.ConvTranspose2d(in_channels, out_channels, kernel_size, stride=stride)
+        self.add_value = add_value
+        self.multiply_value = multiply_value
+
+    def forward(self, x):
+        x = self.conv_transpose(x)
+        x = x + self.add_value
+        x = torch.min(x, torch.tensor(0.0, device=x.device))
+        x = torch.nn.functional.gelu(x)
+        x = x * self.multiply_value
+        return x
+
+batch_size = 128
+in_channels = 64
+out_channels = 128
+height, width = 64, 64
+kernel_size = 4
+stride = 2
+add_value = 0.5
+multiply_value = 2.0
+
+def get_inputs():
+    return [torch.rand(batch_size, in_channels, height, width)]
+
+def get_init_inputs():
+    return [in_channels, out_channels, kernel_size, stride, add_value, multiply_value]
+```
+
+## AMD ROCm Triton Constraints (CRITICAL)
+
+You are writing Triton kernels for AMD Instinct MI355X (gfx950, CDNA4) with ROCm.
+
+### Known Issues - You MUST follow these rules:
+
+1. **`tl.math.tanh` is UNAVAILABLE** on ROCm Triton. Use manual implementation:
+   ```python
+   x_clamped = tl.maximum(tl.minimum(x, 10.0), -10.0)
+   exp_2x = tl.math.exp(2.0 * x_clamped)
+   tanh_val = (exp_2x - 1.0) / (exp_2x + 1.0)
+   ```
+
+2. **`tl.libdevice.*` is UNAVAILABLE** on ROCm. Do NOT use `tl.libdevice.tanh`,
+   `tl.libdevice.exp`, etc. Use `tl.math.exp` or manual implementations.
+
+3. **Wavefront size is 64** (not 32 like NVIDIA). BLOCK_SIZE values that are
+   multiples of 64 align better with hardware.
+
+4. **Cast output to target dtype explicitly**: compute in float32, cast back on store:
+   ```python
+   x = tl.load(ptr, mask=mask, other=0.0).to(tl.float32)
+   y = compute(x)
+   tl.store(out_ptr, y.to(tl.float32), mask=mask)
+   ```
+
+5. **BLOCK_SIZE selection**: Use `triton.next_power_of_2(N)` for the hidden dimension.
+
+6. **Common kernel pattern**:
+   ```python
+   @triton.jit
+   def _kernel(X_ptr, Y_ptr, stride_x, stride_y, N, BLOCK_SIZE: tl.constexpr):
+       row = tl.program_id(0)
+       cols = tl.arange(0, BLOCK_SIZE)
+       mask = cols < N
+       x = tl.load(X_ptr + row * stride_x + cols, mask=mask, other=0.0).to(tl.float32)
+       y = compute(x)
+       tl.store(Y_ptr + row * stride_y + cols, y.to(tl.float32), mask=mask)
+   ```
+
+## Previous Failed Attempt
+
+A previous single-shot attempt failed. Error: `at 30:17:
+    # Add the constant value
+    x = x + add_value
+
+    # Take minimum with 0 (clamp positive values to 0)
+    x = tl.minimum(x, 0.0)
+
+    # Apply GELU activation
+    # GELU approximation...`
+
+```python
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import triton
+import triton.language as tl
+
+
+@triton.jit
+def fused_post_conv_kernel(
+    x_ptr,  # Pointer to input
+    out_ptr,  # Pointer to output
+    n_elements,  # Total number of elements
+    add_value,  # Value to add
+    multiply_value,  # Value to multiply
+    BLOCK_SIZE: tl.constexpr,
+):
+    # Calculate the starting index for this block
+    block_start = tl.program_id(0) * BLOCK_SIZE
+    # Create a range of offsets
+    offsets = block_start + tl.arange(0, BLOCK_SIZE)
+    # Create mask to handle boundary cases
+    mask = offsets < n_elements
+
+    # Load input values
+    x = tl.load(x_ptr + offsets, mask=mask, other=0.0)
+
+    # Add the constant value
+    x = x + add_value
+
+    # Take minimum with 0 (clamp positive values to 0)
+    x = tl.minimum(x, 0.0)
+
+    # Apply GELU activation
+    # GELU approximation: 0.5 * x * (1 + tanh(sqrt(2/pi) * (x + 0.044715 * x^3)))
+    x_cubed = x * x * x
+    sqrt_2_over_pi = 0.7978845608028654
+    inner = sqrt_2_over_pi * (x + 0.044715 * x_cubed)
+    tanh_inner = tl.libdevice.tanh(inner)
+    x = 0.5 * x * (1.0 + tanh_inner)
+
+    # Multiply by the constant value
+    x = x * multiply_value
+
+    # Store the result
+    tl.store(out_ptr + offsets, x, mask=mask)
+
+
+def fused_post_conv(x: torch.Tensor, add_value: float, multiply_value: float):
+    """
+    Fused kernel for: (x + add_value), min(x, 0), GELU, * multiply_value
+    """
+    assert x.is_cuda, "Tensor must be on CUDA."
+    x = x.contiguous()
+
+    # Prepare output tensor
+    out = torch.empty_like(x)
+
+    # Number of elements in the tensor
+    n_elements = x.numel()
+    BLOCK_SIZE = 256  # Tunable parameter for block size
+
+    # Determine the number of blocks needed
+    grid = lambda meta: ((n_elements + meta["BLOCK_SIZE"] - 1) // meta["BLOCK_SIZE"],)
+
+    # Launch the Triton kernel
+    fused_post_conv_kernel[grid](
+        x, out, n_elements,
+        add_value, multiply_value,
+        BLOCK_SIZE=BLOCK_SIZE
+    )
+    return out
+
+
+class ModelNew(nn.Module):
+    """
+    Optimized model that performs a transposed convolution, then fuses
+    add, min, GELU, and multiply operations into a single Triton kernel.
+    """
+    def __init__(self, in_channels, out_channels, kernel_size, stride, add_value, multiply_value):
+        super(ModelNew, self).__init__()
+        self.conv_transpose = nn.ConvTranspose2d(in_channels, out_channels, kernel_size, stride=stride)
+        self.add_value = add_value
+        self.multiply_value = multiply_value
+
+    def forward(self, x):
+        x = self.conv_transpose(x)
+        x = fused_post_conv(x, self.add_value, self.multiply_value)
+        return x
+```
+
+Analyze what went wrong and fix the issues.
+
+## Output Requirements
+
+Save your implementation to `/workspace/generated_kernel.py`.
+The file must define a `ModelNew` class with the same interface as `Model`.
+Run the test harness to verify:
+```bash
+/opt/venv/bin/python3 /workspace/test_harness.py --level 2 --problem-id 93
+```
+
+## Optimization Playbook
+
+This is the baseline/profile stage.
+1. Read both the `amd-kernel-optimization` and `gpu-profiling` skills.
+2. Establish the fast baseline first with `/opt/venv/bin/python3 /workspace/test_harness.py --level 2 --problem-id 93` and wait for it to finish.
+3. After the fast baseline succeeds, use `/opt/venv/bin/python3 /workspace/test_harness.py --level 2 --problem-id 93` for the real measurement.
+4. Capture active backends, bottlenecks, and concrete optimization candidates in `/workspace/optimization_state.json`.
+5. Do NOT stop after the baseline just because there is no concrete target yet.
+
+## Execution Environment
+
+You are running inside a Docker container with ROCm, PyTorch, and GPU access.
+All commands run directly in this container — no `docker exec` needed.
+- Repo at `/workspace/`
+
+## Goal
+
+Establish a reliable baseline and profiling picture for ``.
+This stage is for baseline measurement and bottleneck discovery, not for declaring victory.
+This stage advances after a real metric is recorded and profiling context is captured.
+Do NOT treat the baseline itself as task completion or proof that no more optimization is needed.
+
+## Stage Hints
+
+First, examine the test harness at /workspace/test_harness.py to understand the verification criteria. Then analyze the failed implementation - the key issue is using tl.libdevice.tanh which doesn't exist on ROCm. Create a working baseline by: 1) Implementing GELU using manual tanh: x_clamped = tl.maximum(tl.minimum(x, 10.0), -10.0); exp_2x = tl.math.exp(2.0 * x_clamped); tanh_val = (exp_2x - 1.0) / (exp_2x + 1.0). 2) Ensure proper dtype handling with explicit .to(tl.float32) casts. 3) Use BLOCK_SIZE that's a multiple of 64 for AMD wavefront alignment. Save to /workspace/generated_kernel.py and run the test harness to establish a baseline score.
+
+## Workflow
+
+1. **Read skills**: Read your `amd-kernel-optimization` and `gpu-profiling` skills for AMD-specific guidance.
+2. **Read the task description** at `/workspace/task_description.md` — it contains task-specific instructions, including which benchmark to run, environment details, and recommended approaches.
+3. **Baseline FIRST**: Run the benchmark IMMEDIATELY to establish the starting metric. Set a high `timeout` on the Shell tool (e.g. 600–1800s) for the first run since model loading can be slow. Do NOT spend time reading source code before you have a baseline number.
+4. **Profile**: Identify which backends are active from the benchmark logs (attention, MoE, all-reduce, etc.). If practical, profile with CUDA graphs disabled to get kernel-level breakdown.
+5. **Optimize**: If you have clear optimization opportunities from profiling, apply them one at a time and benchmark after each change. Revert immediately if performance regresses. Follow the skill docs and task description for recommended techniques.
+6. **Update state**: Write results to `/workspace/optimization_state.json` after each change.
+7. **Final benchmark**: Run the standard benchmark command as your LAST action.
+
+## Key Principles
+
+- **Run the benchmark EARLY** — get a baseline number within the first few minutes. Do NOT spend time on code exploration before having a metric.
+- Follow the task description's recommended approach first — it contains domain-specific guidance.
+- Do NOT modify the benchmark script or its parameters.
+- After making changes to compiled code, rebuild the affected package before benchmarking.
+- If the benchmark script sources a config file (e.g. `bench_config.env`), use it for backend configuration to ensure verification reproduces your setup.
+
+## Integrity Rules (MANDATORY)
+
+- Do NOT modify `test_harness.py` or the benchmark script.
+- Do NOT change benchmark parameters (warmup, iterations, batch size, input dimensions).
+- Do NOT redirect or filter benchmark output (no `grep`, no `| tail`).
+- The orchestrator independently re-runs the benchmark to verify your results. Any discrepancy between your claimed result and the verification run causes the trial to be marked as FAILED.
+- Achieve improvements through legitimate code changes only.
+
+## CRITICAL: Output Format
+
+Your LAST action before finishing MUST be running the benchmark command **directly** —
+do NOT pipe through `grep` or redirect output. The FULL benchmark output must appear
+in your output so the orchestrator can capture the metric via regex: `SCORE:\s+([\d.]+)`
+
+The output must include a line matching: `score: <value>`
+
+Without this line, the trial is recorded as a FAILURE even if you achieved great results.
+
+## State File
+
+After completing work, update `/workspace/optimization_state.json`:
+```json
+{
+  "job_name": "...",
+  "repo": "...",
+  "current_best_ms": 43.4,
+  "stages_completed": [...],
+  "current_stage": {
+    "stage": "<stage name>",
+    "current_best_ms": 41.2,
+    "applied_optimizations": [
+      {
+        "name": "<technique>",
+        "impact_ms": -5.0,
+        "files_changed": ["<path>"],
+        "description": "<what changed>"
+      }
+    ],
+    "attempted_but_failed": [
+      {"name": "<technique>", "reason": "<why>", "error": "<snippet>"}
+    ],
+    "profiling_summary": {
+      "top_bottlenecks": ["<kernel> <pct>"],
+      "gpu_utilization": 0.72,
+      "kernel_breakdown": {"gemm": 61.0, "attention": 24.0}
+    },
+    "environment_changes": ["pip install <pkg>"],
+    "notes": ["<important learning from this trial>"]
+  }
+}
+```
+The file already exists when the trial starts. Preserve the existing top-level
+structure and update the `current_stage` section with what you learned in this
+trial. If you only know part of the state, add just those fields and leave the
+rest intact. The orchestrator merges this file into the next trial's prompt.

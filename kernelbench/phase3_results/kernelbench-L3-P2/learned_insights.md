@@ -1,0 +1,24 @@
+# Learned Insights
+
+- **Trial 1**: Pure Triton matmul kernels cannot beat rocBLAS for large GEMM sizes (16K×32K, 32K×32K) on MI355X — got 4.4x slowdown with 64x64x64 blocks
+- **Trial 1**: Hybrid approach (rocBLAS via F.linear for GEMM + Triton for fused bias+ReLU) achieves parity with PyTorch reference at 3.71ms
+- **Trial 1**: GEMM operations account for 95% of runtime in ShallowWideMLP with hidden sizes 32768
+- **Trial 1**: Triton shared memory limit is 163840 bytes — constrains block sizes for matmul kernels
+- **Trial 1**: BLOCK_SIZE_N=256 works well for Triton elementwise kernels on large output dimensions
+- **Trial 1**: torch.compile failed when tracing Triton kernels loaded from temp files — avoid dynamic module loading with compile
+- **Trial 1**: KernelBench score of 50 corresponds to ~1.0x speedup over baseline
+- **Trial 2**: Trial 2 produced no output — agent may have been stuck on environment or implementation issues without fallback
+- **Trial 2**: Score of 50 corresponds to ~1.0x speedup (matching baseline 3.71ms)
+- **Trial 2**: torch.compile should be applied to the whole ModelNew, not to individual Triton kernel wrappers
+- **Trial 2**: For GEMM-dominated workloads on MI355X, the only path to speedup is reducing memory traffic via epilogue fusion
+- **Trial 3**: Agent has failed silently 2 trials in a row — need extremely prescriptive code-level guidance
+- **Trial 3**: For GEMM-dominated MLP, the optimization opportunity is fusing bias+ReLU epilogue to save memory bandwidth per hidden layer
+- **Trial 3**: torch.mm + Triton(bias+ReLU) avoids the separate bias addition kernel that F.linear includes
+- **Trial 4**: Agent has failed silently 3 consecutive trials (2-4) — needs exact copy-paste code, not strategy guidance
+- **Trial 4**: For GEMM-dominated MLP, fusing bias+ReLU saves one memory round-trip per hidden layer but improvement is marginal (~0.3%) given GEMM dominates at 95%
+- **Trial 4**: F.linear uses addmm which fuses bias into GEMM epilogue, so torch.mm + Triton(bias+ReLU) vs F.linear + ReLU has same memory traffic
+- **Trial 4**: Score of 50 means 1.0x speedup (matching baseline 3.71ms)
+- **Trial 5**: For KernelBench Level 3 Problem 2 (ShallowWideMLP with hidden_size=32768), GEMM dominates at 95% and rocBLAS cannot be beaten by Triton for these matrix sizes — score of 50 (1.0x) is the practical ceiling
+- **Trial 5**: Fusing bias+ReLU epilogue into GEMM saves ~10us on 3.71ms baseline (<0.3%) — not enough to move the KernelBench score
+- **Trial 5**: Agent failed silently 4 consecutive trials — when agents fail silently, the issue is likely environment/tooling rather than strategy, and providing exact code doesn't help if the execution environment itself is broken
+- **Trial 5**: F.linear uses addmm which already fuses bias into GEMM epilogue, so Triton bias+ReLU fusion vs F.linear+ReLU has equivalent memory traffic

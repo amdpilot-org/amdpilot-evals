@@ -1,0 +1,59 @@
+# Learned Insights
+
+- **Trial 1**: KernelBench Level 2 Problem 36 involves ConvTranspose2d -> min(dim=1) -> sum(dim=2) -> GELU -> bias_add. The post-conv operations (min, sum, GELU, add) are good candidates for Triton kernel fusion.
+- **Trial 1**: Input shape: (16, 64, 128, 128), ConvTranspose2d output shape: (16, 128, 256, 256), final output shape after min+sum: (16, 1, 1, 256)
+- **Trial 1**: KernelBench Level 2 Problem 36 involves ConvTranspose2d -> min(dim=1) -> sum(dim=2) -> GELU -> bias_add. The post-conv operations (min, sum, GELU, add) are good candidates for Triton kernel fusion.
+- **Trial 1**: Input shape: (16, 64, 128, 128), ConvTranspose2d output shape: (16, 128, 256, 256), final output shape after min+sum: (16, 1, 1, 256)
+- **Trial 1**: Container setup failed in trial 1 — ensure the workspace and environment are properly initialized before running benchmarks
+- **Trial 2**: KernelBench Level 2 Problem 36 involves ConvTranspose2d -> min(dim=1) -> sum(dim=2) -> GELU -> bias_add. The post-conv operations (min, sum, GELU, add) are good candidates for Triton kernel fusion.
+- **Trial 2**: Input shape: (16, 64, 128, 128), ConvTranspose2d output shape: (16, 128, 256, 256), final output shape after min+sum: (16, 1, 1, 256)
+- **Trial 2**: The test harness is at /workspace/test_harness.py and expects ModelNew class in the problem file. Do NOT modify the test harness.
+- **Trial 2**: Agent produced no output in trials 1 and 2 - must explicitly read the problem file and write code step by step
+- **Trial 2**: Agent produced no output in trials 1 and 2 - must explicitly read the problem file and write code step by step
+- **Trial 2**: The test harness is at /workspace/test_harness.py and expects ModelNew class in the problem file. Do NOT modify the test harness.
+- **Trial 3**: Agent has been completely stuck for 3 trials with no output - needs maximally explicit step-by-step instructions
+- **Trial 3**: The problem file path is /workspace/KernelBench/level2/36_ConvTranspose2d_Min_Sum_GELU_Add.py
+- **Trial 3**: ModelNew must be defined in the same file as Model for the test harness to work
+- **Trial 4**: Agent has been completely stuck for 4 trials with no output - needs maximally explicit step-by-step instructions with actual code to copy-paste
+- **Trial 4**: The problem file path is /workspace/KernelBench/level2/36_ConvTranspose2d_Min_Sum_GELU_Add.py
+- **Trial 4**: ModelNew must be defined in the same file as Model for the test harness to work
+- **Trial 4**: Start with a trivial ModelNew that copies Model logic to establish baseline score, then optimize
+- **Trial 3**: Agent has been completely stuck for 3 trials with no output - needs maximally explicit step-by-step instructions with exact shell commands
+- **Trial 3**: The problem file path is /workspace/KernelBench/level2/36_ConvTranspose2d_Min_Sum_GELU_Add.py
+- **Trial 3**: ModelNew must be defined in the same file as Model for the test harness to work
+- **Trial 3**: ConvTranspose2d output shape is (16, 128, 256, 256) - the fused kernel processes min over 128 channels and sum over 256 height positions per (batch, width) element
+- **Trial 3**: Start with a simple working ModelNew first (even pure PyTorch) to get a baseline score, then optimize with Triton
+- **Trial 5**: Agent has been completely stuck for 5 trials with no output whatsoever - likely an execution environment issue or agent configuration problem
+- **Trial 5**: The problem file path is /workspace/KernelBench/level2/36_ConvTranspose2d_Min_Sum_GELU_Add.py
+- **Trial 5**: ModelNew must be defined in the same file as Model for the test harness to work
+- **Trial 5**: ConvTranspose2d output is (16, 128, 256, 256), final output after min(dim=1)+sum(dim=2) is (16, 1, 1, 256)
+- **Trial 5**: A fused Triton kernel doing min-over-channels + sum-over-height + GELU + bias_add is the target optimization
+- **Trial 6**: Agent has been completely stuck for 6 trials with no output whatsoever - likely an execution environment issue or agent configuration problem
+- **Trial 6**: The problem file path is /workspace/KernelBench/level2/36_ConvTranspose2d_Min_Sum_GELU_Add.py
+- **Trial 6**: ModelNew must be defined in the same file as Model for the test harness to work
+- **Trial 6**: ConvTranspose2d output is (16, 128, 256, 256), final output after min(dim=1)+sum(dim=2) is (16, 1, 1, 256)
+- **Trial 6**: A fused Triton kernel doing min-over-channels + sum-over-height + GELU + bias_add is the target optimization
+- **Trial 4**: Agent has been completely stuck for 4+ trials with no output whatsoever - likely an execution environment issue or agent configuration problem
+- **Trial 4**: The problem file path is /workspace/KernelBench/level2/36_ConvTranspose2d_Min_Sum_GELU_Add.py
+- **Trial 4**: ModelNew must be defined in the same file as Model for the test harness to work
+- **Trial 4**: ConvTranspose2d output is (16, 128, 256, 256), final output after min(dim=1)+sum(dim=2) is (16, 1, 1, 256)
+- **Trial 4**: A fused Triton kernel doing min-over-channels + sum-over-height + GELU + bias_add is the target optimization
+- **Trial 7**: Agent has been completely non-functional for 7 trials with zero output — this is an infrastructure/agent issue, not a code issue
+- **Trial 7**: Providing increasingly detailed hints and copy-paste code did not help because the agent never executed anything
+- **Trial 7**: When an agent produces no output for 3+ consecutive trials, escalate to human immediately rather than burning more trials
+- **Trial 5**: Agent has been completely non-functional for 7+ consecutive trials with zero output — this is definitively an infrastructure/container issue, not a code problem
+- **Trial 5**: Container exits with 'container is not running' error before any commands execute
+- **Trial 5**: No amount of detailed hints or copy-paste code helps when the execution environment itself is broken
+- **Trial 6**: For KernelBench problem 36, torch.compile(mode='default') alone gives 1.29x speedup (0.845ms vs 1.09ms baseline)
+- **Trial 6**: Adding a Triton GELU+bias kernel on top of torch.compile actually made performance worse (0.867ms vs 0.845ms) due to kernel launch overhead on a tiny tensor (4096 elements)
+- **Trial 6**: Manual Triton kernels for min(dim=1)+sum(dim=2) reduction on (16,128,256,256) tensor are slower than PyTorch's optimized reductions due to loop overhead
+- **Trial 6**: torch.compile mode=max-autotune caused severe performance degradation (4.37ms) likely due to CUDAGraph issues on AMD
+- **Trial 6**: Triton kernels must be wrapped with torch.compiler.disable to avoid TTIR conversion issues when used alongside torch.compile
+- **Trial 7**: Agent has been non-functional for 7 trials with zero output in most — this is definitively an infrastructure/container issue
+- **Trial 7**: For KernelBench problem 36, torch.compile(mode='default') alone (0.845ms) is faster than torch.compile + Triton kernel (0.867ms) due to kernel launch overhead on small output tensor (16,1,1,256)
+- **Trial 7**: When agent produces no output for 3+ consecutive trials, escalate to human rather than burning more trials
+- **Trial 8**: For KernelBench problem 36, torch.compile(mode='default') alone gives the best speedup (1.29x). Adding Triton kernels on top actually hurts due to kernel launch overhead on small tensors.
+- **Trial 8**: When agent produces no output for 5+ consecutive trials, stop the pipeline rather than burning more trials — the issue is infrastructure, not code.
+- **Trial 8**: Manual Triton kernels for min(dim=1)+sum(dim=2) on large tensors (16,128,256,256) are slower than PyTorch's optimized reductions due to Python loop overhead in Triton.
+- **Trial 8**: torch.compile mode=max-autotune causes severe performance degradation on AMD GPUs likely due to CUDAGraph issues — use mode='default' instead.
+- **Trial 8**: Score of 62.60 corresponds to ~0.87ms execution time. To reach score 66+, would need ~0.82ms or better, requiring deeper kernel fusion that the agent couldn't achieve.

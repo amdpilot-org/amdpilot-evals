@@ -1,0 +1,21 @@
+# Learned Insights
+
+- **Trial 1**: Level 2 Problem 13: ConvTranspose3d dominates at 60.8%, batched_transpose at 21.7% (likely conv-related layout transform)
+- **Trial 1**: torch.compile(mode='default') on post-conv ops only yields 1.03x speedup — limited upside since post-conv is only 14.6% of runtime
+- **Trial 1**: Raw Triton kernels for elementwise ops are 50-120% slower than PyTorch native on ROCm for this problem
+- **Trial 1**: ROCm Triton: tl.libdevice.* is unavailable, must use manual implementations (e.g., manual tanh via exp)
+- **Trial 1**: Baseline runtime: 9.39ms reference, 9.07ms with torch.compile on post-conv ops (score 60.2)
+- **Trial 1**: channels_last_3d memory format may eliminate the 21.7% batched_transpose overhead
+- **Trial 2**: Trial 2 produced no output — agent may have gotten stuck trying to write complex Triton kernels. Need explicit code templates.
+- **Trial 2**: channels_last_3d memory format is the primary untried optimization for eliminating 21.7% batched_transpose overhead
+- **Trial 3**: Agent gets stuck when asked to write complex Triton kernels from scratch — provide complete working code templates
+- **Trial 3**: Two consecutive no-output trials indicate the agent needs extremely specific step-by-step instructions
+- **Trial 3**: channels_last_3d memory format is the primary untried optimization for eliminating 21.7% batched_transpose overhead
+- **Trial 3**: torch.compile mode='max-autotune' may yield better results than mode='default' for post-conv fusion
+- **Trial 4**: Agent has failed 3 consecutive trials with no output — needs verbatim code templates and step-by-step commands
+- **Trial 4**: channels_last_3d memory format is still untried for eliminating 21.7% batched_transpose overhead
+- **Trial 4**: torch.compile mode='max-autotune' is untried — may yield better fusion than mode='default'
+- **Trial 4**: For this problem, the score metric appears to be ~60 for a 1.03x speedup — need to check if channels_last_3d can push it higher
+- **Trial 5**: Agent has failed 4 consecutive trials with no output on this problem — needs absolute minimal code and step-by-step commands
+- **Trial 5**: channels_last_3d memory format and torch.compile mode='max-autotune' remain untried for eliminating 21.7% batched_transpose overhead
+- **Trial 5**: For persistent no-output failures, provide complete verbatim code with cat heredoc syntax and explicit run commands

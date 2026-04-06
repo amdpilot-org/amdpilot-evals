@@ -1,0 +1,24 @@
+# Learned Insights
+
+- **Trial 1**: For KernelBench Level 1 Problem 82 (depthwise conv), PyTorch reference runs in ~3.26ms. Manual naive Triton kernels can be 137x slower.
+- **Trial 1**: Score of 50.0 means correct output but slower than reference. Score of 60.0 indicates some speed improvement.
+- **Trial 1**: torch.compile on standard nn.Conv2d with groups=in_channels is the recommended first optimization before manual Triton kernels.
+- **Trial 1**: GPU coredumps can occur when torch.compile interacts with corrupted state from previous bad kernel launches - restart with clean state.
+- **Trial 2**: Trial 2 produced no output - possible timeout from trying too many things or environment crash
+- **Trial 2**: With depthwise conv (in_channels=3, kernel_size=3), the operation is very small and memory-bound - torch.compile with max-autotune is likely the best approach
+- **Trial 2**: Score 60 was achieved in trial 1 - need to understand what solution produced it before trying to improve
+- **Trial 3**: Consecutive trial failures (trials 2-3) with no output suggest the agent may be timing out or crashing - keep solutions simple and test quickly
+- **Trial 3**: For depthwise conv with in_channels=3, kernel_size=3, the operation is tiny and memory-bound - overhead dominates, so torch.compile or very lean Triton kernels are needed
+- **Trial 3**: Score 60.00 was achieved in trial 1 - need to beat this to show improvement
+- **Trial 4**: Trials 2-4 all failed with no output on depthwise conv optimization - agent likely timing out from complex approaches
+- **Trial 4**: With ~31 minutes remaining and 3 consecutive failures, extremely prescriptive step-by-step instructions are needed
+- **Trial 4**: torch.compile with mode='max-autotune' applied as ModelNew.forward = torch.compile(ModelNew.forward, mode='max-autotune') is the simplest optimization approach
+- **Trial 5**: 4 consecutive trial failures (trials 2-5) producing no output on KernelBench depthwise conv - agent likely timing out from complex workflows
+- **Trial 5**: With very limited time remaining, providing exact copy-paste code is more effective than exploration-based instructions
+- **Trial 5**: For depthwise conv Triton kernel: weight shape is (in_channels, 1, KH, KW), need to flatten to (channels, KH*KW) for simple indexed access
+- **Trial 6**: 5 consecutive trials with no output on KernelBench depthwise conv - agent consistently times out when given exploration-based instructions
+- **Trial 6**: For last-resort trials, provide the exact solution code and exact commands with zero exploration steps
+- **Trial 6**: torch.compile with mode='max-autotune' on nn.Conv2d with groups=in_channels is the safest optimization for depthwise conv
+- **Trial 7**: 6 consecutive agent failures with no output on KernelBench depthwise conv - agent consistently times out regardless of instruction complexity
+- **Trial 7**: When agent produces no output for many trials, the issue may be systemic (e.g., environment crash, infinite loop in test harness) rather than instruction-related
+- **Trial 7**: With <30 minutes remaining and repeated zero-output failures, stopping may be more appropriate than retrying

@@ -1,0 +1,22 @@
+# Learned Insights
+
+- **Trial 1**: tl.libdevice.tanh is unavailable on ROCm Triton; use manual: x_clamped=max(min(x,10),-10); exp_2x=tl.math.exp(2*x); tanh=(exp_2x-1)/(exp_2x+1)
+- **Trial 1**: Custom Triton avgpool2d with nested for-loops was 100x slower than PyTorch's nn.AvgPool2d - do not write standalone avgpool kernels
+- **Trial 1**: BLOCK_SIZE should be multiple of 64 for AMD MI355X wavefront alignment
+- **Trial 1**: Fusing elementwise ops (subtract-tanh-subtract) into one Triton kernel gives ~1.19x speedup on this problem
+- **Trial 1**: The key remaining optimization is fusing avgpool INTO the subtract-tanh-subtract kernel so each output thread loads a 2x2 window of conv output, applies subtract-tanh-subtract, averages, and writes one output element - eliminating the intermediate tensor materialization
+- **Trial 2**: tl.libdevice.tanh is unavailable on ROCm Triton; use manual: x_clamped=max(min(x,10),-10); exp_2x=tl.math.exp(2*x); tanh=(exp_2x-1)/(exp_2x+1)
+- **Trial 2**: Custom Triton avgpool2d with nested for-loops was 100x slower than PyTorch's nn.AvgPool2d - do not write standalone avgpool kernels
+- **Trial 2**: BLOCK_SIZE should be multiple of 64 for AMD MI355X wavefront alignment
+- **Trial 2**: Fusing elementwise ops (subtract-tanh-subtract) into one Triton kernel gives ~1.19x speedup on this problem
+- **Trial 2**: The key remaining optimization is fusing avgpool INTO the subtract-tanh-subtract kernel so each output thread loads a 2x2 window of conv output, applies subtract-tanh-subtract, averages, and writes one output element - eliminating the intermediate tensor materialization
+- **Trial 2**: Conv2d via MIOpen takes ~65% of time - do not replace with custom Triton conv2d
+- **Trial 3**: Agent failed silently on trials 2 and 3 - need very explicit implementation patterns to avoid getting stuck
+- **Trial 3**: Conv2d output is (128, 128, 126, 126) after 3x3 conv on 128x128; after avgpool2d(2) output is (128, 128, 63, 63)
+- **Trial 3**: Fused kernel indexes: for output (b,c,oh,ow), read conv_out at (b,c,2*oh,2*ow), (b,c,2*oh,2*ow+1), (b,c,2*oh+1,2*ow), (b,c,2*oh+1,2*ow+1)
+- **Trial 4**: Agent has failed silently on 3 consecutive trials for this problem - needs complete code not just guidance
+- **Trial 4**: The fused kernel should process output elements (B*C*OH*OW total), each loading a 2x2 window from conv output, applying subtract-tanh-subtract, then averaging
+- **Trial 4**: Use tl.where for clamping instead of tl.maximum/tl.minimum which may not be available on ROCm
+- **Trial 5**: Agent has been stuck silently for 4 consecutive trials - complete code must be provided, not just guidance
+- **Trial 5**: Use stride-based indexing (tensor.stride()) for Triton kernel memory access to handle non-contiguous tensors
+- **Trial 5**: tl.where is available on ROCm Triton and works for clamping values

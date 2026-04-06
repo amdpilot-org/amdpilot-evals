@@ -1,0 +1,29 @@
+{
+  "job": "kernelbench-L3-P9",
+  "type": "optimize",
+  "best_metric": "0.00",
+  "metric_name": "score",
+  "metric_direction": "higher",
+  "total_elapsed_s": 186,
+  "stages_completed": 0,
+  "total_trials": 1,
+  "failures": 0,
+  "trials": [
+    {
+      "trial": 1,
+      "stage": "stage1_baseline_and_profile",
+      "metric": "0.00",
+      "elapsed_s": 5,
+      "verified": true,
+      "verified_metric": 0.0,
+      "supervisor_action": "retry_with_hints",
+      "supervisor_analysis": "Trial 1 failed due to an LLM provider connection error \u2014 the agent never executed any work. Retrying with detailed instructions for establishing the baseline.",
+      "nudge": {
+        "polls": 0,
+        "noops": 0,
+        "nudges_sent": 0,
+        "nudges": []
+      }
+    }
+  ]
+}

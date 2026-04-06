@@ -1,0 +1,23 @@
+# Learned Insights
+
+- **Trial 1**: CUDA Graph capture is extremely effective for GRU: 512 timesteps x 6 layers x 2 directions = 6144 sequential kernel launches, and graph eliminates per-launch overhead
+- **Trial 1**: torch.compile does not support nn.GRU/RNN/LSTM modules - causes graph break
+- **Trial 1**: Manual Triton GRU cell reimplementation for multi-layer bidirectional is very error-prone for correctness
+- **Trial 1**: cudnn.benchmark=True caused performance regression for this GRU workload on MI355X
+- **Trial 1**: With CUDA graph, runtime variance drops from std ~30ms to std ~0.02ms
+- **Trial 1**: MIOpen-optimized nn.GRU wrapped with CUDA graph achieves ~2.2x speedup over vanilla nn.GRU on MI355X
+- **Trial 2**: CUDA Graph capture is extremely effective for GRU: 512 timesteps x 6 layers x 2 directions = 6144 sequential kernel launches, and graph eliminates per-launch overhead
+- **Trial 2**: torch.compile does not support nn.GRU/RNN/LSTM modules - causes graph break
+- **Trial 2**: Manual Triton GRU cell reimplementation for multi-layer bidirectional is very error-prone for correctness
+- **Trial 2**: cudnn.benchmark=True caused performance regression for this GRU workload on MI355X
+- **Trial 2**: MIOpen-optimized nn.GRU wrapped with CUDA graph achieves ~2.2x speedup over vanilla nn.GRU on MI355X
+- **Trial 2**: Trial 2 produced no output - agent may need explicit instruction to read existing generated_kernel.py rather than starting from scratch
+- **Trial 3**: Trial 2 and Trial 3 both produced no output - agent may be attempting complex rewrites that crash or time out
+- **Trial 3**: When agent produces no output in consecutive trials, provide extremely explicit step-by-step instructions starting with reading existing files
+- **Trial 3**: CUDA Graph capture achieving score 72.60 is the established best - any further optimization must build on it incrementally
+- **Trial 4**: CUDA Graph capture is the single most effective optimization for multi-layer bidirectional GRU: 512 timesteps x 6 layers x 2 directions = 6144 sequential kernel launches eliminated
+- **Trial 4**: torch.compile does not support nn.GRU/RNN/LSTM modules - causes graph break, making it unusable for RNN optimization
+- **Trial 4**: Manual Triton GRU cell reimplementation for multi-layer bidirectional is very error-prone for correctness and failed in multiple attempts
+- **Trial 4**: MIOpen-optimized nn.GRU wrapped with CUDA graph achieves ~2.2x speedup over vanilla nn.GRU on MI355X
+- **Trial 4**: When the agent produces no output in 3+ consecutive trials, it is likely stuck in a loop or crashing silently - providing more explicit instructions did not help
+- **Trial 4**: For GRU optimization on AMD, the practical ceiling appears to be around CUDA Graph + MIOpen backend; further gains would require custom MIOpen kernels or algorithmic changes to the GRU computation pattern

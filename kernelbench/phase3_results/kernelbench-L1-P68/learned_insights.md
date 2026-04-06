@@ -1,0 +1,21 @@
+# Learned Insights
+
+- **Trial 1**: For KernelBench problem 68 (conv_transpose3d), MIOpen CK GEMM accounts for 92.7% of runtime and is assembly-optimized — nearly impossible to beat with Triton
+- **Trial 1**: Triton only supports 3 program_id axes (0-2), making direct 5D convolution kernels infeasible without flattening dimensions
+- **Trial 1**: torch.compile(mode='default') matches baseline 1.00x for conv_transpose3d on MI355X; reduce-overhead mode is slower (0.83x) due to CUDAGraph issues
+- **Trial 1**: channels_last_3d memory format made conv_transpose3d slower (0.98x) on MI355X
+- **Trial 1**: Converting conv_transpose3d to conv3d with dilated input fails due to negative padding requirements
+- **Trial 1**: KernelBench scoring: 60.0 = 1.00x speedup (matching baseline). Need >1.0x to improve score.
+- **Trial 1**: The batched_transpose kernel (7.3% of runtime) is the only realistic optimization target for this problem
+- **Trial 2**: Trial 2 of KernelBench problem 68 produced no output — likely agent got stuck without executing the benchmark
+- **Trial 2**: With assembly-optimized CK GEMM at 92.7%, the only viable Triton contribution is optimizing the 7.3% batched_transpose or adding a fused post-processing kernel
+- **Trial 2**: For KernelBench tasks where PyTorch's native kernels are optimal, a hybrid approach (torch.compile + lightweight @triton.jit) is the pragmatic strategy
+- **Trial 3**: For KernelBench problem 68, two consecutive trials (2 and 3) produced no output — agent likely gets stuck trying complex Triton kernel implementations
+- **Trial 3**: With only 7.3% of runtime in non-GEMM kernels, maximum theoretical Triton improvement is ~7% over baseline for this problem
+- **Trial 3**: A pragmatic hybrid approach (torch.compile for conv_transpose3d + trivial @triton.jit) should be attempted first to establish a working score before any optimization
+- **Trial 4**: For KernelBench problem 68, the agent consistently fails (3 consecutive no-output trials) when asked to write complex Triton kernels — must provide copy-paste-ready solutions
+- **Trial 4**: When MIOpen CK GEMM dominates runtime (92.7%), the pragmatic strategy is torch.compile + trivial @triton.jit to satisfy requirements while relying on vendor-optimized kernels
+- **Trial 5**: For KernelBench problem 68 (conv_transpose3d), 4 out of 5 trials produced no output — the agent consistently gets stuck attempting to implement solutions and never runs the benchmark
+- **Trial 5**: When the dominant kernel (92.7% CK GEMM) is assembly-optimized and vendor-specific, Triton cannot realistically outperform it; the problem is effectively at its optimization ceiling with PyTorch native ops
+- **Trial 5**: For problems where vendor-optimized kernels dominate, a hybrid torch.compile + trivial @triton.jit approach achieves baseline-matching 60.00 score but cannot exceed it
+- **Trial 5**: Agent reliability drops to near-zero when tasked with writing complex 3D convolution Triton kernels from scratch — simpler wrapper approaches should be pre-provided as complete code

@@ -1,0 +1,29 @@
+{
+  "job": "kernelbench-L2-P69",
+  "type": "optimize",
+  "best_metric": "62.20",
+  "metric_name": "score",
+  "metric_direction": "higher",
+  "total_elapsed_s": 570,
+  "stages_completed": 1,
+  "total_trials": 1,
+  "failures": 0,
+  "trials": [
+    {
+      "trial": 1,
+      "stage": "stage1_baseline_and_profile",
+      "metric": "62.20",
+      "elapsed_s": 381,
+      "verified": true,
+      "verified_metric": 62.2,
+      "supervisor_action": "continue",
+      "supervisor_analysis": "Baseline established at 62.20 score (0.786ms) with detailed profiling: Conv2d MIOpen 52.7%, bias-add elementwise 25.3%, fused HardSwish+ReLU 21.9%. Advancing to optimization stage.",
+      "nudge": {
+        "polls": 5,
+        "noops": 5,
+        "nudges_sent": 0,
+        "nudges": []
+      }
+    }
+  ]
+}

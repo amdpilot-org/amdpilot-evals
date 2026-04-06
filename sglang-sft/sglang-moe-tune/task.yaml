@@ -1,0 +1,84 @@
+name: sglang-kimi-moe-tune
+type: optimize
+repo: https://github.com/sgl-project/sglang.git
+base_image: sglang-moe-tune-sft:base
+
+model_endpoint:
+  base_url: "http://localhost:8083/v1"
+  model: "claude-opus-4-6"
+  api_key: "sk-dummy"
+
+supervisor_model_endpoint:
+  base_url: "http://localhost:8083/v1"
+  model: "claude-opus-4-6"
+  api_key: "sk-dummy"
+
+container:
+  name: amdpilot_sglang_moe_tune
+  gpu: "0,1,2,3,4,5,6,7"
+  shm_size: 64g
+  devices: [/dev/kfd, /dev/dri]
+  volumes:
+    - "/mnt/dcgpuval/huggingface:/sgl-workspace/models"
+
+workload:
+  description: "Optimize fused_moe_triton performance for Kimi K2.5 (PR #19228)"
+  framework: PyTorch
+
+benchmark:
+  command: "cd /workspace/sglang && /opt/venv/bin/python3 /workspace/test_harness.py"
+  metric_name: score
+  metric_pattern: 'SCORE:\s+([\d.]+)'
+  metric_direction: higher
+
+task:
+  description_file: evals/sglang-sft/sglang-moe-tune/task_description.md
+
+stages:
+  - name: stage1_profile_and_infra
+    start_image: sglang-moe-tune-sft:base
+    duration_minutes: 50
+    target: 40
+    description: >
+      FIRST: Read the skill docs (SKILL.md AND references/moe-config-tuning.md).
+      SECOND: Profile the kernel with rocprof: run
+      "rocprof --stats /opt/venv/bin/python3 /workspace/test_harness.py 2>&1 | tail -40"
+      and analyze which kernels dominate GPU time.
+      THEN: Investigate why fused_moe uses default config — read the config lookup
+      code, check what config files exist, understand what's missing.
+      Add int4_w4a16 support and create initial config files by running benchmarks.
+
+  - name: stage2_systematic_tuning
+    start_image: auto
+    duration_minutes: 50
+    target: 70
+    description: >
+      Run systematic config tuning across all benchmark batch sizes (512-16384).
+      Use profiling data from stage 1 to guide the search.
+      Run tuning FIRST, then run final benchmark SEPARATELY.
+
+  - name: stage3_small_batch_optimization
+    start_image: auto
+    duration_minutes: 50
+    target: 85
+    description: >
+      Optimize small batch sizes (M=512, M=2048). Try aggressive configs for small M.
+      Profile again with rocprof for M=512 specifically.
+      Kill ALL other GPU processes before running final benchmark.
+
+kimi_cli:
+  repo_url: "https://github.com/Arist12/kimi-cli.git"
+  branch: amd-dev
+  install_dir: "/sgl-workspace/kimi-cli"
+  provider: sglang
+  provider_type: openai_legacy
+  thinking: true
+  yolo: true
+  ralph_iterations: -1
+  max_steps_per_turn: 500
+  reserved_context_size: 50000
+
+max_retries_per_stage: 3
+max_total_hours: 4
+supervisor: true
+nudge: true

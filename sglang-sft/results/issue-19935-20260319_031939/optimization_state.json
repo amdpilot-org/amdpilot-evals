@@ -1,0 +1,58 @@
+{
+  "job_name": "sglang-issue-19935",
+  "repo": "https://github.com/sgl-project/sglang.git",
+  "initial_baseline_ms": null,
+  "current_best_ms": null,
+  "stages_completed": [],
+  "current_stage": {
+    "stage": "stage1_fix_fp8_kscale_fallback",
+    "baseline_ms": null,
+    "current_best_ms": null,
+    "applied_optimizations": [],
+    "attempted_but_failed": [
+      {
+        "name": "trial_1",
+        "reason": "Agent was killed (exit code 137, likely OOM or timeout) before making any changes. It only read docs and planned. Need to retry with very specific instructions to make the fix quickly.",
+        "error": "",
+        "approaches_tried": 1,
+        "timestamp": "2026-03-19T03:20:39.990120"
+      },
+      {
+        "name": "trial_2",
+        "reason": "Trial 2 produced no output at all, likely killed again (OOM/timeout). The agent needs extremely concise instructions to make the fix immediately without reading files or planning extensively.",
+        "error": "",
+        "approaches_tried": 1,
+        "timestamp": "2026-03-19T03:21:04.863454"
+      },
+      {
+        "name": "trial_3",
+        "reason": "Agent was killed (exit 137) three times in a row before making changes. The agent must apply the fix immediately with a single command, no file reading or planning. Providing an exact sed command to a",
+        "error": "",
+        "approaches_tried": 1,
+        "timestamp": "2026-03-19T03:21:27.194351"
+      }
+    ],
+    "profiling_summary": {
+      "top_bottlenecks": [],
+      "gpu_utilization": 0.0,
+      "memory_usage_gb": 0.0,
+      "kernel_breakdown": {},
+      "raw_profile_path": "",
+      "timestamp": ""
+    },
+    "active_backends": {},
+    "hotspot_targets": [],
+    "next_moves": [],
+    "environment_changes": [],
+    "notes": [],
+    "started_at": "2026-03-19T03:20:01.063239",
+    "completed_at": ""
+  },
+  "attempt_history": [],
+  "technique_attempts": {
+    "trial_1": 1,
+    "trial_2": 1,
+    "trial_3": 1
+  },
+  "global_notes": []
+}

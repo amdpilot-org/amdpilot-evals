@@ -1,0 +1,21 @@
+# Learned Insights
+
+- **Trial 1**: For 2D conv Triton kernels, the im2col + GEMM decomposition is much easier to get correct than direct convolution with 4D indexing
+- **Trial 1**: MIOpen's igemm_fwd is highly optimized and accounts for 88.6% of conv2d time on MI355X
+- **Trial 1**: channels_last format conversion adds overhead for this problem shape and makes it slower
+- **Trial 1**: batched_transpose_32x32_dword takes 9.1% - eliminating this transpose could help
+- **Trial 1**: torch.nn.functional.unfold handles all complex boundary/dilation/padding indexing, simplifying the Triton kernel to just a GEMM
+- **Trial 2**: Agent produced no output in trial 2 - may need more concrete code templates to avoid getting stuck
+- **Trial 2**: For conv2d optimization on MI355X: im2col via torch.nn.functional.unfold + Triton GEMM is the recommended approach
+- **Trial 2**: Direct Triton conv2d kernels with 4D indexing have failed twice due to boundary handling and memory access faults
+- **Trial 2**: MIOpen igemm_fwd is highly optimized (88.6% of time) - beating it requires a fundamentally different approach like im2col+GEMM
+- **Trial 3**: Agent got stuck with no output for 2 consecutive trials on conv2d optimization - needs complete copy-paste code templates
+- **Trial 3**: For im2col+GEMM approach: use F.unfold for im2col, loop over batch for Triton GEMM, BLOCK_M=64 BLOCK_N=64 BLOCK_K=32 as starting point
+- **Trial 3**: Always call .contiguous() on cols and W_mat before passing to Triton kernel to avoid stride issues
+- **Trial 4**: Agent has been stuck with no output for 3 consecutive trials on conv2d Triton optimization - complete code templates are essential
+- **Trial 4**: im2col via F.unfold + Triton GEMM kernel is the most feasible approach for correct Triton conv2d on MI355X
+- **Trial 4**: BLOCK_M=64, BLOCK_N=64, BLOCK_K=32 are reasonable starting tile sizes for Triton GEMM on MI355X
+- **Trial 4**: Loop over batch dimension for Triton GEMM when batch size is small (16)
+- **Trial 5**: Agent has been completely stuck for 3 consecutive trials - needs absolute minimum instructions with no decision points
+- **Trial 5**: For conv2d Triton: F.unfold handles im2col, then Triton GEMM with W_mat(out_channels, K) @ cols(K, L) per batch element
+- **Trial 5**: Key correctness detail: offs_k must be updated inside the k-loop for proper masking when K is not divisible by BLOCK_K

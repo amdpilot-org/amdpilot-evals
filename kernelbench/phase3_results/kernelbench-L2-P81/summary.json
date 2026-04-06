@@ -1,0 +1,35 @@
+{
+  "job": "kernelbench-L2-P81",
+  "type": "optimize",
+  "best_metric": "60.50",
+  "metric_name": "score",
+  "metric_direction": "higher",
+  "total_elapsed_s": 640,
+  "stages_completed": 1,
+  "total_trials": 2,
+  "failures": 1,
+  "trials": [
+    {
+      "trial": 6,
+      "stage": "stage3_optimize_round2",
+      "metric": null,
+      "elapsed_s": 15
+    },
+    {
+      "trial": 1,
+      "stage": "stage1_baseline_and_profile",
+      "metric": "60.50",
+      "elapsed_s": 104,
+      "verified": true,
+      "verified_metric": 60.5,
+      "supervisor_action": "continue",
+      "supervisor_analysis": "Baseline established at score 60.50 (0.94ms vs 0.994ms reference). Profiling shows GEMM at 98.3% and fused activation at 1.7%. Advancing to optimization stage.",
+      "nudge": {
+        "polls": 2,
+        "noops": 2,
+        "nudges_sent": 0,
+        "nudges": []
+      }
+    }
+  ]
+}

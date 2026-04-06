@@ -1,0 +1,29 @@
+{
+  "job": "kernelbench-L2-P97",
+  "type": "optimize",
+  "best_metric": "60.20",
+  "metric_name": "score",
+  "metric_direction": "higher",
+  "total_elapsed_s": 561,
+  "stages_completed": 1,
+  "total_trials": 1,
+  "failures": 0,
+  "trials": [
+    {
+      "trial": 1,
+      "stage": "stage1_baseline_and_profile",
+      "metric": "60.20",
+      "elapsed_s": 339,
+      "verified": true,
+      "verified_metric": 60.2,
+      "supervisor_action": "continue",
+      "supervisor_analysis": "Baseline established at score 60.20 (0.979ms Triton vs 0.994ms reference, 1.015x speedup). Profiling shows GEMM at 94.6%, compute_batch_stats at 3.6%, fused_bn_bias_div_swish at 1.8%. Advancing to optimization stage.",
+      "nudge": {
+        "polls": 5,
+        "noops": 5,
+        "nudges_sent": 0,
+        "nudges": []
+      }
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "name": "vllm-rocm-cross-attn-dispatch",
+  "category": "bugfix",
+  "difficulty": "hard",
+  "source": {
+    "repo": "vllm-project/vllm",
+    "pr": 38450,
+    "parent_commit": "5b8c30d62b754b575e043ce2fc0dcbf8a64f6306"
+  },
+  "description": "Encoder-decoder beam search wrong on ROCM_ATTN and ROCM_AITER_FA dispatch",
+  "task_description_source": "GitHub PR #38450 (symptom only, no fix)",
+  "test_harness_type": "runtime",
+  "requires_gpu": true
+}

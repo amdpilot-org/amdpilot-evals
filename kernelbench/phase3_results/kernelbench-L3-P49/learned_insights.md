@@ -1,0 +1,22 @@
+# Learned Insights
+
+- **Trial 1**: ROCm Triton limitations: no tl.outer, only 3D grids (program_id 0-2), no indexing tensors with runtime loop variables
+- **Trial 1**: torch.compile fails with einops.rearrange — must replace with native reshape/permute/contiguous
+- **Trial 1**: For Mamba2 return_final_state: 37.4% time in elementwise copies from rearrange/einsum intermediates, 29.1% in GEMM (einsum), 11.3% elementwise mul
+- **Trial 1**: Manual outer product in Triton: use b_vals[:, None] * x_vals[None, :] instead of tl.outer
+- **Trial 1**: Baseline for KernelBench L3 P49: 3.21ms runtime, score 60.1
+- **Trial 2**: ROCm Triton limitations: no tl.outer, only 3D grids (program_id 0-2), no indexing tensors with runtime loop variables
+- **Trial 2**: torch.compile fails with einops.rearrange — must replace with native reshape/permute/contiguous
+- **Trial 2**: For Mamba2 return_final_state: 37.4% time in elementwise copies from rearrange/einsum intermediates, 29.1% in GEMM (einsum), 11.3% elementwise mul
+- **Trial 2**: Manual outer product in Triton: use b_vals[:, None] * x_vals[None, :] instead of tl.outer
+- **Trial 2**: Baseline for KernelBench L3 P49: 3.21ms runtime, score 60.1
+- **Trial 2**: Agent produced no output in trial 2 — likely got stuck planning complex Triton kernels. Simpler PyTorch-level optimizations should be tried first.
+- **Trial 3**: Agent crashes when attempting complex Triton kernel designs — need to provide concrete code templates
+- **Trial 3**: For KernelBench: replacing einops.rearrange with native reshape/permute is the first safe optimization step
+- **Trial 3**: Two consecutive no-output trials indicate the agent needs a complete code template, not just hints
+- **Trial 4**: Agent produces no output when attempting complex Triton kernels for Mamba2 — needs complete code templates
+- **Trial 4**: Four trials with 3 no-output failures — agent paralyzed by complexity of Mamba2 chunked computation
+- **Trial 4**: Safe optimization path for Mamba2: replace einops with native reshape/permute, then try torch.compile
+- **Trial 5**: Agent completely paralyzed by complex Triton kernel design for Mamba2 — must provide complete code templates after 2+ no-output trials
+- **Trial 5**: For KernelBench optimizations, torch.compile with native PyTorch (no einops) is the path of least resistance when Triton kernels keep failing
+- **Trial 5**: Mamba2 return_final_state has complex 5D tensor operations that are extremely difficult to express in Triton due to 3D grid limitation and no runtime indexing

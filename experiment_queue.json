@@ -1,0 +1,328 @@
+{
+  "_comment": "Experiment queue source-of-truth. Maintained by orchestrator owner (Xiao). Statuses: running, queued, blocked, deferred, candidate.",
+  "_updated": "2026-04-04T22:50:00-04:00",
+  "_updated_by": "Xiao",
+  "queue": [
+    {
+      "instance": "sglang-glm5-optimize",
+      "run": "run3",
+      "status": "running",
+      "priority": 0,
+      "task_type": "optimize",
+      "runtime_type": "kimi-cli",
+      "note": "Trial 1 active, TIMEOUT_S=3600 fix applied"
+    },
+    {
+      "instance": "sglang-fused-moe-fix",
+      "status": "queued",
+      "priority": 1,
+      "task_type": "bugfix",
+      "runtime_type": "kimi-cli",
+      "note": "Easy, quick win. Also candidate for first kimi-vs-claw paired run"
+    },
+    {
+      "instance": "aiter-splitk-buffer-fix",
+      "status": "queued",
+      "priority": 2,
+      "task_type": "bugfix",
+      "runtime_type": "kimi-cli",
+      "note": "MI355X hardware related"
+    },
+    {
+      "instance": "aiter-nonpow2-blocksize-crash",
+      "status": "queued",
+      "priority": 3,
+      "task_type": "bugfix",
+      "runtime_type": "kimi-cli",
+      "note": "MI355X hardware related"
+    },
+    {
+      "instance": "vllm-rocm-fused-moe-fix",
+      "status": "queued",
+      "priority": 4,
+      "task_type": "bugfix",
+      "runtime_type": "kimi-cli",
+      "note": "MoE core path"
+    },
+    {
+      "instance": "vllm-rocm-mla-nhead-fix",
+      "status": "queued",
+      "priority": 5,
+      "task_type": "bugfix",
+      "runtime_type": "kimi-cli",
+      "note": "MLA core path"
+    },
+    {
+      "instance": "sglang-fp8-w8a8-gfx950-tune",
+      "status": "queued",
+      "priority": 6,
+      "task_type": "bugfix",
+      "runtime_type": "kimi-cli",
+      "note": "FP8 hardware related"
+    },
+    {
+      "instance": "sglang-19935-fp8-kscale-fallback",
+      "status": "queued",
+      "priority": 7,
+      "task_type": "bugfix",
+      "runtime_type": "kimi-cli",
+      "note": "Medium difficulty, has historical 100.0 score from legacy run"
+    },
+    {
+      "instance": "sglang-20187-fp8-prefill-radix-cache",
+      "status": "queued",
+      "priority": 8,
+      "task_type": "feature",
+      "runtime_type": "kimi-cli",
+      "note": "Medium-hard"
+    },
+    {
+      "instance": "vllm-rocm-fp4bmm-gfx950-gate",
+      "status": "queued",
+      "priority": 9,
+      "task_type": "bugfix",
+      "runtime_type": "kimi-cli",
+      "note": "Easy, AST-based harness, no GPU needed. CY formulated 2026-04-04"
+    },
+    {
+      "instance": "sglang-20691-kimi-mla-crash",
+      "status": "queued",
+      "priority": 10,
+      "task_type": "bugfix",
+      "runtime_type": "kimi-cli",
+      "note": "Medium difficulty"
+    },
+    {
+      "instance": "sglang-21614-gibberish-concurrency",
+      "status": "queued",
+      "priority": 11,
+      "task_type": "bugfix",
+      "runtime_type": "kimi-cli",
+      "note": "Medium-hard"
+    },
+    {
+      "instance": "vllm-rocm-aiter-import-fix",
+      "status": "queued",
+      "priority": 12,
+      "task_type": "bugfix",
+      "runtime_type": "kimi-cli",
+      "note": "General ROCm fix"
+    },
+    {
+      "instance": "vllm-rocm-dynamo-arch-crash",
+      "status": "queued",
+      "priority": 13,
+      "task_type": "bugfix",
+      "runtime_type": "kimi-cli",
+      "note": "General ROCm fix"
+    },
+    {
+      "instance": "vllm-rocm-premature-cuda-init",
+      "status": "queued",
+      "priority": 14,
+      "task_type": "bugfix",
+      "runtime_type": "kimi-cli",
+      "note": "General ROCm fix"
+    },
+    {
+      "instance": "vllm-rocm-slidingwin-cudagraph-fix",
+      "status": "queued",
+      "priority": 15,
+      "task_type": "bugfix",
+      "runtime_type": "kimi-cli",
+      "note": "General ROCm fix"
+    },
+    {
+      "instance": "vllm-rocm-cache-stride-fix",
+      "status": "queued",
+      "priority": 16,
+      "task_type": "bugfix",
+      "runtime_type": "kimi-cli",
+      "note": "General ROCm fix"
+    },
+    {
+      "instance": "vllm-rocm-cache-blocksize-backend",
+      "status": "queued",
+      "priority": 17,
+      "task_type": "bugfix",
+      "runtime_type": "kimi-cli",
+      "note": "General ROCm fix"
+    },
+    {
+      "instance": "vllm-rocm-cross-attn-dispatch",
+      "status": "queued",
+      "priority": 18,
+      "task_type": "bugfix",
+      "runtime_type": "kimi-cli",
+      "note": "General ROCm fix"
+    },
+    {
+      "instance": "vllm-rocm-nonpow2-blocksize",
+      "status": "queued",
+      "priority": 19,
+      "task_type": "bugfix",
+      "runtime_type": "kimi-cli",
+      "note": "General ROCm fix"
+    },
+    {
+      "instance": "vllm-rocm-attn-blocksize-qwen35",
+      "status": "queued",
+      "priority": 20,
+      "task_type": "bugfix",
+      "runtime_type": "kimi-cli",
+      "note": "General ROCm fix"
+    },
+    {
+      "instance": "vllm-rocm-mla-last-page-len",
+      "status": "queued",
+      "priority": 21,
+      "task_type": "bugfix",
+      "runtime_type": "kimi-cli",
+      "note": "General ROCm fix"
+    },
+    {
+      "instance": "vllm-rocm-quark-dtype-fix",
+      "status": "queued",
+      "priority": 22,
+      "task_type": "bugfix",
+      "runtime_type": "kimi-cli",
+      "note": "General ROCm fix"
+    },
+    {
+      "instance": "vllm-rocm-spec-decode-dispatch",
+      "status": "queued",
+      "priority": 23,
+      "task_type": "bugfix",
+      "runtime_type": "kimi-cli",
+      "note": "General ROCm fix"
+    },
+    {
+      "instance": "vllm-rocm-lru-cache-fix",
+      "status": "queued",
+      "priority": 24,
+      "task_type": "bugfix",
+      "runtime_type": "kimi-cli",
+      "note": "General ROCm fix"
+    },
+    {
+      "instance": "vllm-rocm-aiter-headsize-fallback",
+      "status": "queued",
+      "priority": 25,
+      "task_type": "bugfix",
+      "runtime_type": "kimi-cli",
+      "note": "Related to aiter-asm-pa-headsize-fix (underlying_case_id: headsize-fallback-paged-attention)"
+    },
+    {
+      "instance": "aiter-asm-pa-headsize-fix",
+      "status": "queued",
+      "priority": 26,
+      "task_type": "bugfix",
+      "runtime_type": "kimi-cli",
+      "note": "Related to vllm-rocm-aiter-headsize-fallback"
+    },
+    {
+      "instance": "aiter-lru-cache-pollution",
+      "status": "queued",
+      "priority": 27,
+      "task_type": "bugfix",
+      "runtime_type": "kimi-cli",
+      "note": "Edge case"
+    },
+    {
+      "instance": "aiter-mxfp4-rounding-fix",
+      "status": "queued",
+      "priority": 28,
+      "task_type": "bugfix",
+      "runtime_type": "kimi-cli",
+      "note": "Edge case"
+    },
+    {
+      "instance": "vllm-corrupt-image-400",
+      "status": "queued",
+      "priority": 29,
+      "task_type": "bugfix",
+      "runtime_type": "kimi-cli",
+      "note": "Edge case"
+    },
+    {
+      "instance": "vllm-mxfp4-moe-fallback",
+      "status": "queued",
+      "priority": 30,
+      "task_type": "bugfix",
+      "runtime_type": "kimi-cli",
+      "note": "Edge case"
+    },
+    {
+      "instance": "sglang-cutedsl-lazy-import",
+      "status": "queued",
+      "priority": 31,
+      "task_type": "bugfix",
+      "runtime_type": "kimi-cli",
+      "note": "Edge case"
+    },
+    {
+      "instance": "sglang-json-nonfinite-fix",
+      "status": "queued",
+      "priority": 32,
+      "task_type": "bugfix",
+      "runtime_type": "kimi-cli",
+      "note": "Edge case"
+    },
+    {
+      "instance": "sglang-kscale-vscale-fix",
+      "status": "queued",
+      "priority": 33,
+      "task_type": "bugfix",
+      "runtime_type": "kimi-cli",
+      "note": "Related to sglang-19935 (underlying_case_id: fp8-mla-kscale-vscale-gate)"
+    },
+    {
+      "instance": "sglang-mla-ps-kernel-guard",
+      "status": "queued",
+      "priority": 34,
+      "task_type": "bugfix",
+      "runtime_type": "kimi-cli",
+      "note": "Edge case"
+    },
+    {
+      "instance": "sglang-shuffle-weight-attrs",
+      "status": "queued",
+      "priority": 35,
+      "task_type": "bugfix",
+      "runtime_type": "kimi-cli",
+      "note": "Edge case"
+    },
+    {
+      "instance": "vllm-aiter-corruption",
+      "status": "queued",
+      "priority": 36,
+      "task_type": "bugfix",
+      "runtime_type": "kimi-cli",
+      "note": "Edge case"
+    },
+    {
+      "instance": "sglang-kimi-k25-optimize",
+      "run": "run3",
+      "status": "deferred",
+      "task_type": "optimize",
+      "runtime_type": "kimi-cli",
+      "note": "Waiting for stage0 warm-up implementation. 555GB model needs NVMe + extended timeout"
+    },
+    {
+      "instance": "sglang-kimi-moe-tune",
+      "run": "run2",
+      "status": "deferred",
+      "task_type": "optimize",
+      "runtime_type": "kimi-cli",
+      "note": "Waiting for prompt/nudge improvements from run1 lessons"
+    },
+    {
+      "instance": "sglang-fused-moe-fix",
+      "status": "blocked",
+      "task_type": "bugfix",
+      "runtime_type": "claude-code",
+      "blocked_on": "kai-3-acceptance-harness",
+      "note": "First kimi-vs-claw paired control run. Blocked on Kai #3 gate"
+    }
+  ]
+}

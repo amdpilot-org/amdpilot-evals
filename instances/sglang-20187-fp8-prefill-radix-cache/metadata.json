@@ -1,0 +1,67 @@
+{
+  "name": "sglang-20187-fp8-prefill-radix-cache",
+  "category": "feature",
+  "difficulty": "medium-hard",
+  "source": {
+    "repo": "sgl-project/sglang",
+    "pr": 20187,
+    "issue": null,
+    "merge_commit": "6407891b4fefc819fd2af1f2db098c6b25f4420b"
+  },
+  "description": "Enable FP8 prefill attention for the radix-cache path in SGLang's aiter attention backend.",
+  "bug_type": "persistent",
+  "bug_source": "sglang",
+  "runtime_family": "sgl-dev",
+  "commit_window": {
+    "introducing_pr": null,
+    "fix_pr": 20187,
+    "fix_commit": "6407891b4fefc819fd2af1f2db098c6b25f4420b",
+    "fix_date": "2026-03-10",
+    "pin_commit": null,
+    "note": "Feature gap (not regression). Base image (Feb 26) predates fix (Mar 10), so no checkout needed."
+  },
+  "aiter_dependency": false,
+  "model_required": false,
+  "gpu_required": 1,
+  "harness_type": "unit_test",
+  "affected_files": [
+    "python/sglang/srt/layers/attention/aiter_backend.py"
+  ],
+  "tags": [
+    "sglang",
+    "feature",
+    "fp8",
+    "prefill",
+    "radix-cache",
+    "deepseek"
+  ],
+  "previous_runs": [
+    {
+      "experiment_id": "sglang-20187-20260319_033013",
+      "best_score": 100.0,
+      "trials": 1,
+      "source_dir": "evals/sglang-sft/results/issue-20187-20260319_033013",
+      "notes": [
+        "Verified historical success recovered from legacy sglang-sft run."
+      ]
+    },
+    {
+      "experiment_id": "sglang-20187-20260319_125058",
+      "best_score": 100.0,
+      "trials": 1,
+      "source_dir": "evals/sglang-sft/results/issue-20187-20260319_125058",
+      "notes": [
+        "Second verified historical success recovered from legacy sglang-sft run."
+      ]
+    }
+  ],
+  "reconstructed_from": [
+    "evals/sglang-sft/results/issue-20187-20260319_033013",
+    "evals/sglang-sft/results/issue-20187-20260319_125058"
+  ],
+  "verified": {
+    "status": "historical_recovery",
+    "by": "bundle-backfill",
+    "date": "2026-04-03"
+  }
+}

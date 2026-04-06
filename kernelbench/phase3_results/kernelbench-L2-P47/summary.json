@@ -1,0 +1,29 @@
+{
+  "job": "kernelbench-L2-P47",
+  "type": "optimize",
+  "best_metric": "60.40",
+  "metric_name": "score",
+  "metric_direction": "higher",
+  "total_elapsed_s": 714,
+  "stages_completed": 1,
+  "total_trials": 1,
+  "failures": 0,
+  "trials": [
+    {
+      "trial": 1,
+      "stage": "stage1_baseline_and_profile",
+      "metric": "60.40",
+      "elapsed_s": 131,
+      "verified": true,
+      "verified_metric": 60.4,
+      "supervisor_action": "continue",
+      "supervisor_analysis": "Baseline established at score 60.4 (4.44ms Triton vs 4.61ms reference, 1.038x speedup). Profiling shows convolution 75%, transposes 13.3%, activation 8%, bias add 3.8%. Advancing to optimization stage.",
+      "nudge": {
+        "polls": 2,
+        "noops": 2,
+        "nudges_sent": 0,
+        "nudges": []
+      }
+    }
+  ]
+}

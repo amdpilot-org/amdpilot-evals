@@ -1,0 +1,24 @@
+# Learned Insights
+
+- **Trial 1**: torch.compile(mode='max-autotune') fails on ROCm with 'ttg.async_copy_global_to_local' legalization errors
+- **Trial 1**: torch.compile(mode='default') provides no measurable benefit for this simple conv+pool+sigmoid+sum pipeline
+- **Trial 1**: Triton on ROCm does not support break/continue statements in loops
+- **Trial 1**: MIOpen conv2d (miopenSp3AsmConv) accounts for 49.9% of time and is already highly optimized
+- **Trial 1**: When writing Triton reduction kernels with masks, sigmoid(0.0)=0.5 so masked-out zero values contribute 0.5 to the sum—must guard accumulation with the mask
+- **Trial 1**: KernelBench score 60.0 corresponds to roughly matching reference time (~6.93ms for this problem)
+- **Trial 2**: Agent produced no output in trial 2 - likely got stuck on planning or environment issues
+- **Trial 2**: For pool_size=4, use tl.static_range(4) to ensure compile-time loop unrolling in Triton
+- **Trial 2**: Conv2d output for input 384x384 with kernel_size=3 is 382x382; avg_pool with kernel_size=4 gives 95x95 (382//4=95 with 2 elements dropped)
+- **Trial 3**: Agent has produced no output in 2 consecutive trials - needs near-complete code solutions to unblock
+- **Trial 3**: For pool_size=4 on 382x382 conv output: H_out=W_out=95 (floor(382/4)=95)
+- **Trial 3**: Fusing avg_pool+sigmoid+sum eliminates memory traffic for ~25% of baseline compute time
+- **Trial 3**: Use 0.0625 (1/16) instead of dividing by pool_size*pool_size for avg_pool with kernel_size=4
+- **Trial 4**: Agent has been stuck for 3 consecutive trials with no output - needs complete ready-to-paste code solutions
+- **Trial 4**: Fusing avg_pool+sigmoid+sum into one Triton kernel eliminates ~25% of baseline kernel time
+- **Trial 4**: For this problem: conv output is (128,64,382,382), pool output is (128,64,95,95), total pool windows per batch = 64*95*95 = 577600
+- **Trial 4**: Use tl.atomic_add for cross-block reduction when summing across a batch element
+- **Trial 4**: Output tensor must be initialized to zeros before atomic_add accumulation
+- **Trial 5**: Agent has been stuck with no output for trials 3-5 - likely hitting an internal planning loop or crash
+- **Trial 5**: Providing complete ready-to-paste code is the only way to unblock agents stuck in no-output loops
+- **Trial 5**: For pool_size=4 avg_pool, the divisor is 16 so multiply by 0.0625 instead of dividing
+- **Trial 5**: Manual sigmoid via 1/(1+exp(-x)) is safer than tl.sigmoid on ROCm

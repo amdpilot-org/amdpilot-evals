@@ -1,0 +1,29 @@
+{
+  "job": "kernelbench-L3-P29",
+  "type": "optimize",
+  "best_metric": "60.00",
+  "metric_name": "score",
+  "metric_direction": "higher",
+  "total_elapsed_s": 1166,
+  "stages_completed": 1,
+  "total_trials": 1,
+  "failures": 0,
+  "trials": [
+    {
+      "trial": 1,
+      "stage": "stage1_baseline_and_profile",
+      "metric": "60.00",
+      "elapsed_s": 955,
+      "verified": true,
+      "verified_metric": 60.0,
+      "supervisor_action": "continue",
+      "supervisor_analysis": "Baseline established at score=60.0 with comprehensive profiling. Elementwise ops (29.6%) and LayerNorm (15.7%) are the top bottlenecks. Triton kernel attempts failed with numerical issues but the profiling data is solid. Advancing to optimization stage.",
+      "nudge": {
+        "polls": 6,
+        "noops": 6,
+        "nudges_sent": 0,
+        "nudges": []
+      }
+    }
+  ]
+}

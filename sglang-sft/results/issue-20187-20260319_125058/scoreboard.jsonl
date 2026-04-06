@@ -1,0 +1,1 @@
+{"trial": 1, "stage": "stage1_implement_fp8_prefill_radix_cache", "elapsed_s": 448, "metric_name": "score", "metric_value": "100.00", "image": "sglang-issue-20187:with-test", "job": "sglang-issue-20187", "run_id": "", "status": "verified", "metric_source": "verification_run", "verified_metric": 100.0, "failure_reason": "", "extra": {}, "score": "100.00"}

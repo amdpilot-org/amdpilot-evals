@@ -1,0 +1,21 @@
+# Learned Insights
+
+- **Trial 1**: For InstanceNorm on 512x512 spatial dims (262144 elements), BLOCK_SIZE=65536 with 4 iterations per pass gives good performance
+- **Trial 1**: 2-pass algorithm (sum+sum_sq then normalize) reduces memory traffic ~33% vs 3-pass and achieves 1.13x over PyTorch baseline
+- **Trial 1**: Two-kernel approach (separate stats + apply kernels) is slower due to kernel launch overhead for this problem size
+- **Trial 1**: Welford's algorithm per-element doesn't work in Triton due to unsupported tensor indexing within blocks
+- **Trial 1**: torch.compile(mode='default') on PyTorch InstanceNorm gives 4.275ms (1.08x), so Triton at 4.18ms is already slightly better
+- **Trial 1**: Score metric is higher-is-better; score of 61.30 corresponds to kernel time 4.18ms vs baseline 4.71ms
+- **Trial 2**: Trial 2 produced no output - agent may need explicit instructions to read existing generated_kernel.py before making changes
+- **Trial 2**: For InstanceNorm on 512x512, BLOCK_SIZE=262144 could eliminate all loop iterations in each pass since spatial_size=262144
+- **Trial 2**: Score 61.30 corresponds to ~4.18ms kernel time; to reach score ~70+ we need kernel time ~3.5ms or lower
+- **Trial 3**: Agent has failed 2 consecutive trials with no output on stage2 - likely getting stuck on planning or environment issues rather than making code changes
+- **Trial 3**: Need extremely explicit step-by-step instructions when agent produces no output
+- **Trial 3**: BLOCK_SIZE=262144 would match spatial_size exactly for 512x512, eliminating loop iterations in the 2-pass kernel
+- **Trial 4**: Agent has failed 3 consecutive trials with no output on optimization stages - needs copy-paste-ready instructions
+- **Trial 4**: BLOCK_SIZE=262144 matches spatial_size exactly for 512x512 InstanceNorm, could eliminate all loop iterations
+- **Trial 4**: For InstanceNorm 512x512, num_warps=16 with larger BLOCK_SIZE may improve occupancy
+- **Trial 4**: Score 61.30 = ~4.18ms kernel time; baseline = 4.71ms; torch.compile = 4.275ms
+- **Trial 5**: Agent has failed 4 consecutive trials with no output on optimization stages - needs absolutely minimal step-by-step shell commands
+- **Trial 5**: The working kernel from trial 1 scores 61.30 and is in /workspace/generated_kernel.py
+- **Trial 5**: BLOCK_SIZE=262144 eliminates loop iterations for 512x512 spatial dims and may improve performance

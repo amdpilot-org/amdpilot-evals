@@ -1,0 +1,50 @@
+{
+  "job": "kernelbench-L3-P37",
+  "type": "optimize",
+  "best_metric": "60.20",
+  "metric_name": "score",
+  "metric_direction": "higher",
+  "total_elapsed_s": 1748,
+  "stages_completed": 1,
+  "total_trials": 1,
+  "failures": 0,
+  "trials": [
+    {
+      "trial": 1,
+      "stage": "stage1_baseline_and_profile",
+      "metric": "60.20",
+      "elapsed_s": 1466,
+      "verified": false,
+      "verified_metric": 60.2,
+      "supervisor_action": "continue",
+      "supervisor_analysis": "Baseline established at score 60.20 with 74ms runtime. Profiling shows MIOpen LSTM dominates (99.28%). Multiple optimizations attempted in this trial. Advancing to optimization stage.",
+      "nudge": {
+        "polls": 13,
+        "noops": 8,
+        "nudges_sent": 5,
+        "nudges": [
+          {
+            "elapsed_s": 811,
+            "text": "Writing a fully custom multi-layer LSTM in Triton is extremely unlikely to beat MIOpen's highly optimized `aten::miopen_rnn` which dominated your profile. Consider a more pragmatic approach: start from your already-passing baseline (score 60) that wraps `nn.LSTM`, and try `torch.compile` on the model or look for optimizations around the LSTM (e.g., fusing the h0/c0 initialization or reducing unnecessary computation since only `c_n` is returned). You've already spent significant time debugging correctness issues in a custom kernel that will likely be slower even when correct."
+          },
+          {
+            "elapsed_s": 980,
+            "text": "Don't settle for score 60. Try using half precision (`torch.float16` or `torch.bfloat16`) for the LSTM computation \u2014 the MI355X has much higher throughput for fp16/bf16 GEMM, and since GEMMs dominate 63% of your runtime, this could give a significant speedup. Cast weights and inputs to half precision, run the LSTM, then cast c_n back to float32 if needed for correctness checks."
+          },
+          {
+            "elapsed_s": 1157,
+            "text": "Look at the reference `forward()` more carefully \u2014 it computes `self.fc(out[:, -1, :])` but discards the result, only returning `state[1]` (c_n). In your `ModelNew`, skip the `fc` computation entirely. Also, the reference calls `self.h0.to(x.device)` every forward pass \u2014 pre-move h0/c0 to CUDA in `__init__` or on first call and cache them to avoid repeated `.to()` overhead. These are small but free wins that compound over benchmark iterations."
+          },
+          {
+            "elapsed_s": 1252,
+            "text": "Try wrapping the LSTM forward pass in a CUDA graph (`torch.cuda.CUDAGraph`) \u2014 with 6 layers \u00d7 512 timesteps, there are thousands of kernel launches, and CUDA graphs eliminate per-launch overhead. Do a warmup run first, then capture the graph, and replay it on each subsequent call. Make sure h0/c0 and the input tensor are allocated once and reused as the graph's input buffers."
+          },
+          {
+            "elapsed_s": 1339,
+            "text": "Wrap the forward pass with `@torch.inference_mode()` decorator \u2014 this eliminates autograd tracking overhead (version counting, grad metadata) for every tensor operation, which adds up across 6 layers \u00d7 512 timesteps. This is a free speedup for inference-only workloads."
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+# Learned Insights
+
+- **Trial 1**: For 8192x8192 GEMM on MI355X, rocBLAS via torch.addmm is ~0.94ms and cannot be beaten by custom Triton matmul (best was 1.39ms)
+- **Trial 1**: Score formula is 50 + 50 * min(speedup/5, 1), so 5x speedup = perfect 100
+- **Trial 1**: GEMM accounts for 98% of runtime in this problem; elementwise ops are only 2%
+- **Trial 1**: Triton shared memory limit is 163840 bytes on MI355X, so 256x256 block sizes overflow
+- **Trial 1**: Block sizes should be multiples of 64 for AMD wavefront alignment on CDNA4
+- **Trial 2**: torch.addmm supports alpha parameter that can fold scalar multiplication into the GEMM at no extra cost via rocBLAS
+- **Trial 2**: Pre-multiplying weights and bias by the multiplier constant can eliminate a separate multiply kernel
+- **Trial 2**: For score formula 50 + 50*min(speedup/5, 1), a score of 60.10 corresponds to only 1.01x speedup
+- **Trial 3**: Agent crashed in trials 2 and 3 without producing output — need very specific step-by-step instructions
+- **Trial 3**: torch.addmm alpha parameter can fold scalar multiplication into GEMM at zero cost
+- **Trial 3**: For 8192x8192 FP32 GEMM on MI355X, trying FP16 GEMM could yield ~2x speedup if correctness allows
+- **Trial 3**: In-place LeakyReLU can save memory bandwidth for large tensors
+- **Trial 4**: Agent crashed in trials 2-4 without producing output - needs complete copy-paste solutions
+- **Trial 4**: torch.addmm(bias, x, w.T, alpha=multiplier) with pre-scaled bias folds multiplication into GEMM at zero cost
+- **Trial 4**: Lazy caching of transposed weight in forward() avoids issues with test harness weight copying after __init__
+- **Trial 4**: In-place Triton LeakyReLU saves one allocation for 8192x8192 output tensor
+- **Trial 5**: Agent has crashed 4 consecutive times (trials 2-5) - needs complete copy-paste solutions with zero room for interpretation
+- **Trial 5**: torch.addmm(bias, x, W^T, alpha=multiplier, beta=multiplier) computes multiplier*(x@W^T) + multiplier*bias = multiplier*(x@W^T + bias) which folds the scalar multiply into GEMM at zero cost
+- **Trial 5**: Weight transpose caching can fail if test harness copies weights after __init__; fallback to weight.t() inline

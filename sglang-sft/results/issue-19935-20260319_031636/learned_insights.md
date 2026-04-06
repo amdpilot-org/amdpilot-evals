@@ -1,0 +1,50 @@
+# Learned Insights
+
+- **Trial 1**: The SGLang codebase is located at /sgl-workspace/sglang, not /workspace
+- **Trial 1**: The target file is /sgl-workspace/sglang/python/sglang/srt/layers/attention/aiter_backend.py
+- **Trial 1**: The fix requires replacing `layer.k_scale` with `(layer.k_scale if layer.k_scale is not None else self.k_scale)` at all 4 mla_decode_fwd call sites
+- **Trial 2**: The SGLang codebase is located at /sgl-workspace/sglang, not /workspace
+- **Trial 2**: The target file is /sgl-workspace/sglang/python/sglang/srt/layers/attention/aiter_backend.py
+- **Trial 2**: The fix requires replacing `layer.k_scale` with `(layer.k_scale if layer.k_scale is not None else self.k_scale)` at all 4 mla_decode_fwd call sites
+- **Trial 2**: Agent keeps failing by trying to cd into /workspace — must explicitly avoid this
+- **Trial 3**: Agent keeps failing by trying to cd into /workspace — must explicitly avoid this and use /sgl-workspace/sglang instead
+- **Trial 3**: The fix requires replacing `layer.k_scale` with `(layer.k_scale if layer.k_scale is not None else self.k_scale)` at all 4 mla_decode_fwd call sites in aiter_backend.py
+- **Trial 3**: A blanket string replace of layer.k_scale may be too aggressive — need to check all occurrences in the file first and only replace the ones passed as kv_scale to mla_decode_fwd
+- **Trial 4**: Agent has failed 4 consecutive trials by trying to cd into /workspace — the correct path is /sgl-workspace/sglang
+- **Trial 4**: The fix requires replacing layer.k_scale with (layer.k_scale if layer.k_scale is not None else self.k_scale) at all 4 mla_decode_fwd call sites in aiter_backend.py
+- **Trial 4**: Must provide complete absolute paths in all commands to avoid the agent defaulting to /workspace
+- **Trial 5**: Agent has failed 5 trials in a row by attempting cd /workspace — must provide complete copy-paste scripts with absolute paths and no cd commands
+- **Trial 5**: The fix is a simple string replacement: 'kv_scale=layer.k_scale' -> 'kv_scale=(layer.k_scale if layer.k_scale is not None else self.k_scale)' in /sgl-workspace/sglang/python/sglang/srt/layers/attention/aiter_backend.py
+- **Trial 6**: Agent has failed 6 trials by defaulting to cd /workspace — the correct path is /sgl-workspace/sglang
+- **Trial 6**: Must provide complete copy-paste commands with absolute paths and zero cd commands
+- **Trial 6**: The fix is: sed -i 's/kv_scale=layer\.k_scale/kv_scale=(layer.k_scale if layer.k_scale is not None else self.k_scale)/g' /sgl-workspace/sglang/python/sglang/srt/layers/attention/aiter_backend.py
+- **Trial 7**: Agent has a hardcoded tendency to prepend 'cd /workspace' to shell scripts — must explicitly instruct removal of this line
+- **Trial 7**: The codebase is at /sgl-workspace/sglang, NOT /workspace
+- **Trial 7**: The fix is a single sed command: sed -i 's/kv_scale=layer\.k_scale/kv_scale=(layer.k_scale if layer.k_scale is not None else self.k_scale)/g' /sgl-workspace/sglang/python/sglang/srt/layers/attention/aiter_backend.py
+- **Trial 7**: After 7 failures the agent still defaults to cd /workspace — the hint must explicitly say DO NOT USE cd /workspace and REMOVE any cd /workspace from your script
+- **Trial 8**: Agent has a persistent hardcoded behavior of prepending 'cd /workspace' to all bash scripts — after 8 failures this is clearly a systemic agent issue
+- **Trial 8**: The codebase is at /sgl-workspace/sglang, NOT /workspace
+- **Trial 8**: The fix is: sed -i 's/kv_scale=layer\.k_scale/kv_scale=(layer.k_scale if layer.k_scale is not None else self.k_scale)/g' /sgl-workspace/sglang/python/sglang/srt/layers/attention/aiter_backend.py
+- **Trial 8**: Must provide complete copy-paste scripts with ZERO cd commands and only absolute paths
+- **Trial 9**: Agent has a persistent hardcoded behavior of prepending 'cd /workspace' to all bash scripts — after 9 consecutive failures this is a systemic agent issue that cannot be solved by hints alone
+- **Trial 9**: The codebase is at /sgl-workspace/sglang, NOT /workspace
+- **Trial 9**: The fix is: sed -i 's/kv_scale=layer\.k_scale/kv_scale=(layer.k_scale if layer.k_scale is not None else self.k_scale)/g' /sgl-workspace/sglang/python/sglang/srt/layers/attention/aiter_backend.py
+- **Trial 9**: Must provide complete copy-paste scripts with ZERO cd commands and only absolute paths — the very first line of the script must be the sed or python command, not cd
+- **Trial 10**: Agent has a hardcoded behavior of prepending 'cd /workspace' to all bash scripts that cannot be overridden by hints - workaround is to create a symlink: ln -sfn /sgl-workspace /workspace
+- **Trial 10**: The codebase is at /sgl-workspace/sglang, NOT /workspace
+- **Trial 10**: The fix is: sed -i 's/kv_scale=layer\.k_scale/kv_scale=(layer.k_scale if layer.k_scale is not None else self.k_scale)/g' /sgl-workspace/sglang/python/sglang/srt/layers/attention/aiter_backend.py
+- **Trial 11**: Agent has a hardcoded behavior of prepending 'cd /workspace' to all bash scripts that cannot be overridden by hints - workaround is to create a symlink: ln -sfn /sgl-workspace /workspace
+- **Trial 11**: The codebase is at /sgl-workspace/sglang, NOT /workspace
+- **Trial 11**: The fix is: replace all occurrences of 'kv_scale=layer.k_scale' with 'kv_scale=(layer.k_scale if layer.k_scale is not None else self.k_scale)' in /sgl-workspace/sglang/python/sglang/srt/layers/attention/aiter_backend.py
+- **Trial 11**: After 11 failures the agent still defaults to cd /workspace - must create symlink ln -sfn /sgl-workspace /workspace as the VERY FIRST command
+- **Trial 11**: Use python3 -c with absolute paths for file modifications instead of sed to avoid shell escaping issues
+- **Trial 12**: Agent has a hardcoded behavior of prepending 'cd /workspace' to all bash scripts that cannot be overridden by hints - workaround is to create a symlink: ln -sfn /sgl-workspace /workspace
+- **Trial 12**: The codebase is at /sgl-workspace/sglang, NOT /workspace
+- **Trial 12**: The fix is: replace all occurrences of 'kv_scale=layer.k_scale' with 'kv_scale=(layer.k_scale if layer.k_scale is not None else self.k_scale)' in /sgl-workspace/sglang/python/sglang/srt/layers/attention/aiter_backend.py
+- **Trial 12**: After 12 failures the agent still defaults to cd /workspace - must create symlink ln -sfn /sgl-workspace /workspace as the VERY FIRST command before anything else
+- **Trial 12**: Use python3 -c with absolute paths for file modifications instead of sed to avoid shell escaping issues
+- **Trial 13**: Agent has a hardcoded behavior of prepending 'cd /workspace' to all bash scripts that cannot be overridden by hints - workaround is to create a symlink: ln -sfn /sgl-workspace /workspace
+- **Trial 13**: The codebase is at /sgl-workspace/sglang, NOT /workspace
+- **Trial 13**: The fix is: replace all occurrences of 'kv_scale=layer.k_scale' with 'kv_scale=(layer.k_scale if layer.k_scale is not None else self.k_scale)' in /sgl-workspace/sglang/python/sglang/srt/layers/attention/aiter_backend.py
+- **Trial 13**: After 13 failures the agent still defaults to cd /workspace - must provide a single python3 -c command as the very first action with no cd or bash wrapper
+- **Trial 13**: Agent produced no output in trial 13 - may be erroring out before executing any commands

@@ -1,0 +1,21 @@
+# Learned Insights
+
+- **Trial 1**: KernelBench score 50.0 means correct but not faster than baseline
+- **Trial 1**: For NetVLAD problem 47: baseline is 0.877ms, GEMM operations take 75% of time (rocBLAS), K=32 cluster size makes standalone Triton elementwise kernels slower due to ~60us launch overhead
+- **Trial 1**: Standalone Triton softmax kernel on K=32 rows adds ~60us overhead, making it 7% slower than PyTorch F.softmax
+- **Trial 1**: Triton 2D block loads with complex indexing patterns cause 'Unsupported ptr type' errors on ROCm Triton
+- **Trial 1**: For this problem, any Triton kernel must be FUSED with adjacent operations (e.g., matmul+BN+softmax) to amortize launch cost
+- **Trial 2**: Trial 2 of KernelBench problem 47 produced no agent output at all — possible timeout or crash during planning
+- **Trial 2**: For NetVLAD: fusing BN+softmax+slice into one Triton kernel is the most promising approach since it eliminates 2 kernel launches (~120us) and 2 memory round-trips on a (B*N, K+G) tensor where K+G≈32 fits in registers
+- **Trial 2**: KernelBench score 50.0 = correct but not faster; need to reduce total time below 0.877ms baseline to get score > 50
+- **Trial 3**: For NetVLAD problem 47: ghost_clusters=0 means slice is a no-op, simplifying the fusion target to just BN+softmax
+- **Trial 3**: Agent crashed in trials 2 and 3 — need very concrete code skeleton and simple step-by-step instructions to prevent overthinking
+- **Trial 3**: BN in eval mode can be decomposed to x*scale+shift where scale=weight/sqrt(var+eps), shift=bias-mean*scale — these are constant and can be precomputed in __init__
+- **Trial 3**: For (204800, 32) BN+softmax fusion: use 1 program per row, BLOCK_SIZE_K=32 fits in registers, eliminates 2+ kernel launches and 2 memory round-trips
+- **Trial 4**: Agent crashes repeatedly on complex optimization tasks — provide complete code solutions to prevent overthinking
+- **Trial 4**: For NetVLAD eval mode: BN can be decomposed to x*scale+shift where scale=weight/sqrt(var+eps), shift=bias-mean*scale, and these can be precomputed in __init__
+- **Trial 4**: Fused BN+softmax Triton kernel with K=32 (constexpr) should save ~120us from 2 eliminated kernel launches
+- **Trial 4**: When K=32 (power of 2), use tl.arange(0, K) directly — no masking needed
+- **Trial 5**: Agent has crashed 4 out of 5 trials on this problem — providing complete code solutions is essential
+- **Trial 5**: For NetVLAD problem 47 with ghost_clusters=0, K=32 is a constexpr power of 2 — no masking needed in Triton kernel
+- **Trial 5**: Precomputing BN scale/shift in _precompute_bn() avoids recomputing every forward pass in eval mode

@@ -1,0 +1,21 @@
+# Learned Insights
+
+- **Trial 1**: torch.compile(mode='default') on pure PyTorch ShuffleNet achieves 1.29x speedup (4.41ms vs 5.68ms) on AMD MI355X
+- **Trial 1**: Custom Triton kernels for group convolution and BN+ReLU fusion were error-prone and failed correctness checks
+- **Trial 1**: Mixing torch.compile with custom Triton kernels causes import errors (specialize_impl not found)
+- **Trial 1**: MIOpen handles convolutions (group conv, depthwise conv) efficiently — don't try to replace them
+- **Trial 1**: Use inplace=False for ReLU when using torch.compile to avoid gradient computation issues
+- **Trial 1**: Channel shuffle via view/transpose/contiguous is handled efficiently by torch.compile fusion
+- **Trial 1**: Profiling breakdown for ShuffleNet: GEMM 47%, elementwise_fused 20%, batchnorm 18%, depthwise_conv 15%
+- **Trial 2**: Trial 2 produced no output — agent may get stuck if hints are too open-ended; provide explicit step-by-step instructions
+- **Trial 2**: torch.compile(mode='default') on pure PyTorch ShuffleNet achieves score 62.90 on AMD MI355X
+- **Trial 2**: Channels-last memory format (torch.channels_last) can significantly speed up conv-heavy models on AMD GPUs
+- **Trial 3**: Trial 3 produced no output — agent gets stuck without explicit step-by-step instructions including exact code
+- **Trial 3**: Agent needs explicit 'run this NOW' instructions when it has failed to produce output in consecutive trials
+- **Trial 3**: channels_last memory format and reduce-overhead compile mode are untested optimizations to try on ShuffleNet
+- **Trial 4**: Agent gets stuck without explicit copy-paste code for 3+ consecutive trials
+- **Trial 4**: channels_last memory format combined with torch.compile(mode='reduce-overhead') is an untested optimization path for ShuffleNet on MI355X
+- **Trial 4**: When agent produces no output, hints must include exact shell commands with cat > file << EOF pattern
+- **Trial 5**: Agent has failed to produce output for 4 consecutive trials on ShuffleNet optimization
+- **Trial 5**: When providing explicit code via hints, must use cat > file << 'PYEOF' with single-quoted delimiter to avoid shell expansion
+- **Trial 5**: channels_last memory format combined with torch.compile(mode='reduce-overhead') is still untested for ShuffleNet on MI355X

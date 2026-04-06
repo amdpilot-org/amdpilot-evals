@@ -1,0 +1,21 @@
+# Learned Insights
+
+- **Trial 1**: torch.compile(mode='default') provides 1.17x speedup on ConvTranspose2d+GELU+GroupNorm pipeline with exact numerical correctness
+- **Trial 1**: Naive fp32 variance accumulation over ~532K elements (258×258×8 per group) causes max diff ~0.001-0.002, exceeding 1e-4 tolerance
+- **Trial 1**: Two-pass variance in fp32 still fails with max diff ~0.00019 (just above 1e-4) for this tensor size
+- **Trial 1**: Triton float64 accumulators cause CompilationError due to loop-carried variable type inconsistency — need careful type management
+- **Trial 1**: The reference Model.__init__ accepts 'groups' parameter but does NOT pass it to nn.ConvTranspose2d — only uses num_groups for GroupNorm
+- **Trial 1**: PyTorch default GELU uses exact CDF formula (erf-based), not tanh approximation. In Triton: 0.5 * x * (1.0 + tl.math.erf(x * 0.7071067811865476))
+- **Trial 1**: KernelBench score of 61.7 corresponds to ~1.17x speedup (7.31ms vs 8.52ms reference)
+- **Trial 2**: Welford's online algorithm is the correct approach for numerically stable variance in Triton GroupNorm over large element counts (500K+)
+- **Trial 2**: Agent produced no output in trial 2 — need explicit instruction to start from working solution and run benchmark
+- **Trial 2**: torch.compile(mode='max-autotune') should be tried before manual Triton kernels as it may auto-fuse GELU+GroupNorm
+- **Trial 3**: Agent timed out in trials 2 and 3 with no output — likely stuck on complex Triton kernel attempts
+- **Trial 3**: With limited time, torch.compile variations (max-autotune, channels_last) are safer bets than custom Triton kernels
+- **Trial 3**: Custom Triton GroupNorm kernels consistently fail numerical validation for this problem size (128x64x258x258) — avoid them
+- **Trial 4**: Agent has failed 3 consecutive trials (2-4) with no output on this problem — likely getting stuck on complex Triton kernel implementations that fail numerical validation
+- **Trial 4**: Custom Triton GroupNorm kernels are NOT viable for this problem (128x64x258x258) due to numerical precision over 500K+ elements per group
+- **Trial 4**: When agent repeatedly produces no output, give extremely prescriptive step-by-step instructions with exact commands
+- **Trial 5**: Agent consistently times out when attempting custom Triton GroupNorm kernels for this problem — 4 consecutive failures
+- **Trial 5**: For problems where custom Triton kernels fail numerical validation, stick with torch.compile variations and memory format optimizations
+- **Trial 5**: When agent fails repeatedly, provide complete copy-paste-ready code rather than conceptual guidance

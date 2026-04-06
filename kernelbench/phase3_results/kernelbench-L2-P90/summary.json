@@ -1,0 +1,29 @@
+{
+  "job": "kernelbench-L2-P90",
+  "type": "optimize",
+  "best_metric": "62.80",
+  "metric_name": "score",
+  "metric_direction": "higher",
+  "total_elapsed_s": 783,
+  "stages_completed": 1,
+  "total_trials": 1,
+  "failures": 0,
+  "trials": [
+    {
+      "trial": 1,
+      "stage": "stage1_baseline_and_profile",
+      "metric": "62.80",
+      "elapsed_s": 279,
+      "verified": true,
+      "verified_metric": 62.8,
+      "supervisor_action": "continue",
+      "supervisor_analysis": "Baseline established at score 62.80 (6.59ms runtime vs 8.44ms reference, 1.28x speedup). Profiling shows Conv3d dominates runtime. Fused post-conv kernel (LeakyReLU+Sum+Clamp+GELU) is working correctly with exact GELU via tl.math.erf. Advancing to optimization stage.",
+      "nudge": {
+        "polls": 5,
+        "noops": 5,
+        "nudges_sent": 0,
+        "nudges": []
+      }
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "name": "aiter-splitk-buffer-fix",
+  "category": "bugfix",
+  "difficulty": "medium",
+  "source": {
+    "repo": "ROCm/aiter",
+    "pr": 2551,
+    "merge_commit": "e47cc0ec581225c237064fd4f622949c1730f6ec"
+  },
+  "description": "ck_moe_stage1 tmp_out buffer undersized when splitK>1 due to sorted_token_ids padding, causing OOB write",
+  "expected_files_changed": 1,
+  "affected_files": [
+    "aiter/fused_moe.py"
+  ],
+  "requires_gpu": false,
+  "requires_model_download": false,
+  "tags": ["rocm", "bugfix", "moe", "buffer", "splitk"]
+}

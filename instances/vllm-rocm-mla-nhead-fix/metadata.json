@@ -1,0 +1,18 @@
+{
+  "name": "vllm-rocm-mla-nhead-fix",
+  "category": "bugfix",
+  "difficulty": "medium",
+  "source": {
+    "repo": "vllm-project/vllm",
+    "pr": 38615,
+    "merge_commit": "1b117cb0ac51b84dd7aed364e6e802dea5147ca6"
+  },
+  "description": "AiterMLADecodeMetadata uses raw num_heads for persistent buffer, causing mismatch when num_heads<16",
+  "expected_files_changed": 1,
+  "affected_files": [
+    "vllm/v1/attention/backends/mla/rocm_aiter_mla.py"
+  ],
+  "requires_gpu": true,
+  "requires_model_download": false,
+  "tags": ["rocm", "bugfix", "mla", "attention", "aiter"]
+}

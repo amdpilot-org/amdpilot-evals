@@ -1,0 +1,175 @@
+{
+  "job_name": "vllm-skinny-gemm-pad",
+  "repo": "https://github.com/vllm-project/vllm.git",
+  "initial_baseline_ms": 100.0,
+  "current_best_ms": 100.0,
+  "stages_completed": [
+    {
+      "stage": "stage1_profile_and_diagnose",
+      "baseline_ms": null,
+      "current_best_ms": 100.0,
+      "applied_optimizations": [
+        {
+          "name": "Add stride parameters (Kap, Kbp) to wvSplitK kernels",
+          "impact_ms": null,
+          "files_changed": [
+            "/workspace/vllm/csrc/rocm/skinny_gemms.cu",
+            "/workspace/vllm/vllm/model_executor/layers/utils.py"
+          ],
+          "description": "Added Kap (activation stride) and Kbp (weight stride) parameters to wvSplitK_hf_sml_, wvSplitK_hf_, and wvSplitK_hf_big_ kernels. Updated all memory access patterns to use strides instead of assuming stride==K. Updated dispatch macros to pass strides from tensor metadata. Removed is_contiguous() guard from use_skinny condition in utils.py to allow padded tensors to use the optimized kernel path.",
+          "technique_category": "",
+          "timestamp": ""
+        }
+      ],
+      "attempted_but_failed": [],
+      "profiling_summary": {
+        "top_bottlenecks": [
+          "wvSplitK_hf_sml_ 94.67%"
+        ],
+        "gpu_utilization": 0.0,
+        "memory_usage_gb": 0.0,
+        "kernel_breakdown": {
+          "skinny_gemm": 94.67,
+          "random_init": 5.33
+        },
+        "raw_profile_path": "",
+        "timestamp": ""
+      },
+      "active_backends": {},
+      "hotspot_targets": [
+        {
+          "kernel": "wvSplitK_hf_sml_",
+          "share_pct": 94.67,
+          "file": "/workspace/vllm/csrc/rocm/skinny_gemms.cu",
+          "symbol": "wvSplitK_hf_sml_<__hip_bfloat16, 64, 2, 16, 8, 2, 4>",
+          "backend": "rocm_skinny_gemm",
+          "reason": "Skinny GEMM kernel takes 94.67% of GPU time. Needed stride support for non-contiguous tensors.",
+          "next_step": "Complete - stride parameters added and verified"
+        }
+      ],
+      "next_moves": [],
+      "environment_changes": [],
+      "notes": [
+        "The FP8 variant wvSplitKQ already had Kap/Kbp stride parameters - used as reference pattern",
+        "Three kernel variants needed changes: wvSplitK_hf_sml_ (small A fits LDS), wvSplitK_hf_ (medium A), wvSplitK_hf_big_ (large A with PCML chunking)",
+        "Key insight: A is loaded flat into LDS but with strided source - needed row/col decomposition for A load addresses",
+        "B (weight) accesses changed from K to Kbp stride, A memory accesses (non-LDS path) changed to use Kap",
+        "wvSplitKrc (reduce-counting) path was NOT modified - is_contiguous guard kept for that path",
+        "Score: 100.0/100.0 - all 4 tiers passed perfectly"
+      ],
+      "started_at": "2026-03-19T18:49:07.321431",
+      "completed_at": "2026-03-19T19:30:03.843380"
+    },
+    {
+      "stage": "stage2_implement_and_build",
+      "baseline_ms": 100.0,
+      "current_best_ms": 100.0,
+      "applied_optimizations": [
+        {
+          "name": "Verified stage1 implementation intact",
+          "impact_ms": 0.0,
+          "files_changed": [
+            "/workspace/vllm/csrc/rocm/skinny_gemms.cu",
+            "/workspace/vllm/vllm/model_executor/layers/utils.py"
+          ],
+          "description": "Confirmed that all stage1 changes (Kap/Kbp stride parameters in all three wvSplitK kernel variants, updated dispatch macros, removed is_contiguous() guard) are intact and the _rocm_C.abi3.so binary is built and up-to-date. Score: 100.0/100.0.",
+          "technique_category": "",
+          "timestamp": ""
+        }
+      ],
+      "attempted_but_failed": [],
+      "profiling_summary": {
+        "top_bottlenecks": [
+          "wvSplitK_hf_sml_ 94.67%"
+        ],
+        "gpu_utilization": 0.0,
+        "memory_usage_gb": 0.0,
+        "kernel_breakdown": {
+          "skinny_gemm": 94.67,
+          "random_init": 5.33
+        },
+        "raw_profile_path": "",
+        "timestamp": ""
+      },
+      "active_backends": {},
+      "hotspot_targets": [
+        {
+          "kernel": "wvSplitK_hf_sml_",
+          "share_pct": 94.67,
+          "file": "/workspace/vllm/csrc/rocm/skinny_gemms.cu",
+          "symbol": "wvSplitK_hf_sml_<__hip_bfloat16, 64, 2, 16, 8, 2, 4>",
+          "backend": "rocm_skinny_gemm",
+          "reason": "Implementation complete - stride parameters added and verified",
+          "next_step": "No further changes needed"
+        }
+      ],
+      "next_moves": [],
+      "environment_changes": [],
+      "notes": [
+        "All changes from stage1 were already built and intact",
+        "Score: 100.0/100.0 - all 4 tiers passed: profiling (15/15), padded correctness (40/40), non-padded regression (20/20), integration (25/25)",
+        "No rebuild was needed - _rocm_C.abi3.so timestamp was newer than skinny_gemms.cu source"
+      ],
+      "started_at": "2026-03-19T19:30:03.843920",
+      "completed_at": "2026-03-19T19:33:13.950053"
+    },
+    {
+      "stage": "stage3_edge_cases_and_integration",
+      "baseline_ms": 100.0,
+      "current_best_ms": 100.0,
+      "applied_optimizations": [
+        {
+          "name": "Final verification - all edge cases and integration checks pass",
+          "impact_ms": 0.0,
+          "files_changed": [],
+          "description": "Stage 3 final verification confirmed 100.0/100.0 score.",
+          "technique_category": "",
+          "timestamp": ""
+        }
+      ],
+      "attempted_but_failed": [],
+      "profiling_summary": {
+        "top_bottlenecks": [
+          "wvSplitK_hf_sml_ 94.67%"
+        ],
+        "gpu_utilization": 0.0,
+        "memory_usage_gb": 0.0,
+        "kernel_breakdown": {
+          "skinny_gemm": 94.67,
+          "random_init": 5.33
+        },
+        "raw_profile_path": "",
+        "timestamp": ""
+      },
+      "active_backends": {},
+      "hotspot_targets": [
+        {
+          "kernel": "wvSplitK_hf_sml_",
+          "share_pct": 94.67,
+          "file": "/workspace/vllm/csrc/rocm/skinny_gemms.cu",
+          "symbol": "wvSplitK_hf_sml_<__hip_bfloat16, 64, 2, 16, 8, 2, 4>",
+          "backend": "rocm_skinny_gemm",
+          "reason": "Implementation complete - all edge cases verified",
+          "next_step": "No further changes needed - perfect score achieved"
+        }
+      ],
+      "next_moves": [],
+      "environment_changes": [],
+      "notes": [
+        "Stage 3 final verification: 100.0/100.0",
+        "All edge cases pass including bonus tests with non-standard dimensions",
+        "Implementation stable across all 3 stages"
+      ],
+      "started_at": "2026-03-19T19:33:13.950636",
+      "completed_at": "2026-03-19T19:35:46.036246"
+    }
+  ],
+  "current_stage": null,
+  "attempt_history": [],
+  "technique_attempts": {},
+  "global_notes": [
+    "Complete implementation: stride parameters (Kap, Kbp) added to all three wvSplitK kernel variants",
+    "is_contiguous() guard removed from utils.py to allow padded tensors through optimized path",
+    "Perfect 100.0/100.0 score maintained across all 3 stages"
+  ]
+}

@@ -1,0 +1,28 @@
+# Learned Insights
+
+- **Trial 1**: MIOpen conv (miopenSp3AsmConv_v30_3_1_gfx9_fp32_f2x3_stride1) dominates at 70.5% for Conv2d(64,128,3) with batch=128, H=W=128
+- **Trial 1**: Fusing ReLU+bias into single Triton kernel saves ~0.36ms (9.7% improvement) by eliminating one kernel launch and memory round-trip
+- **Trial 1**: Full Triton conv2d is not feasible for large tensors — hits 'numel exceeds maximum tensor numel (1048576)' error
+- **Trial 1**: torch.compile fails on AMD MI355X with 'PassManager::run failed during ConvertTritonAMDGPUToLLVM' — do not attempt
+- **Trial 1**: BLOCK_SIZE=2048 gives no improvement over BLOCK_SIZE=1024 for the fused ReLU+bias kernel
+- **Trial 1**: Score formula for KernelBench appears to give score=61 for speedup=1.098x
+- **Trial 2**: MIOpen conv (miopenSp3AsmConv_v30_3_1_gfx9_fp32_f2x3_stride1) dominates at 70.5% for Conv2d(64,128,3) with batch=128, H=W=128
+- **Trial 2**: Fusing ReLU+bias into single Triton kernel saves ~0.36ms (9.7% improvement) by eliminating one kernel launch and memory round-trip
+- **Trial 2**: Full Triton conv2d is not feasible for large tensors — hits 'numel exceeds maximum tensor numel (1048576)' error
+- **Trial 2**: torch.compile fails on AMD MI355X with 'PassManager::run failed during ConvertTritonAMDGPUToLLVM' — do not attempt
+- **Trial 2**: BLOCK_SIZE=2048 gives no improvement over BLOCK_SIZE=1024 for the fused ReLU+bias kernel
+- **Trial 2**: Score formula for KernelBench: score=61 corresponds to speedup=1.098x (3.36ms vs 3.72ms baseline)
+- **Trial 2**: NHWC (channels_last) memory format may significantly speed up MIOpen convolution on AMD GPUs
+- **Trial 2**: torch.backends.cudnn.benchmark = True enables MIOpen algorithm search which can find faster conv implementations
+- **Trial 3**: Agent produced no output in trials 2 and 3 — likely getting stuck on complex approaches. Must provide exact working code and incremental optimization steps.
+- **Trial 3**: Score formula for KernelBench: score=61 corresponds to speedup=1.098x (3.36ms vs 3.72ms baseline)
+- **Trial 3**: MIOpen conv (miopenSp3AsmConv_v30_3_1_gfx9_fp32_f2x3_stride1) dominates at 70.5% for Conv2d(64,128,3) with batch=128, H=W=128
+- **Trial 3**: Full Triton conv2d not feasible — hits numel exceeds maximum tensor numel (1048576) error
+- **Trial 3**: torch.compile fails on AMD MI355X with PassManager::run failed during ConvertTritonAMDGPUToLLVM
+- **Trial 3**: NHWC (channels_last) memory format and torch.backends.cudnn.benchmark=True are untested optimizations that could speed up MIOpen conv
+- **Trial 4**: Agent produces no output when given complex or open-ended optimization instructions — must provide exact copy-paste code
+- **Trial 4**: Trials 2-4 all failed with no output despite 44+ minutes remaining — agent likely timing out on compilation or getting stuck in loops
+- **Trial 4**: channels_last memory format and cudnn.benchmark=True are still untested optimizations that could improve MIOpen conv performance
+- **Trial 5**: Agent produces no output in trials 2-5 when given open-ended optimization instructions — must provide exact copy-paste code
+- **Trial 5**: channels_last memory format and cudnn.benchmark=True remain untested after 5 trials
+- **Trial 5**: Score of 61 = speedup of ~1.098x (3.36ms vs 3.72ms baseline) from fused ReLU+bias Triton kernel

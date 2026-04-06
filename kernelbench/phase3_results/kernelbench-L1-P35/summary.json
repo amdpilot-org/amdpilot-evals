@@ -1,0 +1,29 @@
+{
+  "job": "kernelbench-L1-P35",
+  "type": "optimize",
+  "best_metric": "50.00",
+  "metric_name": "score",
+  "metric_direction": "higher",
+  "total_elapsed_s": 1044,
+  "stages_completed": 1,
+  "total_trials": 1,
+  "failures": 0,
+  "trials": [
+    {
+      "trial": 1,
+      "stage": "stage1_baseline_and_profile",
+      "metric": "50.00",
+      "elapsed_s": 782,
+      "verified": true,
+      "verified_metric": 50.0,
+      "supervisor_action": "continue",
+      "supervisor_analysis": "Baseline established: PyTorch reference at 5.07ms, Triton at 9.95ms, score=50.0. Profiling shows the 3-pass memory pattern is the main bottleneck. Advancing to optimization stage.",
+      "nudge": {
+        "polls": 6,
+        "noops": 6,
+        "nudges_sent": 0,
+        "nudges": []
+      }
+    }
+  ]
+}

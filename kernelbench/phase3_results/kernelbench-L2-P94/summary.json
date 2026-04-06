@@ -1,0 +1,29 @@
+{
+  "job": "kernelbench-L2-P94",
+  "type": "optimize",
+  "best_metric": "60.40",
+  "metric_name": "score",
+  "metric_direction": "higher",
+  "total_elapsed_s": 729,
+  "stages_completed": 1,
+  "total_trials": 1,
+  "failures": 0,
+  "trials": [
+    {
+      "trial": 1,
+      "stage": "stage1_baseline_and_profile",
+      "metric": "60.40",
+      "elapsed_s": 512,
+      "verified": true,
+      "verified_metric": 60.4,
+      "supervisor_action": "continue",
+      "supervisor_analysis": "Baseline established at score 60.40 (1.020ms vs 1.060ms ref, 1.039x speedup). Profiling complete: GEMM 90.8%, GroupNorm 7.7%, fused_bias_act 1.5%. Advancing to optimization stage.",
+      "nudge": {
+        "polls": 6,
+        "noops": 6,
+        "nudges_sent": 0,
+        "nudges": []
+      }
+    }
+  ]
+}

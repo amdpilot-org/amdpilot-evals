@@ -1,0 +1,25 @@
+# Learned Insights
+
+- **Trial 1**: KernelBench score of 50.0 means correct but not faster than baseline - need speedup > 1.0x for score > 50
+- **Trial 1**: Deep narrow MLP (16x1024 layers, batch 1024): baseline 0.474ms with 88.4% GEMM (rocBLAS), 11.6% ReLU
+- **Trial 1**: Pure Triton GEMM is ~2x slower than rocBLAS for 1024x1024 matmul on MI355X - do not write naive Triton GEMM
+- **Trial 1**: torch.compile mode=reduce-overhead fails with 'pending uninvoked backwards' - must use @torch.no_grad() decorator
+- **Trial 1**: torch.compile mode=default with rocBLAS achieves 0.504ms (93% of 0.474ms baseline) - close but not enough
+- **Trial 1**: Mixing Triton kernels inside torch.compile causes compatibility issues on this ROCm environment
+- **Trial 1**: For 32+ kernel launches in 0.474ms, kernel launch overhead is ~15us/launch - CUDA graphs can eliminate this
+- **Trial 2**: Trial 2 produced no output - agent may need very explicit code templates to avoid getting stuck
+- **Trial 2**: With 32 kernel launches in 0.474ms, CUDA graph elimination of launch overhead is the most promising optimization (theoretical ~30% speedup)
+- **Trial 2**: torch.inference_mode() decorator may fix the 'pending uninvoked backwards' error that blocked reduce-overhead mode
+- **Trial 3**: Agent has been stuck for 2 consecutive trials with no output - needs complete copy-paste code templates
+- **Trial 3**: CUDA graph approach requires torch.inference_mode() decorator to avoid 'pending uninvoked backwards' error
+- **Trial 3**: Manual CUDA graph capture with static input/output tensors can eliminate 32 kernel launch overheads for the 16-layer MLP
+- **Trial 3**: torch.compile mode=max-autotune may find better GEMM tile configurations than mode=default
+- **Trial 3**: FP16 computation could give ~2x GEMM speedup if correctness tolerance allows it (cosine similarity > 0.99)
+- **Trial 4**: Agent produced no output for 3 consecutive trials on this task - needs extremely explicit copy-paste instructions
+- **Trial 4**: FP16 computation on MI355X could give ~2x GEMM speedup for 1024x1024 matmuls if correctness tolerance allows
+- **Trial 4**: CUDA graphs require torch.inference_mode() or torch.no_grad() context to avoid 'pending uninvoked backwards' error
+- **Trial 4**: For 16-layer MLP with 32+ kernel launches in 0.474ms, CUDA graph replay could eliminate ~0.1ms of launch overhead
+- **Trial 5**: Agent has been stuck for 4 consecutive trials producing no output on this task - extremely explicit copy-paste solutions are required
+- **Trial 5**: FP16 precision is the most promising untried optimization for 16-layer 1024-unit MLP on MI355X - could give ~2x GEMM speedup
+- **Trial 5**: CUDA graph capture MUST use @torch.inference_mode() decorator to avoid 'pending uninvoked backwards' error
+- **Trial 5**: Score 50.0 means correct but speedup <= 1.0x; need speedup > 1.0x to get score > 50

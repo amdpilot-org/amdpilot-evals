@@ -1,0 +1,147 @@
+{
+  "job_name": "kernelbench-L3-P1",
+  "repo": "",
+  "initial_baseline_ms": 1.19,
+  "current_best_ms": 50.0,
+  "stages_completed": [
+    {
+      "stage": "stage1_baseline_and_profile",
+      "baseline_ms": null,
+      "current_best_ms": 50.0,
+      "applied_optimizations": [
+        {
+          "name": "Environment variables for AMD GPU",
+          "impact_ms": -0.548,
+          "files_changed": [
+            "generated_kernel.py"
+          ],
+          "description": "Set GPU_MAX_HW_QUEUES=2, HIP_FORCE_DEV_KERNARG=1, HSA_NO_SCRATCH_RECLAIM=1, PYTORCH_TUNABLEOP_ENABLED=1, TORCH_BLAS_PREFER_HIPBLASLT=1",
+          "technique_category": "",
+          "timestamp": ""
+        },
+        {
+          "name": "torch.set_float32_matmul_precision('high')",
+          "impact_ms": -0.548,
+          "files_changed": [
+            "generated_kernel.py"
+          ],
+          "description": "Enable TF32 precision for faster matrix multiplications on AMD MI355X",
+          "technique_category": "",
+          "timestamp": ""
+        },
+        {
+          "name": "torch.compile with mode=default",
+          "impact_ms": -0.548,
+          "files_changed": [
+            "generated_kernel.py"
+          ],
+          "description": "Apply torch.compile with mode='default' to enable inductor optimizations and kernel fusion",
+          "technique_category": "",
+          "timestamp": ""
+        }
+      ],
+      "attempted_but_failed": [
+        {
+          "name": "Manual Triton matmul kernel",
+          "reason": "Manual Triton kernels were 4-6x slower than native rocBLAS/hipBLASLt",
+          "error": "Initial Triton kernel: 5.36ms vs reference 1.19ms (0.22x speedup)",
+          "approaches_tried": 1,
+          "timestamp": ""
+        },
+        {
+          "name": "torch.compile mode=max-autotune",
+          "reason": "High overhead from extensive autotuning during benchmark, 4.49ms with high variance",
+          "error": "mode=max-autotune resulted in 4.49ms (std 1.12) vs 0.642ms with mode=default",
+          "approaches_tried": 1,
+          "timestamp": ""
+        },
+        {
+          "name": "Larger block sizes (128x128)",
+          "reason": "Larger blocks increased latency from 5.36ms to 7.7ms",
+          "error": "BLOCK_SIZE_M=128, BLOCK_SIZE_N=128 performed worse than 64x64",
+          "approaches_tried": 1,
+          "timestamp": ""
+        }
+      ],
+      "profiling_summary": {
+        "top_bottlenecks": [
+          "GEMM operations dominate (3 layers of Linear)",
+          "Layer 1: 128x16384 @ 16384x16384 -> 0.226ms (mm kernel)",
+          "Layer 2: 128x16384 @ 16384x16384 -> 0.226ms (mm kernel)",
+          "Layer 3: 128x16384 @ 16384x8192 -> 0.137ms (bias_addmm kernel)"
+        ],
+        "gpu_utilization": 0.0,
+        "memory_usage_gb": 0.0,
+        "kernel_breakdown": {
+          "gemm": 85.0,
+          "elementwise_relu": 5.0,
+          "overhead": 10.0
+        },
+        "raw_profile_path": "",
+        "timestamp": ""
+      },
+      "environment_changes": [
+        "Set GPU_MAX_HW_QUEUES=2",
+        "Set HIP_FORCE_DEV_KERNARG=1",
+        "Set HSA_NO_SCRATCH_RECLAIM=1",
+        "Set PYTORCH_TUNABLEOP_ENABLED=1",
+        "Set TORCH_BLAS_PREFER_HIPBLASLT=1",
+        "torch.set_float32_matmul_precision('high')"
+      ],
+      "notes": [
+        "Native rocBLAS/hipBLASLt kernels are extremely well optimized for MI355X",
+        "Manual Triton kernels cannot compete with vendor BLAS for large GEMMs",
+        "torch.compile with mode='default' automatically selects best backend (native BLAS for GEMM)",
+        "Environment variables provide ~2x speedup (1.19ms -> 0.64ms)",
+        "Current implementation matches reference performance (0.994x speedup)",
+        "torch.compile internally evaluates Triton kernels (shown in autotune logs) but selects optimal backend",
+        "Per amd-kernel-optimization skill: 'torch.compile FIRST' is Rule #1 - manual Triton kernels should only be used after compile is working",
+        "For this MLP problem, native BLAS is optimal - further gains would require algorithmic changes or fusion across layers"
+      ],
+      "started_at": "2026-03-18T03:23:52.667548",
+      "completed_at": "2026-03-18T03:41:41.298780"
+    }
+  ],
+  "current_stage": {
+    "stage": "stage3_optimize_round2",
+    "baseline_ms": 50.0,
+    "current_best_ms": null,
+    "applied_optimizations": [],
+    "attempted_but_failed": [
+      {
+        "name": "trial_4",
+        "reason": "Trial 4 produced no output, same as trials 2 and 3. The agent keeps stalling. Providing exact copy-paste code and shell commands for BF16 optimization.",
+        "error": "",
+        "approaches_tried": 1,
+        "timestamp": "2026-03-18T03:43:28.103178"
+      },
+      {
+        "name": "trial_5",
+        "reason": "Trial 5 produced no output \u2014 the agent has stalled 4 consecutive trials. Providing maximally explicit single-command instructions to write BF16 ModelNew and run benchmark. 39 minutes remain, one more ",
+        "error": "",
+        "approaches_tried": 1,
+        "timestamp": "2026-03-18T03:43:48.218620"
+      }
+    ],
+    "profiling_summary": {
+      "top_bottlenecks": [],
+      "gpu_utilization": 0.0,
+      "memory_usage_gb": 0.0,
+      "kernel_breakdown": {},
+      "raw_profile_path": "",
+      "timestamp": ""
+    },
+    "environment_changes": [],
+    "notes": [],
+    "started_at": "2026-03-18T03:43:06.991357",
+    "completed_at": ""
+  },
+  "attempt_history": [],
+  "technique_attempts": {
+    "trial_2": 1,
+    "trial_3": 1,
+    "trial_4": 1,
+    "trial_5": 1
+  },
+  "global_notes": []
+}

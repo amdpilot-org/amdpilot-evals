@@ -1,0 +1,21 @@
+# Learned Insights
+
+- **Trial 1**: On AMD ROCm Triton, tl.dot requires float16 inputs — cast with .to(tl.float16) before the dot call to avoid builtin.unrealized_conversion_cast LLVM errors
+- **Trial 1**: For 1D conv problem 67: batch=32, in_channels=64, out_channels=256, kernel_size=3, length=131072, output_length=131070, K=in_channels*kernel_size=192
+- **Trial 1**: im2col + Triton matmul achieves 11.0ms vs PyTorch MIOpen 3.93ms — the unfold materialization and generic matmul are major overhead sources
+- **Trial 1**: Direct conv with tl.dot failed due to LLVM translation error from dtype mismatch, not a fundamental limitation
+- **Trial 1**: Scalar loop approach (no tl.dot) achieved 13ms — too slow due to looping over 64 channels * 3 kernel positions
+- **Trial 2**: Trial 2 produced no output - agent may have spent all time debugging without running the benchmark
+- **Trial 2**: For 1D conv im2col GEMM: M=256 (out_channels), K=192 (in_channels*kernel_size), N=4194240 (batch*output_length) - N is extremely large, so BLOCK_N should be large
+- **Trial 2**: Fusing im2col into the GEMM kernel eliminates the ~15% unfold overhead and avoids allocating the large unfolded tensor
+- **Trial 3**: Agent has crashed/timed out 2 consecutive trials (trials 2 and 3) — need extremely prescriptive code-level guidance
+- **Trial 3**: For fused im2col GEMM: ic = k // kernel_size, ks = k % kernel_size, input_pos = output_pos * stride + ks
+- **Trial 3**: GEMM dimensions for problem 67: M=256 (out_channels), K=192 (in_channels*kernel_size=64*3), N=4194240 (batch*out_length=32*131070)
+- **Trial 3**: MI300X FP32 peak ~163 TFLOPS; MIOpen conv1d at 3.93ms achieves ~64% efficiency; FP16 compute via tl.dot could provide 2x throughput advantage
+- **Trial 3**: Weight reshape [out_channels, in_channels, kernel_size] -> [out_channels, in_channels*kernel_size] is just a view but must call .contiguous() for Triton pointer arithmetic
+- **Trial 4**: Agent has crashed/timed out 3 consecutive trials (2, 3, 4) on conv1d problem 67 — needs complete copy-paste code, not high-level guidance
+- **Trial 4**: Fused im2col GEMM kernel for 1D conv: w[oc, ic*ks+ks_idx], x[b, ic, out_pos+ks_idx] with tl.dot(w.to(tl.float16), x.to(tl.float16))
+- **Trial 4**: For problem 67: K=192 (64*3), M=256, N=131070 per batch, BLOCK_M=64 BLOCK_N=128 BLOCK_K=64 gives 3 K-loop iterations and grid=(4, 1024, 32)=131072 blocks
+- **Trial 5**: Agent has crashed/timed out 4 consecutive trials (2-5) on conv1d problem 67 — agent reliability is the bottleneck, not kernel design
+- **Trial 5**: For conv1d problem 67, scalar loop over in_channels(64)*kernel_size(3) = 192 iterations with vectorized output_length via BLOCK_OL achieves correctness
+- **Trial 5**: When agent repeatedly crashes, provide the COMPLETE file content rather than algorithmic guidance

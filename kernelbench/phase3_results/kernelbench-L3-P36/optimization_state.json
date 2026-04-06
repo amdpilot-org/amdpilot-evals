@@ -1,0 +1,119 @@
+{
+  "job_name": "kernelbench-L3-P36",
+  "repo": "",
+  "initial_baseline_ms": 74.1,
+  "current_best_ms": 74.1,
+  "stages_completed": [
+    {
+      "stage": "stage1_baseline_and_profile",
+      "baseline_ms": null,
+      "current_best_ms": 60.0,
+      "applied_optimizations": [
+        {
+          "name": "Skip FC layer computation",
+          "impact_ms": 0.0,
+          "files_changed": [
+            "generated_kernel.py"
+          ],
+          "description": "Reference computes self.fc(out[:, -1, :]) but returns state[0]. FC layer is negligible overhead.",
+          "technique_category": "",
+          "timestamp": ""
+        }
+      ],
+      "attempted_but_failed": [
+        {
+          "name": "torch.compile",
+          "reason": "No speedup - MIOpen already optimal",
+          "error": "1.0x speedup",
+          "approaches_tried": 1,
+          "timestamp": ""
+        },
+        {
+          "name": "Custom Triton LSTM loop",
+          "reason": "Python loop + kernel launch overhead",
+          "error": "2.2x slower",
+          "approaches_tried": 1,
+          "timestamp": ""
+        },
+        {
+          "name": "CUDA graphs",
+          "reason": "hipBLASLt doesn't support stream capture",
+          "error": "operation not permitted when stream is capturing",
+          "approaches_tried": 1,
+          "timestamp": ""
+        }
+      ],
+      "profiling_summary": {
+        "top_bottlenecks": [
+          "GEMM (rocBLAS): 63.5%",
+          "LSTMFwdHidUpdate: 35.0%"
+        ],
+        "gpu_utilization": 0.0,
+        "memory_usage_gb": 0.0,
+        "kernel_breakdown": {
+          "gemm": 63.5,
+          "lstm_elementwise": 35.0,
+          "other": 1.5
+        },
+        "raw_profile_path": "/tmp/lstm_trace.json",
+        "timestamp": "2026-03-17T03:44:00"
+      },
+      "environment_changes": [],
+      "notes": [
+        "Baseline: 74.1ms on AMD MI355X",
+        "MIOpen's miopen_rnn is highly optimized - hard to beat",
+        "FC skip is correct but negligible for output_size=10",
+        "Custom kernels have too much overhead vs MIOpen fusion",
+        "CUDA graphs fail due to hipBLASLt capture limitation"
+      ],
+      "started_at": "2026-03-17T03:26:02.562011",
+      "completed_at": "2026-03-17T03:57:55.085168"
+    }
+  ],
+  "current_stage": {
+    "stage": "stage3_optimize_round2",
+    "baseline_ms": 60.0,
+    "current_best_ms": null,
+    "applied_optimizations": [],
+    "attempted_but_failed": [
+      {
+        "name": "trial_4",
+        "reason": "Trial 4 produced no output again (3rd consecutive failure). With ~26 minutes left, giving one final attempt with exact copy-paste code for FP16 autocast - the simplest possible optimization.",
+        "error": "",
+        "approaches_tried": 1,
+        "timestamp": "2026-03-17T03:59:43.659921"
+      },
+      {
+        "name": "trial_5",
+        "reason": "Trial 5 produced no output (4th consecutive failure). With ~25 minutes remaining, giving one final attempt with the absolute simplest possible code provided verbatim. The agent must simply write this ",
+        "error": "",
+        "approaches_tried": 1,
+        "timestamp": "2026-03-17T04:00:07.354423"
+      }
+    ],
+    "profiling_summary": {
+      "top_bottlenecks": [],
+      "gpu_utilization": 0.0,
+      "memory_usage_gb": 0.0,
+      "kernel_breakdown": {},
+      "raw_profile_path": "",
+      "timestamp": ""
+    },
+    "environment_changes": [],
+    "notes": [],
+    "started_at": "2026-03-17T03:59:20.295555",
+    "completed_at": ""
+  },
+  "attempt_history": [],
+  "technique_attempts": {
+    "trial_2": 1,
+    "trial_3": 1,
+    "trial_4": 1,
+    "trial_5": 1
+  },
+  "global_notes": [
+    "Stage 1 complete: 74.1ms baseline, 74.1ms best (score 60)",
+    "MIOpen LSTM is already well-optimized",
+    "Further optimization would require beating MIOpen's fusion level"
+  ]
+}

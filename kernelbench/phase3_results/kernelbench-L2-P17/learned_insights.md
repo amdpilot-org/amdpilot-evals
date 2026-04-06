@@ -1,0 +1,37 @@
+# Learned Insights
+
+- **Trial 1**: KernelBench L2P17: Conv2d(64→128,k=3) + InstanceNorm2d(128) + divide. Output spatial 126×126 (hw=15876). Baseline score=25.
+- **Trial 1**: InstanceNorm uses population variance (unbiased=False, divides by N not N-1), eps=1e-5
+- **Trial 1**: Triton BLOCK_SIZE must be power of 2 - using non-power-of-2 causes errors
+- **Trial 1**: Don't rewrite Conv2d in Triton - use PyTorch's nn.Conv2d which calls optimized MIOpen. Only fuse InstanceNorm+divide in Triton.
+- **Trial 1**: For InstanceNorm in Triton: grid=(B*C,), each program computes mean/var over HW spatial dims for one (batch,channel) pair
+- **Trial 2**: KernelBench L2P17: Conv2d(64→128,k=3) + InstanceNorm2d(128) + divide. Output spatial 126×126 (hw=15876). Baseline score=25.
+- **Trial 2**: InstanceNorm uses population variance (unbiased=False, divides by N not N-1), eps=1e-5
+- **Trial 2**: Triton BLOCK_SIZE must be power of 2 - using non-power-of-2 causes errors
+- **Trial 2**: Don't rewrite Conv2d in Triton - use PyTorch's nn.Conv2d which calls optimized MIOpen. Only fuse InstanceNorm+divide in Triton.
+- **Trial 2**: For InstanceNorm in Triton: grid=(B*C,), each program computes mean/var over HW spatial dims for one (batch,channel) pair
+- **Trial 2**: Trial 2 produced no output - agent may have gotten stuck. Ensure agent writes code and runs benchmark.
+- **Trial 3**: KernelBench L2P17: Conv2d(64→128,k=3) + InstanceNorm2d(128) + divide. Output spatial 126×126 (hw=15876). Baseline score=25.
+- **Trial 3**: InstanceNorm uses population variance (unbiased=False, divides by N not N-1), eps=1e-5
+- **Trial 3**: Triton BLOCK_SIZE must be power of 2 - using non-power-of-2 causes errors
+- **Trial 3**: Don't rewrite Conv2d in Triton - use PyTorch's nn.Conv2d which calls optimized MIOpen. Only fuse InstanceNorm+divide in Triton.
+- **Trial 3**: For InstanceNorm in Triton: grid=(B*C,), each program computes mean/var over HW spatial dims for one (batch,channel) pair
+- **Trial 3**: Trials 2 and 3 produced no output - agent may need explicit instruction to write code to file and run benchmark command
+- **Trial 4**: KernelBench L2P17: Conv2d(64→128,k=3) + InstanceNorm2d(128) + divide. Output spatial 126×126 (hw=15876). Baseline score=25.
+- **Trial 4**: InstanceNorm uses population variance (unbiased=False, divides by N not N-1), eps=1e-5
+- **Trial 4**: Triton BLOCK_SIZE must be power of 2 - using non-power-of-2 causes errors
+- **Trial 4**: Don't rewrite Conv2d in Triton - use PyTorch's nn.Conv2d which calls optimized MIOpen. Only fuse InstanceNorm+divide in Triton.
+- **Trial 4**: For InstanceNorm in Triton: grid=(B*C,), each program computes mean/var over HW spatial dims for one (batch,channel) pair
+- **Trial 4**: Trials 2, 3, and 4 produced no output - agent needs explicit complete code and step-by-step execution instructions
+- **Trial 4**: BLOCK_SIZE=16384 (power of 2) is sufficient to cover HW=15876 in a single pass for mean/var computation
+- **Trial 5**: Agent has been stuck for 4 trials producing no output - needs complete code provided verbatim
+- **Trial 5**: BLOCK_SIZE=16384 (power of 2) covers HW=15876 for single-pass mean/var in InstanceNorm
+- **Trial 5**: For InstanceNorm Triton kernel: flatten to (B*C, HW), grid=(B*C,), each program handles one spatial plane
+- **Trial 6**: Agent has been stuck for 5 consecutive trials with no output - likely getting caught in planning loops without executing
+- **Trial 6**: BLOCK_SIZE=16384 (power of 2) covers HW=15876 for single-pass InstanceNorm
+- **Trial 6**: Use tl.constexpr for HW, BLOCK_SIZE, divide_by, eps parameters in Triton kernel
+- **Trial 6**: For InstanceNorm: population variance (divide by N not N-1), eps=1e-5
+- **Trial 7**: Agent has been completely stuck for 6 trials - likely caught in planning/reasoning loops without executing any shell commands
+- **Trial 7**: When agent produces no output repeatedly, provide complete cat-heredoc commands that can be copy-pasted directly
+- **Trial 7**: BLOCK_SIZE=16384 (power of 2) covers HW=15876 for single-pass InstanceNorm reduction
+- **Trial 7**: For InstanceNorm Triton: flatten to (B*C, HW), grid=(B*C,), each program normalizes one spatial plane

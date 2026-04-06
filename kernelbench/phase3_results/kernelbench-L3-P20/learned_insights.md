@@ -1,0 +1,23 @@
+# Learned Insights
+
+- **Trial 1**: Trial 1 was a total failure due to LLM connection error - no work was performed
+- **Trial 1**: MobileNetV2 optimization targets: depthwise separable convolutions, fused conv+BN+ReLU6, inverted residual blocks
+- **Trial 2**: Trial 1 and 2 both failed with no output - likely transient LLM/connection issues, not environment problems
+- **Trial 2**: MobileNetV2 optimization targets: depthwise separable convolutions, fused conv+BN+ReLU6, inverted residual blocks
+- **Trial 3**: Trial 1, 2, and 3 all failed with no output - likely transient LLM/connection issues, not environment problems
+- **Trial 3**: MobileNetV2 optimization targets: depthwise separable convolutions, fused conv+BN+ReLU6, inverted residual blocks
+- **Trial 4**: Trial 1, 2, 3, and 4 all failed with no output - likely transient LLM/connection issues, not environment problems
+- **Trial 4**: MobileNetV2 optimization targets: depthwise separable convolutions, fused conv+BN+ReLU6, inverted residual blocks
+- **Trial 4**: Priority: get ANY working submission first (score > 0) before attempting optimizations
+- **Trial 5**: Trial 1, 2, 3, 4, and 5 all failed with no output - likely transient LLM/connection issues, not environment problems
+- **Trial 5**: MobileNetV2 optimization targets: depthwise separable convolutions, fused conv+BN+ReLU6, inverted residual blocks
+- **Trial 5**: Priority: get ANY working submission first (score > 0) before attempting optimizations
+- **Trial 5**: torch.compile with mode='max-autotune' is the fastest path to a non-zero score for MobileNetV2
+- **Trial 6**: Trial 1, 2, 3, 4, 5, and 6 all failed with no output - likely transient LLM/connection issues, not environment problems
+- **Trial 6**: MobileNetV2 optimization targets: depthwise separable convolutions, fused conv+BN+ReLU6, inverted residual blocks
+- **Trial 6**: Priority: get ANY working submission first (score > 0) before attempting optimizations
+- **Trial 6**: torch.compile with mode='max-autotune' is the fastest path to a non-zero score for MobileNetV2
+- **Trial 6**: If agent keeps producing no output, the issue is likely LLM connection timeouts - keep instructions minimal and concrete
+- **Trial 7**: All 7 trials produced no output - systemic LLM/connection issue, not an environment problem
+- **Trial 7**: Keep instructions extremely minimal to reduce prompt processing time and avoid timeouts
+- **Trial 7**: torch.compile with mode='max-autotune' is the simplest path to a non-zero score for MobileNetV2

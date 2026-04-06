@@ -1,0 +1,326 @@
+# Task: Optimize Optimize KernelBench Level 1 Problem 59 with Triton on AMD MI355X on AMD GPU -- Stage1 Baseline And Profile
+
+## Starting Point
+
+You are starting from a **clean environment**.
+- Base image: `amdpilot-kernelbench-base:latest`
+- Repo cloned at `/workspace/` from ``
+- **CHECK FIRST**: Run `ls /workspace/` to see if a previous trial left benchmark scripts or results. Reuse them if they exist.
+
+## Task Description
+
+# KernelBench Level 1 Problem 59: 59_conv_standard_3D__asymmetric_input__square_kernel.py
+
+## Goal
+
+Write an optimized Triton kernel implementation (`ModelNew`) that:
+1. Produces the **exact same output** as the PyTorch reference `Model`
+2. Is **faster** than the PyTorch baseline
+3. Uses Triton `@triton.jit` kernels (NOT raw CUDA/HIP)
+
+## PyTorch Reference Implementation
+
+```python
+import torch
+import torch.nn as nn
+
+class Model(nn.Module):
+    """
+    Performs a standard 3D convolution operation with an asymmetric input and a square kernel.
+
+    Args:
+        in_channels (int): Number of channels in the input tensor.
+        out_channels (int): Number of channels produced by the convolution.
+        kernel_size (int): Size of the square convolution kernel (kernel_size x kernel_size).
+        stride (int, optional): Stride of the convolution. Defaults to 1.
+        padding (int, optional): Padding applied to the input. Defaults to 0.
+        dilation (int, optional): Spacing between kernel elements. Defaults to 1.
+        groups (int, optional): Number of blocked connections from input channels to output channels. Defaults to 1.
+        bias (bool, optional): If `True`, adds a learnable bias to the output. Defaults to `False`.
+    """
+    def __init__(self, in_channels: int, out_channels: int, kernel_size: int, stride: int = 1, padding: int = 0, dilation: int = 1, groups: int = 1, bias: bool = False):
+        super(Model, self).__init__()
+        self.conv3d = nn.Conv3d(in_channels, out_channels, (kernel_size, kernel_size, 1), stride=stride, padding=padding, dilation=dilation, groups=groups, bias=bias)
+        
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Performs the 3D convolution.
+
+        Args:
+            x (torch.Tensor): Input tensor of shape (batch_size, in_channels, height, width, depth).
+
+        Returns:
+            torch.Tensor: Output tensor of shape (batch_size, out_channels, height_out, width_out, depth_out).
+        """
+        return self.conv3d(x)
+
+# Test code
+batch_size = 16
+in_channels = 3
+out_channels = 64
+kernel_size = 3
+width = 256
+height = 256
+depth = 10
+
+def get_inputs():
+    x = torch.rand(batch_size, in_channels, height, width, depth)
+    return [x]
+
+def get_init_inputs():
+    return [in_channels, out_channels, kernel_size]  # Provide in_channels, out_channels, kernel_size for initialization
+```
+
+## AMD ROCm Triton Constraints (CRITICAL)
+
+You are writing Triton kernels for AMD Instinct MI355X (gfx950, CDNA4) with ROCm.
+
+### Known Issues - You MUST follow these rules:
+
+1. **`tl.math.tanh` is UNAVAILABLE** on ROCm Triton. Use manual implementation:
+   ```python
+   x_clamped = tl.maximum(tl.minimum(x, 10.0), -10.0)
+   exp_2x = tl.math.exp(2.0 * x_clamped)
+   tanh_val = (exp_2x - 1.0) / (exp_2x + 1.0)
+   ```
+
+2. **`tl.libdevice.*` is UNAVAILABLE** on ROCm. Do NOT use `tl.libdevice.tanh`,
+   `tl.libdevice.exp`, etc. Use `tl.math.exp` or manual implementations.
+
+3. **Wavefront size is 64** (not 32 like NVIDIA). BLOCK_SIZE values that are
+   multiples of 64 align better with hardware.
+
+4. **Cast output to target dtype explicitly**: compute in float32, cast back on store:
+   ```python
+   x = tl.load(ptr, mask=mask, other=0.0).to(tl.float32)
+   y = compute(x)
+   tl.store(out_ptr, y.to(tl.float32), mask=mask)
+   ```
+
+5. **BLOCK_SIZE selection**: Use `triton.next_power_of_2(N)` for the hidden dimension.
+
+6. **Common kernel pattern**:
+   ```python
+   @triton.jit
+   def _kernel(X_ptr, Y_ptr, stride_x, stride_y, N, BLOCK_SIZE: tl.constexpr):
+       row = tl.program_id(0)
+       cols = tl.arange(0, BLOCK_SIZE)
+       mask = cols < N
+       x = tl.load(X_ptr + row * stride_x + cols, mask=mask, other=0.0).to(tl.float32)
+       y = compute(x)
+       tl.store(Y_ptr + row * stride_y + cols, y.to(tl.float32), mask=mask)
+   ```
+
+## Previous Failed Attempt
+
+A previous single-shot attempt failed. Error: `at 28:12:
+    height_out: tl.constexpr,
+    width_out: tl.constexpr,
+    BLOCK_H: tl.constexpr,
+    BLOCK_W: tl.constexpr,
+    BLOCK_OC: tl.constexpr,
+    BLOCK_IC: tl.constexpr,
+    HAS_BIAS: tl.c...`
+
+```python
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import triton
+import triton.language as tl
+
+
+@triton.jit
+def conv3d_depth1_kernel(
+    x_ptr,
+    w_ptr,
+    b_ptr,
+    out_ptr,
+    batch_size: tl.constexpr,
+    in_channels: tl.constexpr,
+    out_channels: tl.constexpr,
+    height: tl.constexpr,
+    width: tl.constexpr,
+    depth: tl.constexpr,
+    kernel_size: tl.constexpr,
+    stride: tl.constexpr,
+    padding: tl.constexpr,
+    dilation: tl.constexpr,
+    groups: tl.constexpr,
+    height_out: tl.constexpr,
+    width_out: tl.constexpr,
+    BLOCK_H: tl.constexpr,
+    BLOCK_W: tl.constexpr,
+    BLOCK_OC: tl.constexpr,
+    BLOCK_IC: tl.constexpr,
+    HAS_BIAS: tl.constexpr,
+):
+    pid_b = tl.program_id(0)
+    pid_d = tl.program_id(1)
+    pid_h = tl.program_id(2)
+    pid_w = tl.program_id(3)
+    pid_oc = tl.program_id(4)
+
+    out_h_start = pid_h * BLOCK_H
+    out_w_start = pid_w * BLOCK_W
+    out_c_start = pid_oc * BLOCK_OC
+
+    out_h_off = out_h_start + tl.arange(0, BLOCK_H)
+    out_w_off = out_w_start + tl.arange(0, BLOCK_W)
+    out_c_off = out_c_start + tl.arange(0, BLOCK_OC)
+
+    mask_h = out_h_off < height_out
+    mask_w = out_w_off < width_out
+    mask_c = out_c_off < out_channels
+    mask_hw = mask_h[:, None] & mask_w[None, :]
+    mask_hwc = mask_hw[:, :, None] & mask_c[None, None, :]
+
+    acc = tl.zeros((BLOCK_H, BLOCK_W, BLOCK_OC), dtype=tl.float32)
+
+    channels_per_group = in_channels // groups
+    out_channels_per_group = out_channels // groups
+
+    for gid in range(groups):
+        oc_start = gid * out_channels_per_group
+        ic_start = gid * channels_per_group
+
+        for ic_block in range(0, channels_per_group, BLOCK_IC):
+            ic_off = ic_start + ic_block + tl.arange(0, BLOCK_IC)
+            mask_ic = ic_off < (ic_start + channels_per_group)
+
+            for kh in range(kernel_size):
+                for kw in range(kernel_size):
+                    in_h = out_h_off * stride + kh * dilation - padding
+                    in_w = out_w_off * stride + kw * dilation - padding
+
+                    mask_in_h = (in_h >= 0) & (in_h < height)
+                    mask_in_w = (in_w >= 0) & (in_w < width)
+                    mask_in = mask_in_h[:, None] & mask_in_w[None, :]
+
+                    x_base = (
+                        pid_b * in_channels * height * width * depth +
+                        ic_off[:, None, None] * height * width * depth +
+                        in_h[None, :, None] * width * depth +
+                        in_w[None, None, :] * depth +
+                        pid_d
+                    )
+                    x = tl.load(x_ptr + x_base, mask=mask_ic[None, None, :] & mask_in[:, :, None], other=0.0)
+
+                    w_base = (
+                        (oc_start + out_c_off[None, None, :]) * in_channels * kernel_size * kernel_size +
+                        ic_off[None, None, :] * kernel_size * kernel_size +
+                        kh * kernel_size + kw
+                    )
+                    w =
+```
+
+Analyze what went wrong and fix the issues.
+
+## Output Requirements
+
+Save your implementation to `/workspace/generated_kernel.py`.
+The file must define a `ModelNew` class with the same interface as `Model`.
+Run the test harness to verify:
+```bash
+/opt/venv/bin/python3 /workspace/test_harness.py --level 1 --problem-id 59
+```
+
+## Optimization Playbook
+
+This is the baseline/profile stage.
+1. Read both the `amd-kernel-optimization` and `gpu-profiling` skills.
+2. Establish the fast baseline first with `/opt/venv/bin/python3 /workspace/test_harness.py --level 1 --problem-id 59` and wait for it to finish.
+3. After the fast baseline succeeds, use `/opt/venv/bin/python3 /workspace/test_harness.py --level 1 --problem-id 59` for the real measurement.
+4. Capture active backends, bottlenecks, and concrete optimization candidates in `/workspace/optimization_state.json`.
+5. Do NOT stop after the baseline just because there is no concrete target yet.
+
+## Execution Environment
+
+You are running inside a Docker container with ROCm, PyTorch, and GPU access.
+All commands run directly in this container — no `docker exec` needed.
+- Repo at `/workspace/`
+
+## Goal
+
+Establish a reliable baseline and profiling picture for ``.
+This stage is for baseline measurement and bottleneck discovery, not for declaring victory.
+This stage advances after a real metric is recorded and profiling context is captured.
+Do NOT treat the baseline itself as task completion or proof that no more optimization is needed.
+
+## Stage Hints
+
+First, examine the existing codebase structure and understand the test harness at /workspace/test_harness.py. Run the baseline test to establish current performance: `/opt/venv/bin/python3 /workspace/test_harness.py --level 1 --problem-id 59`. Analyze the failed attempt - the code was truncated and had overly complex 5D program_id mapping. For AMD MI355X (gfx950), use simpler kernel design: flatten output dimensions where possible, use BLOCK_SIZE multiples of 64 for wavefront alignment. Create a working ModelNew class in /workspace/generated_kernel.py that produces correct output first, even if not optimally fast. Ensure all tl.math operations avoid unavailable functions (no tl.math.tanh, no tl.libdevice.*). Cast to float32 for computation and back to target dtype on store.
+
+## Workflow
+
+1. **Read skills**: Read your `amd-kernel-optimization` and `gpu-profiling` skills for AMD-specific guidance.
+2. **Read the task description** at `/workspace/task_description.md` — it contains task-specific instructions, including which benchmark to run, environment details, and recommended approaches.
+3. **Baseline FIRST**: Run the benchmark IMMEDIATELY to establish the starting metric. Set a high `timeout` on the Shell tool (e.g. 600–1800s) for the first run since model loading can be slow. Do NOT spend time reading source code before you have a baseline number.
+4. **Profile**: Identify which backends are active from the benchmark logs (attention, MoE, all-reduce, etc.). If practical, profile with CUDA graphs disabled to get kernel-level breakdown.
+5. **Optimize**: If you have clear optimization opportunities from profiling, apply them one at a time and benchmark after each change. Revert immediately if performance regresses. Follow the skill docs and task description for recommended techniques.
+6. **Update state**: Write results to `/workspace/optimization_state.json` after each change.
+7. **Final benchmark**: Run the standard benchmark command as your LAST action.
+
+## Key Principles
+
+- **Run the benchmark EARLY** — get a baseline number within the first few minutes. Do NOT spend time on code exploration before having a metric.
+- Follow the task description's recommended approach first — it contains domain-specific guidance.
+- Do NOT modify the benchmark script or its parameters.
+- After making changes to compiled code, rebuild the affected package before benchmarking.
+- If the benchmark script sources a config file (e.g. `bench_config.env`), use it for backend configuration to ensure verification reproduces your setup.
+
+## Integrity Rules (MANDATORY)
+
+- Do NOT modify `test_harness.py` or the benchmark script.
+- Do NOT change benchmark parameters (warmup, iterations, batch size, input dimensions).
+- Do NOT redirect or filter benchmark output (no `grep`, no `| tail`).
+- The orchestrator independently re-runs the benchmark to verify your results. Any discrepancy between your claimed result and the verification run causes the trial to be marked as FAILED.
+- Achieve improvements through legitimate code changes only.
+
+## CRITICAL: Output Format
+
+Your LAST action before finishing MUST be running the benchmark command **directly** —
+do NOT pipe through `grep` or redirect output. The FULL benchmark output must appear
+in your output so the orchestrator can capture the metric via regex: `SCORE:\s+([\d.]+)`
+
+The output must include a line matching: `score: <value>`
+
+Without this line, the trial is recorded as a FAILURE even if you achieved great results.
+
+## State File
+
+After completing work, update `/workspace/optimization_state.json`:
+```json
+{
+  "job_name": "...",
+  "repo": "...",
+  "current_best_ms": 43.4,
+  "stages_completed": [...],
+  "current_stage": {
+    "stage": "<stage name>",
+    "current_best_ms": 41.2,
+    "applied_optimizations": [
+      {
+        "name": "<technique>",
+        "impact_ms": -5.0,
+        "files_changed": ["<path>"],
+        "description": "<what changed>"
+      }
+    ],
+    "attempted_but_failed": [
+      {"name": "<technique>", "reason": "<why>", "error": "<snippet>"}
+    ],
+    "profiling_summary": {
+      "top_bottlenecks": ["<kernel> <pct>"],
+      "gpu_utilization": 0.72,
+      "kernel_breakdown": {"gemm": 61.0, "attention": 24.0}
+    },
+    "environment_changes": ["pip install <pkg>"],
+    "notes": ["<important learning from this trial>"]
+  }
+}
+```
+The file already exists when the trial starts. Preserve the existing top-level
+structure and update the `current_stage` section with what you learned in this
+trial. If you only know part of the state, add just those fields and leave the
+rest intact. The orchestrator merges this file into the next trial's prompt.

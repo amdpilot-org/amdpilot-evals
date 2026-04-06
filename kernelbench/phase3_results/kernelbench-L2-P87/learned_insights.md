@@ -1,0 +1,24 @@
+# Learned Insights
+
+- **Trial 1**: tl.math.tanh is unavailable on ROCm Triton; use manual impl with exp and clamping to [-10,10]
+- **Trial 1**: For KernelBench problem 87, conv takes 41.3% of GPU time and is handled by MIOpen — focus Triton optimization on the elementwise portion
+- **Trial 1**: Conv bias add runs as a separate elementwise kernel (20.2% of time) — fusing bias into the Triton kernel is a significant optimization opportunity
+- **Trial 1**: BLOCK_SIZE=256 (multiple of 64 for AMD wavefront) works as a baseline for elementwise Triton kernels
+- **Trial 1**: Score 64.50 corresponds to 1.45x speedup (3.76ms vs 5.42ms baseline)
+- **Trial 2**: Trial 2 produced no output — agent may have crashed; always verify the existing solution still runs before making changes
+- **Trial 2**: F.conv2d(input, weight, bias=None) can separate conv from bias addition, enabling bias fusion into the Triton kernel
+- **Trial 2**: Conv bias add as separate elementwise kernel takes 20.2% of GPU time — fusing into Triton kernel is the next major optimization
+- **Trial 3**: tl.math.tanh is unavailable on ROCm Triton; use manual impl with exp and clamping to [-10,10]
+- **Trial 3**: For KernelBench problem 87, conv takes 41.3% of GPU time and is handled by MIOpen — focus Triton optimization on the elementwise portion
+- **Trial 3**: Conv bias add runs as a separate elementwise kernel (20.2% of time) — fusing bias into the Triton kernel is a significant optimization opportunity
+- **Trial 3**: BLOCK_SIZE=256 (multiple of 64 for AMD wavefront) works as a baseline for elementwise Triton kernels
+- **Trial 3**: Score 64.50 corresponds to 1.45x speedup (3.76ms vs 5.42ms baseline)
+- **Trial 3**: Two consecutive trials (2 and 3) produced no output — agent must verify existing solution runs before making changes
+- **Trial 3**: F.conv2d(input, weight, bias=None) can separate conv from bias addition, enabling bias fusion into the Triton kernel
+- **Trial 3**: Channel index for NCHW layout: channel_idx = (linear_idx // (H_out * W_out)) % C_out
+- **Trial 4**: Three consecutive trials produced no output — agent is likely crashing during file edits or making syntax errors
+- **Trial 4**: Always backup working generated_kernel.py before modifications and revert on failure
+- **Trial 4**: The bias fusion optimization (F.conv2d without bias + bias in Triton kernel) is the next 20% opportunity
+- **Trial 5**: Four consecutive trials with no output — agent needs copy-paste-ready code and must backup before changes
+- **Trial 5**: Use heredoc to write complete files rather than incremental edits to avoid syntax errors
+- **Trial 5**: Always verify the existing solution works before making modifications

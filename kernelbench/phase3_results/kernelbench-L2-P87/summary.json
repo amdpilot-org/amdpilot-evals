@@ -1,0 +1,29 @@
+{
+  "job": "kernelbench-L2-P87",
+  "type": "optimize",
+  "best_metric": "64.50",
+  "metric_name": "score",
+  "metric_direction": "higher",
+  "total_elapsed_s": 322,
+  "stages_completed": 1,
+  "total_trials": 1,
+  "failures": 0,
+  "trials": [
+    {
+      "trial": 1,
+      "stage": "stage1_baseline_and_profile",
+      "metric": "64.50",
+      "elapsed_s": 148,
+      "verified": true,
+      "verified_metric": 64.5,
+      "supervisor_action": "continue",
+      "supervisor_analysis": "Baseline established at score 64.50 (3.76ms optimized vs 5.42ms reference, 1.45x speedup). Profiling shows conv 41.3%, fused_subtract_mish 38.5%, conv_bias_add 20.2%. Advancing to optimization stage.",
+      "nudge": {
+        "polls": 2,
+        "noops": 2,
+        "nudges_sent": 0,
+        "nudges": []
+      }
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+# Learned Insights
+
+- **Trial 1**: ROCm Triton: tl.math.tanh unavailable, must use manual implementation with tl.math.exp
+- **Trial 1**: BLOCK_SIZE=128 causes correctness issues on this kernel; BLOCK_SIZE=64 is safe (wavefront-aligned)
+- **Trial 1**: Triton does not support break statements in kernels
+- **Trial 1**: Vanilla RNN with batch=8, hidden=256, seq=256: per-element kernels create 524K launches causing massive overhead
+- **Trial 1**: rnn_i2h_kernel accounts for 80% of GPU time, rnn_h2o_kernel 19.5%
+- **Trial 1**: The i2h and h2o operations are essentially GEMMs (combined @ W^T + bias) — reformulating as tiled matmul should dramatically reduce launch count and improve performance
+- **Trial 1**: 2D block matmul with large tiles exceeded 163KB shared memory limit; use smaller tiles (BLOCK_M=8, BLOCK_N=32-64, BLOCK_K=64)
+- **Trial 2**: Vanilla RNN with batch=8, hidden=256, seq=256: per-element kernels create 524K launches causing massive overhead
+- **Trial 2**: Tiled GEMM approach for small-batch RNN: use BLOCK_M=8 (covers full batch), BLOCK_N=64, BLOCK_K=64 to reduce grid to (1,4) per timestep
+- **Trial 2**: nn.Linear weight is (out_features, in_features), must account for transpose in GEMM kernel stride setup
+- **Trial 2**: Manual tanh in Triton: pos_exp = tl.math.exp(2*x); result = (pos_exp - 1) / (pos_exp + 1)
+- **Trial 3**: Trials 2 and 3 both produced no output - agent likely timing out trying complex implementations without testing incrementally
+- **Trial 3**: For small-batch (M=8) GEMM in Triton, use BLOCK_M=8 to cover full batch, BLOCK_N=64, BLOCK_K=64
+- **Trial 3**: Virtual concatenation (indexing into x vs h based on k index) avoids materializing cat(x,h) tensor
+- **Trial 3**: nn.Linear weight shape is (out_features, in_features); the forward is input @ weight.T + bias
+- **Trial 3**: Reducing kernel launches from 524K to ~1536 (256 timesteps * 6 blocks) is the key optimization
+- **Trial 4**: Writing a Triton tiled GEMM for small-batch RNN is too complex and error-prone — 3 consecutive failures
+- **Trial 4**: Hybrid approach (torch.mm for GEMM + Triton for fused pointwise ops) is the correct strategy when GEMM is not the bottleneck but launch count is
+- **Trial 4**: Agent timing out with no output across 3 trials indicates the implementation is too complex — simplify the approach
+- **Trial 4**: For batch=8 GEMMs, rocBLAS via torch.mm will outperform a hand-written Triton GEMM
+- **Trial 5**: Agent has timed out 4 consecutive trials writing tiled GEMM in Triton for small-batch RNN — this approach is too complex and error-prone
+- **Trial 5**: Hybrid approach: torch.mm for GEMM (rocBLAS) + Triton for fused elementwise (add+bias+tanh) is the correct strategy for batch=8 RNN
+- **Trial 5**: Splitting i2h weight into W_x and W_h avoids torch.cat allocation: W_x = weight[:, :input_size], W_h = weight[:, input_size:]
+- **Trial 5**: For fused_add_bias_tanh: a + b + bias then manual tanh via pos_exp = exp(2*x), result = (pos_exp-1)/(pos_exp+1)

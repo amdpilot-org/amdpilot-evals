@@ -1,0 +1,21 @@
+{
+  "name": "aiter-asm-pa-headsize-fix",
+  "category": "bugfix",
+  "difficulty": "easy",
+  "source": {
+    "repo": "ROCm/aiter",
+    "pr": 2273,
+    "merge_commit": "e27a1807d67b731e0cc714a474776cf63bc6e30c"
+  },
+  "description": "ASM paged attention kernel dispatched for unsupported head_size!=128, producing incorrect results",
+  "expected_files_changed": 1,
+  "affected_files": [
+    "aiter/ops/attention.py"
+  ],
+  "requires_gpu": false,
+  "requires_model_download": false,
+  "tags": ["rocm", "bugfix", "attention", "dispatch", "head_size"],
+  "underlying_case_id": "headsize-fallback-paged-attention",
+  "related_instances": ["vllm-rocm-aiter-headsize-fallback"],
+  "relation_note": "Same root cause (head_size < 64 unsupported) but different fix layer: aiter internal dispatch vs vllm calling layer fallback"
+}

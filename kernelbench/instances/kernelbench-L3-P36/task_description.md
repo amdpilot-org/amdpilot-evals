@@ -1,0 +1,214 @@
+# KernelBench Level 3 Problem 36: 36_LSTMHn.py
+
+## Goal
+
+Write an optimized Triton kernel implementation (`ModelNew`) that:
+1. Produces the **exact same output** as the PyTorch reference `Model`
+2. Is **faster** than the PyTorch baseline
+3. Uses Triton `@triton.jit` kernels (NOT raw CUDA/HIP)
+
+## PyTorch Reference Implementation
+
+```python
+import torch
+import torch.nn as nn
+
+class Model(nn.Module):
+    def __init__(self, input_size, hidden_size, num_layers, output_size, dropout=0.0):
+        """
+        Initialize the LSTM model.
+
+        :param input_size: The number of expected features in the input `x`
+        :param hidden_size: The number of features in the hidden state `h`
+        :param num_layers: Number of recurrent layers
+        :param output_size: The number of output features
+        :param dropout: If non-zero, introduces a Dropout layer on the outputs of each LSTM layer except the last layer, with dropout probability equal to `dropout`
+        """
+        super(Model, self).__init__()
+        # Initialize hidden state with random values
+        self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True, dropout=dropout, bidirectional=False)
+        self.fc = nn.Linear(hidden_size, output_size)
+    
+    def forward(self, x,h0,c0):
+        """
+        Forward pass through the LSTM model.
+
+        :param x: The input tensor, shape (batch_size, sequence_length, input_size)
+        :return: The output tensor, shape (batch_size, sequence_length, output_size)
+        """
+        
+        # Forward propagate LSTM
+        out, state = self.lstm(x, (h0, c0))  # out: tensor of shape (batch_size, seq_length, hidden_size)
+        
+        # Decode the hidden state of the last time step
+        out = self.fc(out[:, -1, :])  # out: tensor of shape (batch_size, output_size)
+        
+        return state[0]
+
+# Test code
+batch_size = 10
+sequence_length = 512
+input_size = 128
+hidden_size = 256
+num_layers = 6
+output_size = 10
+dropout = 0.0
+
+def get_inputs():
+    return [torch.rand(batch_size, sequence_length, input_size),torch.rand((num_layers, batch_size, hidden_size)),torch.rand((num_layers, batch_size, hidden_size))]
+
+def get_init_inputs():
+    return [input_size, hidden_size, num_layers, output_size, dropout]
+```
+
+## AMD ROCm Triton Constraints (CRITICAL)
+
+You are writing Triton kernels for AMD Instinct MI355X (gfx950, CDNA4) with ROCm.
+
+### Known Issues - You MUST follow these rules:
+
+1. **`tl.math.tanh` is UNAVAILABLE** on ROCm Triton. Use manual implementation:
+   ```python
+   x_clamped = tl.maximum(tl.minimum(x, 10.0), -10.0)
+   exp_2x = tl.math.exp(2.0 * x_clamped)
+   tanh_val = (exp_2x - 1.0) / (exp_2x + 1.0)
+   ```
+
+2. **`tl.libdevice.*` is UNAVAILABLE** on ROCm. Do NOT use `tl.libdevice.tanh`,
+   `tl.libdevice.exp`, etc. Use `tl.math.exp` or manual implementations.
+
+3. **Wavefront size is 64** (not 32 like NVIDIA). BLOCK_SIZE values that are
+   multiples of 64 align better with hardware.
+
+4. **Cast output to target dtype explicitly**: compute in float32, cast back on store:
+   ```python
+   x = tl.load(ptr, mask=mask, other=0.0).to(tl.float32)
+   y = compute(x)
+   tl.store(out_ptr, y.to(tl.float32), mask=mask)
+   ```
+
+5. **BLOCK_SIZE selection**: Use `triton.next_power_of_2(N)` for the hidden dimension.
+
+6. **Common kernel pattern**:
+   ```python
+   @triton.jit
+   def _kernel(X_ptr, Y_ptr, stride_x, stride_y, N, BLOCK_SIZE: tl.constexpr):
+       row = tl.program_id(0)
+       cols = tl.arange(0, BLOCK_SIZE)
+       mask = cols < N
+       x = tl.load(X_ptr + row * stride_x + cols, mask=mask, other=0.0).to(tl.float32)
+       y = compute(x)
+       tl.store(Y_ptr + row * stride_y + cols, y.to(tl.float32), mask=mask)
+   ```
+
+## Previous Failed Attempt
+
+A previous single-shot attempt failed. Error: `at 39:4:
+    # Load weight row and bias
+    weight_row = tl.load(weight_ptr + pid * hidden_size + tl.arange(0, hidden_size),
+                         mask=tl.arange(0, hidden_size) < hidden_size, o...`
+
+```python
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import triton
+import triton.language as tl
+
+
+@triton.jit
+def fused_lstm_gates_kernel(
+    x_ptr, h_ptr, c_ptr,
+    w_ih_ptr, w_hh_ptr, b_ptr,
+    h_out_ptr, c_out_ptr,
+    batch_size: tl.constexpr,
+    hidden_size: tl.constexpr,
+    input_size: tl.constexpr,
+    BLOCK_SIZE: tl.constexpr,
+):
+    """
+    Fused LSTM cell kernel computing all 4 gates in a single pass.
+    Gates: input, forget, cell, output (ifgo order)
+    """
+    pid = tl.program_id(0)
+    batch_pid = tl.program_id(1)
+    
+    if batch_pid >= batch_size:
+        return
+    
+    block_start = pid * BLOCK_SIZE
+    offsets = block_start + tl.arange(0, BLOCK_SIZE)
+    mask = offsets < hidden_size
+    
+    batch_offset = batch_pid * hidden_size
+    x_batch_offset = batch_pid * input_size
+    
+    # Load previous hidden and cell states
+    h_prev = tl.load(h_ptr + batch_offset + offsets, mask=mask, other=0.0)
+    c_prev = tl.load(c_ptr + batch_offset + offsets, mask=mask, other=0.0)
+    
+    # Load input
+    x_offsets = x_batch_offset + tl.arange(0, input_size)
+    x_mask = tl.arange(0, input_size) < input_size
+    x = tl.load(x_ptr + x_offsets, mask=x_mask, other=0.0)
+    
+    # Compute gate pre-activations (simplified - in practice would load weights)
+    # For this optimization, we'll use the weights from PyTorch linear layers
+    # This kernel demonstrates the fusion pattern
+    
+    # Store outputs (placeholder - actual computation would use weights)
+    tl.store(h_out_ptr + batch_offset + offsets, h_prev, mask=mask)
+    tl.store(c_out_ptr + batch_offset + offsets, c_prev, mask=mask)
+
+
+@triton.jit
+def fused_linear_last_timestep_kernel(
+    lstm_out_ptr, weight_ptr, bias_ptr,
+    output_ptr,
+    batch_size: tl.constexpr,
+    hidden_size: tl.constexpr,
+    output_size: tl.constexpr,
+    BLOCK_SIZE: tl.constexpr,
+):
+    """
+    Fused kernel that extracts the last timestep and applies linear transformation.
+    Combines: out[:, -1, :] @ weight.T + bias
+    """
+    pid = tl.program_id(0)
+    batch_pid = tl.program_id(1)
+    
+    if batch_pid >= batch_size or pid >= output_size:
+        return
+    
+    block_start = pid * BLOCK_SIZE
+    offsets = block_start + tl.arange(0, BLOCK_SIZE)
+    mask = offsets < output_size
+    
+    # Get last timestep hidden state (batch_pid, -1, :)
+    lstm_offset = batch_pid * hidden_size
+    hidden = tl.load(lstm_out_ptr + lstm_offset + tl.arange(0, hidden_size), 
+                     mask=tl.arange(0, hidden_size) < hidden_size, other=0.0)
+    
+    # Load weight row and bias
+    weight_row = tl.load(weight_ptr + pid * hidden_size + tl.arange(0, hidden_size),
+                         mask=tl.arange(0, hidden_size) < hidden_size, other=0.0)
+    bias_val = tl.load(bias_ptr + pid)
+    
+    # Compute dot product
+    output_val = tl.dot(hidden.reshape(1, hidden_size), 
+                        weight_row.reshape(hidden_size, 1)).reshape(1)
+    output_val = output_val + bias_val
+    
+    # Store outp
+```
+
+Analyze what went wrong and fix the issues.
+
+## Output Requirements
+
+Save your implementation to `/workspace/generated_kernel.py`.
+The file must define a `ModelNew` class with the same interface as `Model`.
+Run the test harness to verify:
+```bash
+/opt/venv/bin/python3 /workspace/test_harness.py --level 3 --problem-id 36
+```

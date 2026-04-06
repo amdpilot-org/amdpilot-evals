@@ -1,0 +1,21 @@
+# Learned Insights
+
+- **Trial 1**: ROCm Triton does not have tl.libdevice — use tl.math.erf for exact GELU: 0.5 * x * (1 + erf(x / sqrt(2)))
+- **Trial 1**: GELU tanh approximation has ~0.00047 max error vs PyTorch's exact GELU, exceeding fp32 tolerance of 0.0001 — must use erf-based exact formula
+- **Trial 1**: BatchNorm in training mode computes per-batch mean/variance, not running statistics — kernel must match this behavior
+- **Trial 1**: BLOCK_SIZE should be multiple of 64 for CDNA4 wavefront alignment on MI355X
+- **Trial 1**: Fusing BatchNorm+GELU+ReLU into single Triton kernel gave 1.49x speedup (5.83ms -> 3.91ms) for problem 41 (16384x4096 GEMM + BN + GELU + ReLU)
+- **Trial 2**: ROCm Triton does not have tl.libdevice — use tl.math.erf for exact GELU: 0.5 * x * (1 + erf(x / sqrt(2)))
+- **Trial 2**: GELU tanh approximation has ~0.00047 max error vs PyTorch's exact GELU, exceeding fp32 tolerance of 0.0001 — must use erf-based exact formula
+- **Trial 2**: BatchNorm in training mode computes per-batch mean/variance, not running statistics — kernel must match this behavior
+- **Trial 2**: BLOCK_SIZE should be multiple of 64 for CDNA4 wavefront alignment on MI355X
+- **Trial 2**: Fusing BatchNorm+GELU+ReLU into single Triton kernel gave 1.49x speedup (5.83ms -> 3.91ms) for problem 41 (16384x4096 GEMM + BN + GELU + ReLU)
+- **Trial 2**: For problem 41, the GEMM is 16384x4096 @ 4096x4096 — this is likely the dominant cost after fusing the elementwise ops
+- **Trial 3**: Two consecutive trials with no output suggest the agent may be attempting changes that cause crashes — need explicit fallback to verify existing kernel first
+- **Trial 3**: For problem 41, the GEMM is 16384x4096 @ 4096x4096 — this is likely the dominant cost after fusing the elementwise ops
+- **Trial 3**: Fusing GEMM epilogue (BN+GELU+ReLU into matmul) is the next logical optimization after elementwise fusion
+- **Trial 4**: Two consecutive trials with no output indicate the agent is making changes that crash without testing — must enforce verify-first workflow
+- **Trial 4**: For problem 41, the working fused BN+GELU+ReLU kernel scores 64.90 — any optimization attempt must first reproduce this baseline before modifying
+- **Trial 5**: Three consecutive no-output trials indicate the agent makes destructive changes without testing — must enforce verify-first workflow
+- **Trial 5**: For problem 41, the working fused BN+GELU+ReLU kernel scores 64.90 — any optimization must first reproduce this baseline
+- **Trial 5**: torch.compile(mode='max-autotune') on nn.Linear GEMM is a safe optimization to try alongside the custom fused elementwise kernel

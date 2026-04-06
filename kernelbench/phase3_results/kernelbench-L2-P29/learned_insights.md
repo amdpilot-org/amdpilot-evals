@@ -1,0 +1,22 @@
+# Learned Insights
+
+- **Trial 1**: For problem 29 (Matmul+Mish+Mish, 1024x8192 -> 1024x8192), GEMM is 97.5% of GPU time; elementwise fusion alone gives <4% speedup
+- **Trial 1**: torch.compile is broken in this ROCm environment due to triton version incompatibility (ImportError: cannot import name 'specialize_impl')
+- **Trial 1**: ROCm Triton: use tl.math.exp/tl.math.log instead of tl.libdevice.* or bare tl.exp/tl.log
+- **Trial 1**: Manual tanh for ROCm: clamp to [-10,10], then (exp(2x)-1)/(exp(2x)+1)
+- **Trial 1**: Baseline kernel runtime ~0.95ms, reference ~0.98ms, score 60.30
+- **Trial 2**: For problem 29 (Matmul+Mish+Mish, 1024x8192 -> 1024x8192), GEMM is 97.5% of GPU time; only epilogue fusion with GEMM can yield meaningful speedup
+- **Trial 2**: torch.compile is broken in this ROCm environment due to triton version incompatibility (ImportError: cannot import name 'specialize_impl')
+- **Trial 2**: ROCm Triton: use tl.math.exp/tl.math.log instead of tl.libdevice.* or bare tl.exp/tl.log
+- **Trial 2**: Manual tanh for ROCm: clamp to [-10,10], then (exp(2x)-1)/(exp(2x)+1)
+- **Trial 2**: For Triton matmul on MI355X: weight shape is (out_features, in_features), need to load as (BLOCK_K, BLOCK_N) tile for tl.dot compatibility
+- **Trial 3**: For problem 29: Trials 2 and 3 both timed out with no output when attempting fused GEMM kernel - agent needs very explicit code template
+- **Trial 3**: For Triton GEMM on ROCm: nn.Linear weight is (out_features, in_features), w_tile should be loaded as (BLOCK_K, BLOCK_N) shape for tl.dot
+- **Trial 3**: Fused GEMM epilogue pattern: after accumulation loop, add bias and apply activations before store - avoids separate kernel launch and extra memory traffic
+- **Trial 4**: For problem 29: Custom Triton GEMM kernel approach failed 3 consecutive trials (timeout/no output) — DO NOT attempt hand-written GEMM, use rocBLAS via torch.mm/addmm instead
+- **Trial 4**: For large square GEMM (1024x8192x8192), rocBLAS is compute-bound and highly optimized — fusion savings from eliminating one 32MB intermediate read/write are negligible compared to 137 GFLOP compute
+- **Trial 4**: Agent needs very explicit step-by-step instructions when previous trials produced no output — provide complete code patterns not just descriptions
+- **Trial 5**: For problem 29: Agent timed out 4 consecutive trials (2-5) — needs complete copy-paste code templates, not descriptions
+- **Trial 5**: torch.addmm fuses bias addition with GEMM at the BLAS level, saving one kernel launch vs nn.Linear
+- **Trial 5**: FP16/BF16 GEMM on MI355X CDNA4 can be up to 2x faster than FP32 GEMM for large matrices
+- **Trial 5**: For 1024x8192x8192 GEMM: compute is ~137 GFLOP, elementwise epilogue is only ~32MB — fusion saves <3% total time

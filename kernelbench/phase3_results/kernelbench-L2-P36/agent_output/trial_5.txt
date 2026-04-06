@@ -1,0 +1,4 @@
+Error response from daemon: container ecd02ecaf77398b62f2e9aee76355ca29d141b5449776de5289c8b4a10501f17 is not running
+
+--- EXIT CODE ---
+1

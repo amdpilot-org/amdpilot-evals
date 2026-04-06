@@ -1,0 +1,21 @@
+# Learned Insights
+
+- **Trial 1**: torch.compile with Triton kernels causes MLIR legalization failures on ROCm gfx950 (ttg.async_copy_global_to_local)
+- **Trial 1**: tl.libdevice.tanh is unavailable on ROCm; use manual implementation (exp(2x)-1)/(exp(2x)+1) with input clamping to [-10, 10]
+- **Trial 1**: Triton does not support 'break' statements in kernels; use tl.static_range or masking instead
+- **Trial 1**: Vectorized block-based Triton kernels with BLOCK_SIZE=1024 and tl.arange are much faster than element-by-element loop approaches
+- **Trial 1**: For KernelBench problem 92: Conv2d is the dominant compute, fusing Tanh+HardSwish+ResidualAdd gives 1.17x speedup (2.23ms->1.90ms)
+- **Trial 1**: GroupNorm reduction pattern (mean/var over channels_per_group * H * W) is challenging in Triton for large spatial dims; PyTorch's GroupNorm is already well-optimized
+- **Trial 2**: Trial 2 produced no output — agent may have spent all time on a broken approach without running the benchmark
+- **Trial 2**: For GroupNorm in Triton: channels_per_group=4, spatial=15876, total elements per group=63504; use chunked reduction with BLOCK_SIZE=16384
+- **Trial 2**: Always run the benchmark early to confirm a working baseline before attempting further optimizations
+- **Trial 3**: Two consecutive trials (2 and 3) produced no output — agent likely spent all time on complex approaches without running the benchmark
+- **Trial 3**: With limited time, always restore a known-working solution first, verify it runs, then make incremental changes
+- **Trial 3**: LogSumExp along dim=1 with 64 channels is a feasible Triton reduction target — small reduction dim, large parallelism over (batch, H, W)
+- **Trial 4**: Agent has failed 3 consecutive trials (2, 3, 4) with no output on this problem — extremely prescriptive step-by-step instructions are required
+- **Trial 4**: The working solution (score 61.70) uses PyTorch Conv2d+GroupNorm+LogSumExp with a fused Triton Tanh+HardSwish+ResidualAdd kernel
+- **Trial 4**: LogSumExp over dim=1 with 64 channels is a small reduction (BLOCK_SIZE=64) with large parallelism over (batch*H*W) — good Triton target
+- **Trial 5**: For KernelBench problem 92 on ROCm: the practical ceiling with a fused Triton Tanh+HardSwish+ResidualAdd kernel is score ~61.70 (1.17x speedup over PyTorch baseline of 2.23ms)
+- **Trial 5**: Agent failed 4 consecutive trials attempting to go beyond simple elementwise fusion — GroupNorm and LogSumExp Triton kernels are too complex for the agent to implement correctly in a single trial on this problem
+- **Trial 5**: When an agent fails 3+ consecutive trials with no output, the problem is likely too complex for the remaining time budget — stop early to preserve results
+- **Trial 5**: Conv2d remains the dominant compute bottleneck in problem 92 and cannot be easily optimized with Triton since it requires highly tuned im2col/Winograd implementations

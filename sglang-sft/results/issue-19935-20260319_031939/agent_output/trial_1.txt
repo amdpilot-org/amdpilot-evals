@@ -1,0 +1,10 @@
+• Used SetTodoList
+  • Read environment docs and skill docs ←
+  • Examine aiter_backend.py to find all 4 mla_decode_fwd call sites
+  • Check flashmla_backend.py for reference fallback pattern
+  • Apply the fix at all 4 call sites
+  • Run test harness to verify
+  • Update optimization_state.json
+
+--- EXIT CODE ---
+137

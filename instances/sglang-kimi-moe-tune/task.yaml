@@ -1,0 +1,108 @@
+name: sglang-kimi-moe-tune
+type: optimize
+repo: https://github.com/sgl-project/sglang.git
+base_image: amdpilot-eval-sglang-kimi-moe-tune
+
+model_endpoint:
+  model: "Qwen3.5-397B-A17B"
+  base_url: "http://10.235.27.218:30000/v1"
+  api_key: "sk-dummy"
+
+supervisor_model_endpoint:
+  model: "claude-opus-4-6"
+  base_url: "http://localhost:8083/v1"
+  api_key: "not-needed"
+
+container:
+  name: amdpilot_eval_kimi_moe_tune
+  gpu: "0,1,2,3,4,5,6,7"
+  shm_size: 64g
+  devices: [/dev/kfd, /dev/dri]
+  volumes:
+    - "/mnt/dcgpuval/huggingface:/sgl-workspace/models"
+
+workload:
+  description: "See task_description.md"
+  framework: PyTorch
+
+benchmark:
+  command: "cd /workspace/sglang && /opt/venv/bin/python3 /workspace/test_harness.py"
+  metric_name: score
+  metric_pattern: 'SCORE:\s+([\d.]+)'
+  metric_direction: higher
+
+task:
+  description_file: evals/instances/sglang-kimi-moe-tune/task_description.md
+
+# Explicit stages with escalating targets based on kernel speedup scoring.
+# Test harness v2 scores: Tier1(10) + Tier2(10) + Tier3(80, proportional to speedup).
+# Tier3: 1.0x speedup=0pts, 1.3x=30pts, 1.5x=50pts, 1.8x=80pts.
+stages:
+  - name: stage1_profile_and_infra
+    start_image: amdpilot-eval-sglang-kimi-moe-tune
+    duration_minutes: 50
+    target: 40
+    description: >
+      FIRST: Read the skill docs (SKILL.md AND references/moe-config-tuning.md).
+      SECOND: Profile the kernel with rocprof: run
+      "rocprof --stats /opt/venv/bin/python3 /workspace/test_harness.py 2>&1 | tail -40"
+      and analyze which kernels dominate GPU time. Classify each as compute-bound
+      or memory-bound. This profiling data is ESSENTIAL for later stages.
+      THEN: Investigate why fused_moe uses default config — read the config lookup
+      code (fused_moe_triton_config.py), check what config files exist, understand
+      what's missing for E=384, N=128, int4_w4a16.
+      Add int4_w4a16 support to tuning infrastructure if needed.
+      Create initial config files by running actual benchmarks for each config,
+      NOT by guessing values. Even a small systematic search (testing 20-50 configs
+      per batch size) will outperform guessing.
+
+  - name: stage2_systematic_tuning
+    start_image: auto
+    duration_minutes: 50
+    target: 70
+    description: >
+      Run systematic config tuning across all benchmark batch sizes (512-16384).
+      Either use the existing tuning script (tuning_fused_moe_triton.py) or write
+      a config search script that tests many combinations of BLOCK_SIZE_M/N/K,
+      GROUP_SIZE_M, num_warps, and num_stages.
+      Use your profiling data from stage 1 to guide the search: if the kernel is
+      compute-bound, prioritize larger BLOCK_SIZE_M/N; if memory-bound, try
+      different num_stages and BLOCK_SIZE_K values.
+      IMPORTANT: Run tuning FIRST, then run final benchmark SEPARATELY with no
+      other GPU work running. Do NOT benchmark while tuning scripts are active.
+      Target requires ~1.5x average speedup (geometric mean across batch sizes).
+
+  - name: stage3_small_batch_optimization
+    start_image: auto
+    duration_minutes: 50
+    target: 85
+    description: >
+      The bottleneck is now small batch sizes (M=512, M=2048). Run the benchmark
+      and check per-batch-size speedups. For small M, tokens_per_expert is small
+      so the kernel behaves differently — try aggressive configs: BLOCK_SIZE_M=16
+      or 32, lower num_warps (1-2), different BLOCK_SIZE_K (64, 128, 256).
+      Also tune the DOWN projection config separately (it has different access
+      patterns from the UP projection).
+      Profile again with rocprof for M=512 specifically to understand if the
+      bottleneck shifts for small batches.
+      IMPORTANT: When running final benchmark, kill ALL other GPU processes first.
+      Target requires ~1.7x average speedup (human-level performance).
+
+nudge_config:
+  poll_interval: 10
+  profiling_check_after_s: 300
+  benchmark_check_after_s: 180
+  kimi_status_interval: 15
+
+kimi_cli:
+  repo_url: "https://github.com/Arist12/kimi-cli.git"
+  branch: amd-dev
+  install_dir: "/sgl-workspace/kimi-cli"
+  provider: "sglang"
+  provider_type: "openai_legacy"
+  thinking: false
+  yolo: true
+  ralph_iterations: -1
+
+max_retries_per_stage: 5
+max_total_hours: 3

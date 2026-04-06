@@ -1,0 +1,23 @@
+# Learned Insights
+
+- **Trial 1**: ROCm Triton requires tl.math.exp/tl.math.log instead of tl.exp/tl.log, and tl.math.tanh is unavailable - must use manual (exp(2x)-1)/(exp(2x)+1)
+- **Trial 1**: Conv3d on MI355X uses MIOpen composable kernel (CK) backend taking ~75% of GPU time - vendor-optimized and hard to beat
+- **Trial 1**: MIOpen conv3d involves batched_transpose operations (~13% of time) for data layout conversion (NCHW↔NHWC)
+- **Trial 1**: BLOCK_SIZE must be multiple of 64 for AMD wavefront alignment on MI355X
+- **Trial 1**: Bias add after conv3d is a separate elementwise kernel (~3.8%) that can be fused into the activation kernel
+- **Trial 1**: For KernelBench scoring: score = 100 * ref_time / kernel_time, so halving kernel time doubles the score
+- **Trial 2**: Trial 2 agent produced no output — possibly crashed early or got stuck. Need explicit instructions to start from working code.
+- **Trial 2**: Fusing bias into activation kernel can save ~3.8% by eliminating a separate elementwise add kernel
+- **Trial 2**: MIOpen NCHW->NHWC transposes cost ~13.3% of time; using torch.channels_last_3d memory format can eliminate them
+- **Trial 2**: Score formula: score = 100 * ref_time / kernel_time, so current 60.40 means kernel is ~1.66x slower than reference
+- **Trial 3**: Agent crashed/timed out in trials 2 and 3 with no output — needs extremely explicit step-by-step instructions and should build on existing working code rather than starting fresh
+- **Trial 3**: channels_last_3d memory format can eliminate MIOpen NCHW<->NHWC transposes that cost ~13.3% of GPU time
+- **Trial 3**: Fusing bias into activation kernel eliminates separate elementwise add (~3.8% of GPU time)
+- **Trial 4**: Agent has crashed 3 consecutive trials (2,3,4) with no output - needs extremely explicit step-by-step code-level instructions
+- **Trial 4**: channels_last_3d format makes channel dimension innermost (NDHWC layout), so channel index = flat_index % C for Triton kernel bias indexing
+- **Trial 4**: F.conv3d(x, weight, bias=None, ...) can run conv without bias, allowing bias to be fused into a subsequent Triton kernel
+- **Trial 4**: For channels_last_3d, use self.conv.to(memory_format=torch.channels_last_3d) and x.contiguous(memory_format=torch.channels_last_3d)
+- **Trial 5**: Agent has crashed 4 consecutive trials (2-5) - needs complete copy-paste code, not high-level instructions
+- **Trial 5**: channels_last_3d format: channel dim is innermost so bias index = flat_index % C
+- **Trial 5**: NCDHW format: bias index = (flat_index // (D*H*W)) % C for proper broadcasting
+- **Trial 5**: F.conv3d(x, weight, bias=None) runs conv without bias, enabling bias fusion into activation kernel

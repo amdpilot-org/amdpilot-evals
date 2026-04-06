@@ -1,0 +1,21 @@
+# Learned Insights
+
+- **Trial 1**: For conv_transpose2d with stride=1, padding=0, dilation=1: equivalent to conv2d with weight.flip(2,3).permute(1,0,2,3) and padding=kernel_size-1. This hits a faster MIOpen kernel path (5.16ms vs 5.29ms).
+- **Trial 1**: torch.compile(mode='max-autotune') was significantly SLOWER for this problem (8.56ms vs 5.26ms) due to Triton kernel overhead.
+- **Trial 1**: channels_last format conversion overhead outweighed any benefits (6.40ms vs 5.27ms).
+- **Trial 1**: PYTORCH_TUNABLEOP caused correctness issues with conv_transpose2d on MI355X.
+- **Trial 1**: The dominant kernel is igemm_bwd_gtcx35_nhwc_fp32 at 81.17% — this is the MIOpen implicit GEMM for conv/conv_transpose.
+- **Trial 1**: batched_transpose takes 11.18% — potential target for Triton kernel replacement.
+- **Trial 1**: Problem dimensions: batch=16, in_channels=32, out_channels=64, input=(128,256), kernel=(3,5), stride=1, padding=0, no bias.
+- **Trial 2**: Trial 2 produced no agent output — possibly crashed during implementation. Always verify the solution runs before complex modifications.
+- **Trial 2**: batched_transpose at 11.18% is the secondary bottleneck after the GEMM kernel. Eliminating format conversions by storing weights in NHWC and converting input in-place could save ~0.5ms.
+- **Trial 2**: Previous channels_last attempt failed because format conversion was done in forward() — try pre-converting weight in __init__ instead.
+- **Trial 3**: Agent crashed with no output in trials 2 and 3 — possibly due to complex code generation. Keep solutions simple and test incrementally.
+- **Trial 3**: The conv_transpose→conv2d approach gives score 60.20 (5.16ms vs 5.29ms baseline). batched_transpose at 11.18% is the next optimization target.
+- **Trial 3**: Pre-converting weights to channels_last in __init__ could eliminate batched_transpose overhead (~0.5ms savings).
+- **Trial 4**: Agent crashed with no output in trials 2, 3, and 4 — likely due to overly complex code generation attempts. Must give extremely simple, incremental instructions.
+- **Trial 4**: The working conv_transpose→conv2d solution achieves score 60.20 (5.16ms). This is the fallback if further optimization fails.
+- **Trial 4**: batched_transpose at 11.18% is caused by MIOpen doing layout conversion internally — pre-converting to channels_last in Python may eliminate this.
+- **Trial 5**: Agent crashes repeatedly (trials 2-5) when given complex optimization instructions — must provide complete copy-paste solutions.
+- **Trial 5**: channels_last pre-conversion of both weights (in __init__) and input (in forward) should eliminate the batched_transpose kernel (11.18% of runtime).
+- **Trial 5**: The conv_transpose→conv2d equivalence only works for stride=1, padding=0, dilation=1 — this problem has exactly those parameters.

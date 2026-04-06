@@ -1,0 +1,21 @@
+{
+  "name": "vllm-rocm-aiter-headsize-fallback",
+  "category": "bugfix",
+  "difficulty": "medium",
+  "source": {
+    "repo": "vllm-project/vllm",
+    "pr": 34570,
+    "merge_commit": "cf93c1a12849693d6bcee3e2c917c02e1fc9a47f"
+  },
+  "description": "AITER paged_attention_v1 ll4mi kernel crashes when head_size < 64 (requires HEAD_SIZE >= 16*NWARPS=64) and with sliding window attention, no fallback path to unified_attention",
+  "expected_files_changed": 1,
+  "affected_files": [
+    "vllm/v1/attention/backends/rocm_aiter_fa.py"
+  ],
+  "requires_gpu": false,
+  "requires_model_download": false,
+  "tags": ["rocm", "bugfix", "attention", "paged-attention", "head-size", "aiter"],
+  "underlying_case_id": "headsize-fallback-paged-attention",
+  "related_instances": ["aiter-asm-pa-headsize-fix"],
+  "relation_note": "Same root cause (head_size < 64 unsupported) but different fix layer: vllm calling layer fallback vs aiter internal dispatch"
+}

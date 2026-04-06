@@ -1,0 +1,25 @@
+# Learned Insights
+
+- **Trial 1**: Problem 11 is a 2D GEMM: M=b*i*j=1,048,576, N=k=768, K=l=256 after reshaping A
+- **Trial 1**: AMD MI355X: num_warps=4 and num_stages=1 are optimal; num_warps=8 is slower
+- **Trial 1**: BLOCK_M=64, BLOCK_N=64, BLOCK_K=32 achieves 3.81ms (79% of rocBLAS 3.01ms)
+- **Trial 1**: BLOCK_K=64 was slightly slower than BLOCK_K=32 for this problem
+- **Trial 1**: FP16 compute fails correctness (max diff 0.009)
+- **Trial 1**: L2 cache tiling (program ID swizzling with GROUP_SIZE_M) has NOT been tried and is the top optimization opportunity
+- **Trial 1**: Shared memory limit on MI355X is ~163KB per workgroup
+- **Trial 2**: Trial 2 produced no output — agent may have had a code/environment error
+- **Trial 2**: L2 cache tiling with GROUP_SIZE_M swizzling is the top untried optimization for large-M GEMMs
+- **Trial 2**: BLOCK_M=128, BLOCK_N=64, BLOCK_K=32 is within shared memory limits (24KB) and should be tried
+- **Trial 2**: Score of 50 means correct but not faster than PyTorch baseline
+- **Trial 3**: Two consecutive trials (2, 3) crashed with no output - agent may be introducing syntax errors or using unsupported Triton builtins like tl.min()
+- **Trial 3**: For AMD Triton, use Python min() not tl.min() for constexpr comparisons in grid calculations
+- **Trial 3**: 1D grid with L2 cache tiling swizzle is the standard Triton GEMM optimization pattern
+- **Trial 3**: BLOCK_M=128, BLOCK_N=64, BLOCK_K=32 uses only 24KB shared memory, safe for MI355X
+- **Trial 4**: Three consecutive crashes suggest the agent is using unsupported Triton builtins (tl.min) or has syntax errors in grid lambdas
+- **Trial 4**: For L2 tiling swizzle in Triton on AMD, the GROUP_SIZE_M pattern requires careful handling of min() - num_pid_m and first_pid_m may be tensor values, not Python ints
+- **Trial 4**: Safest approach for crashing agents: use simple 2D grid (program_id(0), program_id(1)) with larger block sizes rather than complex 1D swizzle
+- **Trial 4**: BLOCK_M=128, BLOCK_N=64, BLOCK_K=32 uses 24KB shared memory, safe for MI355X 163KB limit
+- **Trial 5**: Four consecutive crashes (trials 2-5) suggest systematic issue with agent's Triton code generation — likely tl.min() usage or grid lambda syntax errors
+- **Trial 5**: For Problem 11, torch.mm after reshape may beat torch.einsum since einsum may not route to the optimal rocBLAS path
+- **Trial 5**: When agent crashes repeatedly, providing the torch.mm reshape alternative is a reliable fallback to at least score above 50
+- **Trial 5**: MI355X shared memory: BLOCK_M=128, BLOCK_N=64, BLOCK_K=32 uses only 24KB, well within 163KB limit

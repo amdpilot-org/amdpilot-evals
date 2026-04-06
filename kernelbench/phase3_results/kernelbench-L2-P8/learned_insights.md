@@ -1,0 +1,22 @@
+# Learned Insights
+
+- **Trial 1**: For Conv3d with shape (128,8,16,64,64) kernel (3,3,3) -> (128,16,14,62,62), torch.compile's Triton conv backend is ~2x faster than MIOpen on MI355X (1.21ms vs 2.56ms)
+- **Trial 1**: Post-conv operations (divide, maxpool3d, adaptive_avg_pool3d, bias_add, sum) take only ~0.37ms for this problem — conv dominates at 87%
+- **Trial 1**: Fusing all post-conv ops into a single Triton kernel with deeply nested loops (7*31*31*8 iterations per thread) caused 5x slowdown vs separate PyTorch ops
+- **Trial 1**: torch.compile on entire ModelNew caused compatibility issues between torch.compile's Triton handling and ROCm Triton version
+- **Trial 1**: Score metric = 100 * (1 - optimized_time/reference_time) approximately, so 1.77ms/2.93ms gives score ~66.5
+- **Trial 2**: Trial 2 produced no agent output — possibly the agent stalled during planning without executing any code
+- **Trial 2**: For this problem, conv3d dominates at 87% of runtime; post-conv ops are only 0.37ms total
+- **Trial 2**: torch.compile mode='default' on Conv3d gave 2x speedup over MIOpen (1.21ms vs 2.56ms) — try mode='max-autotune' for potentially better configs
+- **Trial 2**: Fusing divide into conv weights (multiply by 1/divisor in __init__) eliminates a full elementwise kernel launch
+- **Trial 3**: Agent stalled on trials 2 and 3 without producing any output — needs extremely concrete step-by-step instructions with code snippets
+- **Trial 3**: Fusing division into conv weights (divide weights and bias by divisor in __init__) eliminates one elementwise kernel launch
+- **Trial 3**: torch.compile mode='max-autotune' may find better conv configs than mode='default' for Conv3d on MI355X
+- **Trial 4**: Agent stalled on trials 2, 3, and 4 with no output — needs complete copy-paste code solutions, not just hints
+- **Trial 4**: For Conv3d-dominated workloads, fusing division into weights eliminates one kernel launch (~0.17ms savings)
+- **Trial 4**: torch.compile mode='max-autotune' may find better tuning configs than mode='default' for Conv3d on MI355X
+- **Trial 5**: Agent has stalled on trials 2-5 with zero output — it appears to be stuck in planning loops and never executing code
+- **Trial 5**: Must provide complete file content with cat heredoc AND the exact benchmark command — nothing else
+- **Trial 5**: Fusing division into conv weights eliminates one kernel launch (~0.17ms savings)
+- **Trial 5**: torch.compile mode='max-autotune' may find better tuning configs than mode='default' for Conv3d on MI355X
+- **Trial 5**: The Triton bias_add_sum_kernel should use vectorized tl.arange(0, 16) loads instead of a Python for-loop over channels

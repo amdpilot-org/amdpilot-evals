@@ -1,0 +1,205 @@
+# Task: Implement Enable FP8 prefill attention for radix-cache path (SGLang #20187) on AMD GPU -- Stage1 Implement Fp8 Prefill Radix Cache
+
+## Starting Point
+
+You are starting from a **clean environment**.
+- Base image: `sglang-issue-20187:base`
+- Repo cloned at `/workspace/` from `https://github.com/sgl-project/sglang.git`
+- **CHECK FIRST**: Run `ls /workspace/` to see if a previous trial left benchmark scripts or results. Reuse them if they exist.
+
+## Task Description
+
+# [AMD] FP8 prefill integration with radix cache path for DeepSeek models
+
+## Bug Description
+
+FP8 prefill attention on DeepSeek models does not cover the radix-cache path. When radix cache is enabled alongside FP8 prefill (`SGLANG_AITER_FP8_PREFILL_ATTN=1`), the prefill attention falls back to BF16 instead of using FP8, losing the 1.17×-1.26× total throughput improvement that FP8 prefill provides.
+
+## Expected Fix
+
+Enable FP8 prefill attention for the radix-cache path:
+1. In the aiter attention backend, add FP8 prefill support in the radix-cache code path
+2. To reduce extra element-wise casts, use `fused_gemm_afp4wfp4_split_cat` following the same design principle as the existing FP8 prefill path (non-radix-cache path)
+3. The fix should NOT cover fp8 fused gemm yet — only the attention prefill path
+
+## Environment
+
+- **Hardware**: MI355 x8
+- **Repository**: SGLang (sgl-project/sglang)
+- **Codebase**: SGLang is at `/sgl-workspace/sglang` (checked out at a version BEFORE this fix)
+- **Key file**: `python/sglang/srt/layers/attention/aiter_backend.py`
+- **Model**: DeepSeek-R1-MXFP4-Preview at `/models/DeepSeek-R1-MXFP4-Preview`
+
+## Reproduction
+
+Start the server WITH radix cache (default) and FP8 prefill:
+```bash
+SGLANG_AITER_FP8_PREFILL_ATTN=1 /opt/venv/bin/python3 -m sglang.launch_server \
+  --model-path /models/DeepSeek-R1-MXFP4-Preview \
+  --tensor-parallel-size 8 \
+  --trust-remote-code \
+  --chunked-prefill-size 131072 \
+  --host 0.0.0.0 \
+  --port 9000 \
+  --log-requests \
+  --mem-fraction-static 0.8 \
+  --max-running-requests 64 \
+  --kv-cache-dtype fp8_e4m3 \
+  --attention-backend aiter \
+  --speculative-algorithm EAGLE \
+  --speculative-num-steps 3 \
+  --speculative-eagle-topk 1 \
+  --speculative-num-draft-tokens 4
+```
+
+## Verification
+
+After fixing, the server should start successfully with radix cache + FP8 prefill enabled. The benchmark should run and show FP8 prefill is active:
+```bash
+/opt/venv/bin/python3 -m sglang.bench_serving \
+  --host localhost --port 9000 \
+  --model DeepSeek-R1-MXFP4-Preview/ \
+  --dataset-name random \
+  --random-input 2000 --random-output 200 --random-range-ratio 1.0 \
+  --num-prompt 8 --max-concurrency 1
+```
+
+Expected improvement with FP8 prefill vs BF16 prefill:
+- Total tok/s: 1.17×-1.26× improvement
+- TTFT: 1.07×-1.29× improvement
+
+After applying your fix, the orchestrator will automatically verify that FP8 prefill attention is integrated into the radix-cache code path in `forward_extend`, including proper use of `fused_gemm_afp4wfp4_split_cat` and FP8 dtype handling.
+
+## Optimization State
+
+
+### Current stage carry-over: stage1_implement_fp8_prefill_radix_cache
+
+## Execution Environment
+
+You are running inside a Docker container with ROCm, PyTorch, and GPU access.
+All commands run directly in this container — no `docker exec` needed.
+- Repo at `/workspace/`
+
+## Goal
+
+Achieve **>=100.0 score** for `` on AMD GPU.
+Run the verification command: `/opt/venv/bin/python3 /opt/test_harness.py`
+
+## Stage Hints
+
+1. **Study the existing code** in `/sgl-workspace/sglang/python/sglang/srt/layers/attention/aiter_backend.py`. Focus on `forward_extend()` — it has two main branches: one for radix-cache enabled (`use_ragged` / prefix-related paths) and one for non-radix-cache. The non-radix-cache path already has FP8 prefill support gated by a flag like `self.prefill_fp8` or `SGLANG_AITER_FP8_PREFILL_ATTN`.
+
+2. **Understand the FP8 prefill pattern**: In the non-radix-cache path, look for how:
+   - Q/K/V tensors are cast to FP8 (e4m3) dtype
+   - `fused_gemm_afp4wfp4_split_cat` is used to avoid extra element-wise casts by fusing the GEMM with split+cat operations
+   - The FP8 attention kernel (likely from aiter) is called with FP8 inputs
+   - Any scale factors are computed/passed
+
+3. **Implement FP8 prefill in the radix-cache path**: Mirror the FP8 prefill logic into the radix-cache branch of `forward_extend()`. Key steps:
+   - Add the same FP8 prefill gate/condition check
+   - Use `fused_gemm_afp4wfp4_split_cat` for the QKV projection to avoid extra casts (follow the same design as the non-radix path)
+   - Cast Q/K/V to FP8 e4m3 dtype before calling the attention kernel
+   - Handle any scale factors needed for the FP8 attention call
+   - Make sure the radix-cache specific attention function (likely `context_attention_fwd` or similar with prefix/paged KV cache args) receives properly typed FP8 tensors
+
+4. **Also check** `forward_extend`'s QKV projection code — if there's a shared GEMM path before the radix/non-radix branch, the `fused_gemm_afp4wfp4_split_cat` integration may need to happen there. Look at how `q`, `k`, `v` are produced and where the radix-cache branch diverges.
+
+5. **Do NOT** modify the decode path or add fp8 fused gemm — only the prefill attention path.
+
+6. **Test**: Run `/opt/venv/bin/python3 /opt/test_harness.py` to verify your changes pass the automated check. The test harness will verify that FP8 prefill attention is properly integrated into the radix-cache code path including proper use of `fused_gemm_afp4wfp4_split_cat` and FP8 dtype handling.
+
+7. **Helpful patterns to grep for**: `fused_gemm_afp4wfp4_split_cat`, `fp8_prefill`, `prefill_fp8`, `FP8_PREFILL`, `use_ragged`, `forward_extend`, `e4m3`, `context_attention`.
+
+## Workflow
+
+1. **Read the task**: Read `/workspace/task_description.md` for full feature specification
+2. **Understand**: Study the codebase structure and existing patterns
+3. **Plan**: Identify which files need to change and what the implementation approach is
+4. **Implement**: Write the feature code following existing code patterns
+5. **Test**: Run the test harness to verify correctness
+6. **Iterate**: Fix any test failures, then re-run verification
+7. **Update state**: Write results to `/workspace/optimization_state.json`
+
+## Integrity Rules (MANDATORY)
+
+- Do NOT modify `test_harness.py` or the benchmark script.
+- Do NOT change benchmark parameters (warmup, iterations, batch size, input dimensions).
+- Do NOT redirect or filter benchmark output (no `grep`, no `| tail`).
+- The orchestrator independently re-runs the benchmark to verify your results. Any discrepancy between your claimed result and the verification run causes the trial to be marked as FAILED.
+- Achieve improvements through legitimate code changes only.
+
+## CRITICAL: Output Format
+
+Your LAST action before finishing MUST be running the benchmark command **directly** —
+do NOT pipe through `grep` or redirect output. The FULL benchmark output must appear
+in your output so the orchestrator can capture the metric via regex: `SCORE:\s+([\d.]+)`
+
+The output must include a line matching: `score: <value>`
+
+Without this line, the trial is recorded as a FAILURE even if you achieved great results.
+
+## State File
+
+After completing work, update `/workspace/optimization_state.json`:
+```json
+{
+  "job_name": "...",
+  "repo": "...",
+  "current_best_ms": 43.4,
+  "stages_completed": [...],
+  "current_stage": {
+    "stage": "<stage name>",
+    "current_best_ms": 41.2,
+    "active_backends": {
+      "attention": "<backend in use>",
+      "moe": "<backend in use>"
+    },
+    "hotspot_targets": [
+      {
+        "kernel": "<hottest kernel>",
+        "share_pct": 26.7,
+        "file": "<exact file path if known>",
+        "symbol": "<exact symbol/function if known>",
+        "backend": "<backend tied to this hotspot>",
+        "reason": "<why this hotspot matters>",
+        "next_step": "<next source-level change to try>"
+      }
+    ],
+    "next_moves": [
+      "<concrete next move>",
+      "<concrete next move>"
+    ],
+    "applied_optimizations": [
+      {
+        "name": "<technique>",
+        "impact_ms": -5.0,
+        "files_changed": ["<path>"],
+        "description": "<what changed>"
+      }
+    ],
+    "attempted_but_failed": [
+      {"name": "<technique>", "reason": "<why>", "error": "<snippet>"}
+    ],
+    "profiling_summary": {
+      "top_bottlenecks": ["<kernel> <pct>"],
+      "gpu_utilization": 0.72,
+      "kernel_breakdown": {"gemm": 61.0, "attention": 24.0}
+    },
+    "environment_changes": ["pip install <pkg>"],
+    "notes": ["<important learning from this trial>"]
+  }
+}
+```
+Prefer structured fields like `active_backends`, `hotspot_targets`, and `next_moves`
+for actionable handoff information when they are relevant to the task. Use `notes`
+for supporting detail, not as the only place where critical hotspot/file/symbol
+guidance is recorded.
+Prefer `next_moves` that point to concrete source-level changes tied to
+`hotspot_targets`; generic env-var/backend tuning should be secondary unless the
+profiling evidence specifically supports it.
+
+The file already exists when the trial starts. Preserve the existing top-level
+structure and update the `current_stage` section with what you learned in this
+trial. If you only know part of the state, add just those fields and leave the
+rest intact. The orchestrator merges this file into the next trial's prompt.

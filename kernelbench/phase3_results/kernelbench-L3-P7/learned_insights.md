@@ -1,0 +1,26 @@
+# Learned Insights
+
+- **Trial 1**: torch.compile(mode='default', dynamic=False) gives 1.42x speedup on GoogleNet InceptionV1 on ROCm gfx950
+- **Trial 1**: Triton convolution autotuning fails on ROCm gfx950 with 'ttg.async_copy_global_to_local' legalization error - do NOT attempt Triton conv kernels
+- **Trial 1**: GoogleNet InceptionV1 profiling breakdown: convolutions 44.9%, elementwise/ReLU 18.7%, pooling 10.0%, GEMM 9.9%
+- **Trial 1**: The model has 11 Inception modules and 570 conv calls total - fusing ReLU into conv outputs is the best Triton kernel opportunity
+- **Trial 1**: torch.compile with dynamic=True fails on ROCm - must use dynamic=False
+- **Trial 1**: Score formula: higher is better, baseline score ~50 corresponds to matching reference speed
+- **Trial 2**: Trial 2 produced no output — agent may have gotten stuck trying to write complex Triton kernels for convolutions which are known to fail on ROCm gfx950
+- **Trial 2**: torch.compile mode='max-autotune' should be tried before manual kernel surgery as it may provide additional fusion opportunities beyond mode='default'
+- **Trial 2**: Score metric is higher-is-better; baseline reference speed gives ~50, torch.compile gave 64.20
+- **Trial 3**: Trial 2 and Trial 3 both produced no output — agent gets stuck when given open-ended optimization instructions for complex models like GoogleNet
+- **Trial 3**: Agent needs very explicit step-by-step instructions with fallback plans when tackling ROCm optimization
+- **Trial 3**: channels_last memory format and torch.compile(mode='max-autotune') are untested quick wins to try before any manual kernel work
+- **Trial 4**: Trials 2, 3, and 4 all produced no output - agent gets completely stuck when given open-ended optimization instructions for GoogleNet on ROCm
+- **Trial 4**: Agent needs copy-paste-ready instructions with explicit fallback plans - abstract optimization suggestions cause it to spin indefinitely
+- **Trial 4**: channels_last memory format and torch.compile(mode='max-autotune') remain untested simple optimizations after 4 trials
+- **Trial 5**: Trials 2-5 all produced no output - agent gets completely stuck with open-ended optimization for GoogleNet on ROCm
+- **Trial 5**: Agent needs copy-paste-ready 3-line changes, not optimization strategies
+- **Trial 5**: channels_last memory format, cudnn.benchmark, and torch.compile(mode='max-autotune') remain untested after 5 trials
+- **Trial 6**: Trials 2-6 all produced no output - agent needs literal code snippets, not optimization strategies
+- **Trial 6**: channels_last memory format, cudnn.benchmark, and torch.compile(mode='max-autotune') remain untested after 6 trials
+- **Trial 6**: For GoogleNet on ROCm, the working baseline is torch.compile(mode='default', dynamic=False) giving score 64.20
+- **Trial 7**: Trials 2-7 all produced no output - agent consistently gets stuck with GoogleNet optimization on ROCm
+- **Trial 7**: Agent needs to be told to run benchmark IMMEDIATELY and not spend time on complex changes
+- **Trial 7**: channels_last memory format, cudnn.benchmark remain untested after 7 trials

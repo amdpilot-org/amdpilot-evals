@@ -1,0 +1,29 @@
+{
+  "job": "sglang-issue-19935",
+  "type": "bugfix",
+  "best_metric": "N/A",
+  "metric_name": "score",
+  "metric_direction": "higher",
+  "total_elapsed_s": 118,
+  "stages_completed": 0,
+  "total_trials": 1,
+  "failures": 1,
+  "trials": [
+    {
+      "trial": 1,
+      "stage": "stage1_fix_fp8_kscale_fallback",
+      "metric": null,
+      "elapsed_s": 13,
+      "supervisor_action": "retry_with_hints",
+      "supervisor_analysis": "Agent was killed (exit code 137, likely OOM or timeout) before making any changes. It only read docs and planned. Need to retry with very specific instructions to make the fix quickly.",
+      "nudge": {
+        "polls": 0,
+        "noops": 0,
+        "nudges_sent": 0,
+        "nudges": [],
+        "last_step": null,
+        "latest_status": ""
+      }
+    }
+  ]
+}

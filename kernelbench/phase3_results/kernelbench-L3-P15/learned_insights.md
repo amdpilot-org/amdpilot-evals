@@ -1,0 +1,26 @@
+# Learned Insights
+
+- **Trial 1**: torch.compile fails on ROCm for conv operations: 'failed to legalize operation ttg.async_copy_global_to_local'
+- **Trial 1**: DenseNet121 profile on MI355X: Conv/GEMM 61.1%, cat 7.8%, BN 7.7%, ReLU 6.0%
+- **Trial 1**: Custom Triton BN+ReLU kernel showed 1.18x speedup but had persistent correctness issues with channel indexing in DenseNet context
+- **Trial 1**: Conv-BN fusion must happen AFTER weight initialization — BN running_mean/var are zeros/ones at construction time
+- **Trial 1**: torch.nn.utils.fusion.fuse_conv_bn_eval() is the correct API for post-init Conv-BN folding
+- **Trial 1**: KernelBench score of 50 means ~1.0x speedup, 60 means ~1.002x
+- **Trial 2**: DenseNet uses BN->ReLU->Conv ordering, so standard fuse_conv_bn_eval (which fuses Conv->BN) cannot be applied directly
+- **Trial 2**: Trial 2 produced no output — agent may have crashed during complex Triton kernel compilation on ROCm
+- **Trial 2**: With limited time, FP16 autocast is the highest-impact single change for conv-heavy models on MI355X
+- **Trial 3**: Two consecutive trials (2 and 3) produced no output — agent likely crashes on complex Triton kernel compilation for DenseNet on ROCm
+- **Trial 3**: With limited time, prefer minimal Python-level optimizations (autocast, cudnn.benchmark) over custom kernels
+- **Trial 3**: FP16 autocast is the highest-impact single change for conv-heavy models when MIOpen convolutions dominate at 61%
+- **Trial 4**: Agent crashes repeatedly when attempting complex Triton kernel compilation for DenseNet on ROCm — keep approach minimal
+- **Trial 4**: Three consecutive no-output trials suggest timeout or OOM during compilation, not runtime errors
+- **Trial 4**: With 25 min remaining, only simple Python-level optimizations (autocast) are viable
+- **Trial 5**: 4 consecutive no-output trials on DenseNet121 — agent times out or crashes on anything beyond simple Python-level changes
+- **Trial 5**: With <25 minutes remaining and repeated crashes, provide the EXACT code to write rather than instructions
+- **Trial 6**: DenseNet121 on MI355X: 5 consecutive agent crashes suggest compilation timeout - keep solutions to pure Python-level changes
+- **Trial 6**: When agent repeatedly crashes, provide complete copy-paste code rather than instructions
+- **Trial 7**: DenseNet121 on MI355X: Agent consistently crashes/times out on any optimization attempt beyond baseline — 6 consecutive no-output trials
+- **Trial 7**: torch.compile fails on ROCm for conv ops due to Triton async_copy legalization issues, eliminating the most impactful optimization lever
+- **Trial 7**: Custom Triton kernels for BN+ReLU showed promise (1.18x speedup) but had persistent correctness issues — channel indexing in concatenated feature maps is the root cause
+- **Trial 7**: For DenseNet121 where Conv/GEMM is 61% and already handled by MIOpen, the optimization ceiling without torch.compile or custom conv kernels is very low
+- **Trial 7**: When agent repeatedly crashes on complex tasks, even providing exact copy-paste code doesn't help — the issue is likely compilation timeout or OOM during Triton kernel compilation on ROCm

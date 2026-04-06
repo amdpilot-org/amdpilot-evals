@@ -1,0 +1,80 @@
+name: vllm-skinny-gemm-pad
+type: optimize
+repo: https://github.com/vllm-project/vllm.git
+base_image: vllm-skinny-gemm-sft:base
+
+model_endpoint:
+  base_url: "http://localhost:8083/v1"
+  model: "claude-opus-4-6"
+  api_key: "sk-dummy"
+
+supervisor_model_endpoint:
+  base_url: "http://localhost:8083/v1"
+  model: "claude-opus-4-6"
+  api_key: "sk-dummy"
+
+container:
+  name: amdpilot_vllm_skinny_gemm
+  gpu: "0"
+  shm_size: 16g
+  devices: [/dev/kfd, /dev/dri]
+
+workload:
+  description: "Add padding support for non-contiguous tensors in wvSplitK skinny GEMM kernel"
+  framework: PyTorch
+
+benchmark:
+  command: "cd /workspace/vllm && python /workspace/test_harness.py"
+  metric_name: score
+  metric_pattern: 'SCORE:\s+([\d.]+)'
+  metric_direction: higher
+
+task:
+  description_file: evals/sglang-sft/vllm-skinny-gemm/task_description.md
+
+stages:
+  - name: stage1_profile_and_diagnose
+    start_image: vllm-skinny-gemm-sft:base
+    duration_minutes: 50
+    target: 25
+    description: >
+      Read /workspace/task_description.md. Profile the skinny GEMM kernel.
+      Understand why padded tensors bypass the optimized kernel.
+      Read csrc/rocm/skinny_gemms.cu to understand memory access patterns.
+      Use `python` (not /opt/venv/bin/python3) for all commands.
+
+  - name: stage2_implement_and_build
+    start_image: auto
+    duration_minutes: 60
+    target: 60
+    description: >
+      Implement padding support in the CUDA kernel. Add stride parameters.
+      CRITICAL: After modifying C++ code, you MUST rebuild:
+      cd /workspace/vllm && VLLM_TARGET_DEVICE=rocm pip install -e . --no-build-isolation
+      The first build takes 10-30 minutes.
+
+  - name: stage3_edge_cases_and_integration
+    start_image: auto
+    duration_minutes: 50
+    target: 85
+    description: >
+      Fix remaining edge cases: bounds checking, bias indexing, LDS usage.
+      Remove the is_contiguous() check from utils.py.
+      Rebuild and run the full test harness.
+
+kimi_cli:
+  repo_url: "https://github.com/Arist12/kimi-cli.git"
+  branch: amd-dev
+  install_dir: "/sgl-workspace/kimi-cli"
+  provider: sglang
+  provider_type: openai_legacy
+  thinking: true
+  yolo: true
+  ralph_iterations: -1
+  max_steps_per_turn: 500
+  reserved_context_size: 50000
+
+max_retries_per_stage: 3
+max_total_hours: 4
+supervisor: true
+nudge: true

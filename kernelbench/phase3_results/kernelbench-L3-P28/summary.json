@@ -1,0 +1,29 @@
+{
+  "job": "kernelbench-L3-P28",
+  "type": "optimize",
+  "best_metric": "64.50",
+  "metric_name": "score",
+  "metric_direction": "higher",
+  "total_elapsed_s": 805,
+  "stages_completed": 1,
+  "total_trials": 1,
+  "failures": 0,
+  "trials": [
+    {
+      "trial": 1,
+      "stage": "stage1_baseline_and_profile",
+      "metric": "64.50",
+      "elapsed_s": 606,
+      "verified": true,
+      "verified_metric": 64.5,
+      "supervisor_action": "continue",
+      "supervisor_analysis": "Baseline established at score 64.5 with profiling data: GEMM ~55%, Elementwise ~15%, Attention ~9.7%, LayerNorm ~9.3%. torch.compile already applied giving 1.5x speedup. Ready to advance to optimization stage.",
+      "nudge": {
+        "polls": 5,
+        "noops": 5,
+        "nudges_sent": 0,
+        "nudges": []
+      }
+    }
+  ]
+}

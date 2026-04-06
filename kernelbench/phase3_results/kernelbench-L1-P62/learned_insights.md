@@ -1,0 +1,22 @@
+# Learned Insights
+
+- **Trial 1**: MIOpen conv2d on MI355X: 88.7% igemm_fwd_gtcx35_nhwc_fp32, 9.1% batched_transpose_32x32_dword (NCHW<->NHWC), 2.1% elementwise
+- **Trial 1**: Problem 62 dimensions: batch=16, in_channels=3, out_channels=64, H=W=256, kernel=(3,5), stride=1, padding=0 -> output 16x64x254x252, ~66M output elements
+- **Trial 1**: Naive Triton conv2d (1 output per program) = 131M programs = 120x slower than MIOpen. Must use tiled approach.
+- **Trial 1**: torch.compile(mode='default') on single conv2d is 2.3x slower due to compilation overhead
+- **Trial 1**: For im2col+GEMM approach: M=1,024,128, K=45, N=64 — tall-skinny GEMM, K and N fit in single blocks
+- **Trial 1**: To eliminate MIOpen transpose overhead, BOTH input and weight must be channels_last before calling F.conv2d
+- **Trial 2**: Trial 2 produced no output - agent likely got stuck implementing complex kernel without running benchmark
+- **Trial 2**: For Problem 62 im2col+GEMM: K=45 fits in BLOCK_K=48 (single iteration), N=64 fits in BLOCK_N=64 (single tile), so grid is just ceil(M/128)≈8001 programs
+- **Trial 2**: Quick win attempt: pre-convert BOTH conv2d module AND input to channels_last format to eliminate the 9.1% batched_transpose overhead
+- **Trial 3**: Agent has failed to produce output for 2 consecutive trials on Problem 62 — likely getting stuck writing complex Triton conv2d kernels without ever running benchmark
+- **Trial 3**: With limited time, channels_last memory format optimization (converting BOTH module and input) is the fastest path to eliminating the 9.1% transpose overhead
+- **Trial 3**: Always run the benchmark with the simplest possible implementation first before attempting optimizations
+- **Trial 4**: Agent has failed to produce output 3 consecutive trials on Problem 62 - likely gets stuck writing complex implementations without running benchmark
+- **Trial 4**: With MIOpen at 88.7% efficiency, beating it requires eliminating the 9.1% transpose overhead rather than replacing the GEMM
+- **Trial 4**: channels_last previously gave 3.82ms vs 3.25ms - the output back-conversion to contiguous may be the bottleneck, try keeping output as channels_last
+- **Trial 5**: Problem 62 conv2d on MI355X: MIOpen igemm_fwd_gtcx35_nhwc_fp32 consumes 88.7% of runtime at 3.25ms baseline - extremely hard to beat with custom Triton
+- **Trial 5**: Agent repeatedly failed to produce output when tasked with writing complex Triton conv2d kernels - simpler instructions with copy-paste code would be needed
+- **Trial 5**: For conv2d problems where MIOpen dominates, the realistic optimization path is eliminating transpose overhead (9.1%) not replacing the GEMM kernel
+- **Trial 5**: channels_last optimization for conv2d must ensure BOTH module and input are converted AND output is NOT converted back to contiguous, otherwise transpose overhead negates the benefit
+- **Trial 5**: Naive Triton conv2d with 1 output per program on 66M+ output elements is 120x slower than MIOpen - tiled im2col+GEMM approach needed with BLOCK_M~128, BLOCK_K=48, BLOCK_N=64

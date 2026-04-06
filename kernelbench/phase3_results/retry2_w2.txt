@@ -1,0 +1,6 @@
+/home/jinpan12/amdpilot/evals/kernelbench/instances/kernelbench-L2-P32/
+/home/jinpan12/amdpilot/evals/kernelbench/instances/kernelbench-L2-P47/
+/home/jinpan12/amdpilot/evals/kernelbench/instances/kernelbench-L2-P61/
+/home/jinpan12/amdpilot/evals/kernelbench/instances/kernelbench-L2-P78/
+/home/jinpan12/amdpilot/evals/kernelbench/instances/kernelbench-L2-P90/
+/home/jinpan12/amdpilot/evals/kernelbench/instances/kernelbench-L3-P16/

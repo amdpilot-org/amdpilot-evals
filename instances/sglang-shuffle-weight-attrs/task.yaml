@@ -1,0 +1,31 @@
+name: sglang-shuffle-weight-attrs
+type: bugfix
+repo: https://github.com/sgl-project/sglang.git
+base_image: amdpilot-eval-sglang-shuffle-weight-attrs
+
+model_endpoint:
+  base_url: "http://localhost:30000/v1"
+  api_key: "sk-dummy"
+
+container:
+  name: amdpilot_eval_shuffle_weight_attrs
+  shm_size: 16g
+  devices: [/dev/kfd, /dev/dri]
+
+workload:
+  description: "MoE weight shuffling loses custom parameter attributes like weight_loader"
+  framework: PyTorch
+
+benchmark:
+  command: "/opt/venv/bin/python3 /workspace/test_harness.py"
+  metric_name: score
+  metric_pattern: 'SCORE:\s+([\d.]+)'
+  metric_direction: higher
+
+task:
+  description_file: evals/instances/sglang-shuffle-weight-attrs/task_description.md
+
+stages: auto
+
+max_retries_per_stage: 3
+max_total_hours: 1

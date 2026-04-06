@@ -1,0 +1,298 @@
+{
+  "job_name": "sglang-kimi-moe-tune",
+  "repo": "https://github.com/sgl-project/sglang.git",
+  "initial_baseline_ms": 71.6,
+  "current_best_ms": 79.1,
+  "stages_completed": [
+    {
+      "stage": "stage1_profile_and_infra",
+      "baseline_ms": null,
+      "current_best_ms": 71.6,
+      "applied_optimizations": [
+        {
+          "name": "fused_moe_triton config tuning for E=384 N=128 int4_w4a16",
+          "impact_ms": -5.0,
+          "files_changed": [
+            "python/sglang/srt/layers/moe/fused_moe_triton/configs/triton_3_6_0/E=384,N=128,device_name=,dtype=int4_w4a16.json",
+            "python/sglang/srt/layers/moe/fused_moe_triton/configs/triton_3_6_0/E=384,N=128,device_name=,dtype=int4_w4a16_down.json"
+          ],
+          "description": "Created tuned Triton config files for Kimi K2.5 MoE kernel (E=384, N=128). Benchmarked hundreds of BLOCK_SIZE_M/N/K, GROUP_SIZE_M, num_warps, num_stages combinations per batch size. Best configs: M=32,N=128,K=64,G=4,w=4 for small batch; M=64,N=128,K=128,G=4,w=2 for medium; M=128,N=128,K=64,G=8,w=8 for large.",
+          "technique_category": "",
+          "timestamp": ""
+        },
+        {
+          "name": "int4_w4a16 tuning infrastructure support",
+          "impact_ms": 0,
+          "files_changed": [
+            "benchmark/kernels/fused_moe_triton/tuning_fused_moe_triton.py",
+            "benchmark/kernels/fused_moe_triton/common_utils.py"
+          ],
+          "description": "Added int4_w4a16 dtype support to tuning scripts, including uint8 packed tensor creation for int4 weights and N//2 adjustment for int4 packing.",
+          "technique_category": "",
+          "timestamp": ""
+        },
+        {
+          "name": "Fix scaled_fp4_quant import error on ROCm",
+          "impact_ms": 0,
+          "files_changed": [
+            "python/sglang/srt/layers/moe/moe_runner/flashinfer_trtllm.py"
+          ],
+          "description": "Wrapped scaled_fp4_quant import in try/except for ROCm where sgl_kernel doesn't have this function.",
+          "technique_category": "",
+          "timestamp": ""
+        }
+      ],
+      "attempted_but_failed": [],
+      "profiling_summary": {
+        "top_bottlenecks": [
+          "fused_moe_kernel 96.55% at M=512",
+          "fused_moe_kernel 92.74% at M=4096"
+        ],
+        "gpu_utilization": 0.95,
+        "memory_usage_gb": 0.0,
+        "kernel_breakdown": {
+          "fused_moe_kernel": 95.0,
+          "moe_sum": 3.0,
+          "moe_align_block_size": 1.5,
+          "act_and_mul": 0.5
+        },
+        "raw_profile_path": "/workspace/profiling_results.txt",
+        "timestamp": "2026-03-19T20:40:57"
+      },
+      "active_backends": {
+        "moe": "fused_moe_triton"
+      },
+      "hotspot_targets": [
+        {
+          "kernel": "fused_moe_kernel",
+          "share_pct": 95.0,
+          "file": "python/sglang/srt/layers/moe/fused_moe_triton/fused_moe_triton_kernels.py",
+          "symbol": "fused_moe_kernel",
+          "backend": "fused_moe_triton",
+          "reason": "Dominates GPU time at all batch sizes (92-97%). Default config causes pathological performance for E=384 with low tokens_per_expert.",
+          "next_step": "Further tune M=512 and M=2048 configs where speedup is lowest (1.17x and 1.19x). Consider separate down-projection configs."
+        }
+      ],
+      "next_moves": [
+        "Run full tuning sweep with existing tuning_fused_moe_triton.py for int4_w4a16",
+        "Tune separate down-projection configs (different memory access patterns)",
+        "Profile with rocprof --stats for detailed kernel timing breakdown",
+        "Try BLOCK_SIZE_N=256 for large batch sizes where shard_intermediate_size allows it"
+      ],
+      "environment_changes": [],
+      "notes": [
+        "torch.profiler showed fused_moe_kernel at 96.55% cuda_time for M=512, 92.74% for M=4096",
+        "rocprof profiling confirms kernel_time > 92% in fused_moe_kernel",
+        "ProfilerActivity.CUDA used for GPU kernel timing",
+        "Default config: BLOCK_SIZE_M=16, N=32, K=64, which is pathological for E=384",
+        "Best configs: M=32,N=128,K=64 for small batch, M=128,N=128,K=64 for large batch",
+        "Triton version 3.6.0, configs in triton_3_6_0 directory",
+        "GPU: AMD Instinct MI355X",
+        "Geometric mean speedup: ~1.45-1.48x across 5 benchmark batch sizes",
+        "Score: 71-74 points (out of 100), with Tier 0/1/2 at full marks (35/35)"
+      ],
+      "started_at": "2026-03-19T16:36:57.090643",
+      "completed_at": "2026-03-19T17:14:49.704882"
+    },
+    {
+      "stage": "stage2_systematic_tuning",
+      "baseline_ms": 71.6,
+      "current_best_ms": 74.7,
+      "applied_optimizations": [
+        {
+          "name": "Systematic config tuning for all benchmark batch sizes",
+          "impact_ms": 4.5,
+          "files_changed": [
+            "python/sglang/srt/layers/moe/fused_moe_triton/configs/triton_3_6_0/E=384,N=128,device_name=,dtype=int4_w4a16.json",
+            "python/sglang/srt/layers/moe/fused_moe_triton/configs/triton_3_6_0/E=384,N=128,device_name=,dtype=int4_w4a16_down.json"
+          ],
+          "description": "Ran exhaustive config search for each benchmark batch size (512-16384). Key changes: M=2048 improved from w=2,s=0 to w=1,s=2 (1.18x->1.27x); M=16384 improved from N=128 to N=256 with K=32 (1.73x->1.78x); M=4096 refined to K=128,w=4,s=0 (stable ~1.80x). M=512 hit ceiling at ~1.18x due to fundamental launch overhead with E=384.",
+          "technique_category": "",
+          "timestamp": ""
+        }
+      ],
+      "attempted_but_failed": [],
+      "profiling_summary": {
+        "top_bottlenecks": [
+          "fused_moe_kernel 96.26% at M=512",
+          "fused_moe_kernel dominates at all batch sizes"
+        ],
+        "gpu_utilization": 0.95,
+        "memory_usage_gb": 0.0,
+        "kernel_breakdown": {
+          "fused_moe_kernel": 95.0,
+          "moe_sum": 3.0,
+          "moe_align_block_size": 1.5,
+          "act_and_mul": 0.5
+        },
+        "raw_profile_path": "/workspace/profiling_results.txt",
+        "timestamp": "2026-03-19T21:45:00"
+      },
+      "active_backends": {
+        "moe": "fused_moe_triton"
+      },
+      "hotspot_targets": [
+        {
+          "kernel": "fused_moe_kernel",
+          "share_pct": 95.0,
+          "file": "python/sglang/srt/layers/moe/fused_moe_triton/fused_moe_triton_kernels.py",
+          "symbol": "fused_moe_kernel",
+          "backend": "fused_moe_triton",
+          "reason": "Dominates GPU time at all batch sizes. M=512 (tpe=11) and M=2048 (tpe=43) are fundamentally limited by low tokens_per_expert causing launch overhead dominance.",
+          "next_step": "Consider alternative kernel dispatch strategies for very low tpe: batched GEMM, custom Triton kernel that processes multiple experts per block, or skip-empty-expert optimization."
+        }
+      ],
+      "next_moves": [
+        "Consider custom Triton kernel that handles multiple experts per block for small M to reduce launch overhead",
+        "Try environment variables like TRITON_CACHE_DIR to ensure consistent Triton compilation",
+        "Investigate if padding expert assignments can improve utilization for small M",
+        "Profile memory bandwidth utilization to check if memory-bound at small M"
+      ],
+      "environment_changes": [],
+      "notes": [
+        "Systematic tuning covered 576-1536 configs per batch size",
+        "num_warps=1 is optimal for small batch sizes (M<=2048) on AMD MI355X",
+        "BLOCK_SIZE_N=256 helps for M=16384 down projection (N=7168)",
+        "num_stages=2 with pipelining gives best results for moderate batch sizes",
+        "num_stages=0 is best for large compute-bound tiles (M=4096, M=8192)",
+        "M=512 hit ceiling at 1.18x - bottleneck is non-kernel overhead (~62us) being ~8% of total time",
+        "M=2048 improved from 1.18x to 1.27x by switching to num_warps=1 from num_warps=2",
+        "M=16384 improved from 1.73x to 1.78x by using BLOCK_SIZE_N=256 instead of 128",
+        "Default config used by test harness is M=64,N=64,K=32,G=8 (not the pathological M=16,N=32,K=64)",
+        "Speedup ratio varies \u00b13% between runs due to GPU scheduling/thermal effects on default time",
+        "UP projection: (M*topk, 7168) x (7168, 512), DOWN: (M*topk, 256) x (256, 7168)",
+        "override_config forces same config for both UP and DOWN projections",
+        "Score consistently around 74-76 across multiple runs",
+        "Triton version 3.6.0, GPU: AMD Instinct MI355X"
+      ],
+      "started_at": "2026-03-19T17:14:49.705517",
+      "completed_at": "2026-03-19T18:06:10.783789"
+    },
+    {
+      "stage": "stage3_small_batch_optimization",
+      "baseline_ms": 74.7,
+      "current_best_ms": 79.1,
+      "applied_optimizations": [
+        {
+          "name": "Separate UP/DOWN projection config support",
+          "impact_ms": 4.6,
+          "files_changed": [
+            "python/sglang/srt/layers/moe/fused_moe_triton/fused_moe_triton_config.py",
+            "python/sglang/srt/layers/moe/fused_moe_triton/configs/triton_3_6_0/E=384,N=128,device_name=,dtype=int4_w4a16.json"
+          ],
+          "description": "Modified try_get_optimal_moe_config to support 'down' key in override_config dict, enabling separate configs for UP (K=7168,N=512) and DOWN (K=256,N=7168) projections. DOWN benefits from N=256, K=32/64 while UP benefits from N=128, K=128. M=4096: 1.75->2.03x, M=8192: 1.49->1.58x, M=16384: 1.73->1.86x.",
+          "technique_category": "",
+          "timestamp": ""
+        },
+        {
+          "name": "Fine-tuned DOWN GROUP_SIZE_M to 4",
+          "impact_ms": 0.5,
+          "files_changed": [
+            "python/sglang/srt/layers/moe/fused_moe_triton/configs/triton_3_6_0/E=384,N=128,device_name=,dtype=int4_w4a16.json"
+          ],
+          "description": "Changed DOWN config GROUP_SIZE_M from 8 to 4 for batch sizes 1-8192 based on systematic benchmarking.",
+          "technique_category": "",
+          "timestamp": ""
+        }
+      ],
+      "attempted_but_failed": [
+        {
+          "name": "BLOCK_SIZE_M=128 for M=2048",
+          "reason": "Stable ~950us but marginally slower than BM=64 on fast path (~930us)",
+          "error": "",
+          "approaches_tried": 1,
+          "timestamp": ""
+        },
+        {
+          "name": "num_warps=8 for large batch sizes",
+          "reason": "Much worse: M=8192 2610us vs 1880us with w=4",
+          "error": "",
+          "approaches_tried": 1,
+          "timestamp": ""
+        },
+        {
+          "name": "BLOCK_SIZE_N=64 for M=512 UP",
+          "reason": "Identical performance after warmup",
+          "error": "",
+          "approaches_tried": 1,
+          "timestamp": ""
+        },
+        {
+          "name": "num_stages=1 for UP",
+          "reason": "Same as num_stages=0 after warmup",
+          "error": "",
+          "approaches_tried": 1,
+          "timestamp": ""
+        }
+      ],
+      "profiling_summary": {
+        "top_bottlenecks": [
+          "fused_moe_kernel 96.55% at M=512",
+          "fused_moe_kernel 92.74% at M=4096",
+          "fused_moe_kernel 86.11% at M=8192"
+        ],
+        "gpu_utilization": 0.95,
+        "memory_usage_gb": 0.0,
+        "kernel_breakdown": {
+          "fused_moe_kernel": 92.0,
+          "moe_sum": 4.0,
+          "moe_align_block_size": 2.0,
+          "act_and_mul": 1.0
+        },
+        "raw_profile_path": "/workspace/profiling_results.txt",
+        "timestamp": "2026-03-19T23:30:00"
+      },
+      "active_backends": {
+        "moe": "fused_moe_triton"
+      },
+      "hotspot_targets": [
+        {
+          "kernel": "fused_moe_kernel",
+          "share_pct": 92.0,
+          "file": "python/sglang/srt/layers/moe/fused_moe_triton/fused_moe_triton_kernels.py",
+          "symbol": "fused_moe_kernel",
+          "backend": "fused_moe_triton",
+          "reason": "Dominates GPU time at all batch sizes. UP and DOWN projections have very different shapes (UP: K=7168,N=512 vs DOWN: K=256,N=7168). Separate configs improve DOWN projection significantly.",
+          "next_step": "Consider custom Triton kernel that groups multiple experts per block for M=512 where tpe=11. Also investigate why M=2048 has bimodal performance distribution."
+        }
+      ],
+      "next_moves": [
+        "Investigate M=2048 bimodal performance (928us or 1010us) - likely caused by expert assignment pattern interactions with DOWN config",
+        "Try custom multi-expert Triton kernel for M=512 to reduce launch overhead with 384 experts",
+        "Consider fusing activation (silu_and_mul) into DOWN projection kernel to eliminate act_and_mul overhead",
+        "Try GPU clock pinning (rocm-smi --setperflevel high) to reduce variance",
+        "All config tuning exhausted - configs near-optimal",
+        "Consider custom Triton kernel for very small tpe values",
+        "Score variance \u00b13pts is inherent hardware noise (M=4096 default varies 1900-2190us)"
+      ],
+      "environment_changes": [],
+      "notes": [
+        "Implemented separate UP/DOWN config via 'down' key in override_config dict",
+        "DOWN projection benefits from BLOCK_SIZE_N=256 (N=7168) and BLOCK_SIZE_K=32 (K=256)",
+        "UP projection benefits from BLOCK_SIZE_N=128 (N=512) and BLOCK_SIZE_K=128 (K=7168)",
+        "M=512: ~1.21x ceiling, limited by 384 expert launch overhead with tpe=11",
+        "M=2048: bimodal 928us or 1010us with DOWN config, likely expert-assignment-dependent",
+        "M=4096: 1.82-1.95x consistently with DOWN config (N256,K32,G8,w4,s2)",
+        "M=8192: 1.57-1.59x consistently (UP: N128,K128,G8,w4,s0, DOWN: N256,K64,G8,w4,s0)",
+        "M=16384: 1.83-1.89x consistently (UP: N128,K128,G8,w4,s0, DOWN: N256,K64,G8,w4,s0)",
+        "GPU: AMD Instinct MI355X, Triton 3.6.0",
+        "Score variance is 75-80 due to default config time variance and M=2048 bimodality",
+        "torch.profiler shows fused_moe_kernel at 86-96% of cuda_time across batch sizes",
+        "rocprof profiling confirms kernel_time > 86% in fused_moe_kernel",
+        "ProfilerActivity.CUDA used for GPU kernel timing",
+        "DOWN config correctly embedded via 'down' key in UP config, extracted by try_get_optimal_moe_config",
+        "Verified: DOWN config gives 5-7% speedup at M=4096/8192/16384 vs using same config for both projections",
+        "M=512 ceiling at ~1.21x due to launch overhead with E=384 (tpe=11)",
+        "M=2048 bimodal (930us or 1010us) caused by expert assignment patterns, not config",
+        "All tuned times rock-solid: M=512 ~782us, M=4096 ~1085us, M=8192 ~1860us, M=16384 ~3089us",
+        "Score range: 75-80 depending on M=4096 default variance and M=2048 bimodality"
+      ],
+      "started_at": "2026-03-19T18:06:10.784461",
+      "completed_at": "2026-03-19T19:58:27.527165"
+    }
+  ],
+  "current_stage": null,
+  "attempt_history": [],
+  "technique_attempts": {},
+  "global_notes": []
+}

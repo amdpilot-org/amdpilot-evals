@@ -1,0 +1,1 @@
+{"trial": 1, "stage": "stage1_baseline_and_profile", "elapsed_s": 945, "metric_name": "score", "metric_value": "75.20", "image": "amdpilot-kernelbench-base:latest", "job": "kernelbench-L2-P3", "run_id": "", "status": "", "metric_source": "", "verified_metric": null, "failure_reason": "", "extra": {}, "score": "75.20"}

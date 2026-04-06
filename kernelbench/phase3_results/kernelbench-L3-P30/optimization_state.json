@@ -1,0 +1,102 @@
+{
+  "job_name": "kernelbench-L3-P30",
+  "repo": "",
+  "initial_baseline_ms": 7.76,
+  "current_best_ms": 73.2,
+  "stages_completed": [
+    {
+      "stage": "stage1_baseline_and_profile",
+      "baseline_ms": null,
+      "current_best_ms": 73.2,
+      "applied_optimizations": [
+        {
+          "name": "torch.compile",
+          "impact_ms": -4.38,
+          "files_changed": [
+            "generated_kernel.py"
+          ],
+          "description": "Applied torch.compile(mode='default') to wrap the reference SwinTransformerV2 model. Level 2 optimization providing 2.30x speedup through Inductor graph optimization and kernel fusion.",
+          "technique_category": "",
+          "timestamp": ""
+        }
+      ],
+      "attempted_but_failed": [],
+      "profiling_summary": {
+        "top_bottlenecks": [
+          "Elementwise ops (45.7%): fused addmm+relu, addmm+bmm+clamp kernels from torch.compile",
+          "GEMM (45.6%): rocBLAS Cijk_Alik_Bljk kernels for matrix multiplications",
+          "Attention softmax (5.4%): softmax and attention bias operations",
+          "Window ops (3.1%): permute+roll+view operations for window partition/reverse"
+        ],
+        "gpu_utilization": 0.0,
+        "memory_usage_gb": 0.0,
+        "kernel_breakdown": {
+          "elementwise_pct": 45.7,
+          "gemm_pct": 45.6,
+          "attention_pct": 5.4,
+          "other_pct": 3.1,
+          "memory_pct": 0.1
+        },
+        "raw_profile_path": "/tmp/swin_trace.json",
+        "timestamp": "2026-03-17T13:05:41"
+      },
+      "environment_changes": [],
+      "notes": [
+        "Stage 1 Complete: Baseline established with torch.compile",
+        "Final metrics: 3.38ms vs 7.76ms reference (2.30x speedup, score 73.0)",
+        "torch.compile autotune selected rocBLAS mm kernels for most GEMM operations",
+        "Profile shows Elementwise (45.7%) and GEMM (45.6%) dominate GPU time - 91.3% combined",
+        "Elementwise includes fused kernels from torch.compile: addmm+relu, addmm+bmm+clamp, softmax operations",
+        "Window partition/reverse operations (permute+roll+view) account for ~3% - Swin-specific overhead",
+        "Future optimization candidates: custom LayerNorm Triton kernel, fused MLP kernel, window operation Triton kernel",
+        "The torch.compile approach is working well - manual Triton kernels would need to beat the fused kernels torch.compile already generates"
+      ],
+      "started_at": "2026-03-17T09:00:41.258378",
+      "completed_at": "2026-03-17T09:09:58.974961"
+    }
+  ],
+  "current_stage": {
+    "stage": "stage4_optimize_round3",
+    "baseline_ms": 73.2,
+    "current_best_ms": null,
+    "applied_optimizations": [],
+    "attempted_but_failed": [
+      {
+        "name": "trial_6",
+        "reason": "Trial 6 produced no output \u2014 5 consecutive failures. With 48 minutes left, providing an exact copy-paste solution that changes only torch.compile mode from 'default' to 'max-autotune' to potentially i",
+        "error": "",
+        "approaches_tried": 1,
+        "timestamp": "2026-03-17T09:12:09.173252"
+      },
+      {
+        "name": "trial_7",
+        "reason": "Trial 7 (6th consecutive failure). With 48 minutes left, giving one final attempt with exact shell commands to make the minimal change from mode='default' to mode='max-autotune' in the already-working",
+        "error": "",
+        "approaches_tried": 1,
+        "timestamp": "2026-03-17T09:12:36.910525"
+      }
+    ],
+    "profiling_summary": {
+      "top_bottlenecks": [],
+      "gpu_utilization": 0.0,
+      "memory_usage_gb": 0.0,
+      "kernel_breakdown": {},
+      "raw_profile_path": "",
+      "timestamp": ""
+    },
+    "environment_changes": [],
+    "notes": [],
+    "started_at": "2026-03-17T09:11:46.820889",
+    "completed_at": ""
+  },
+  "attempt_history": [],
+  "technique_attempts": {
+    "trial_2": 1,
+    "trial_3": 1,
+    "trial_4": 1,
+    "trial_5": 1,
+    "trial_6": 1,
+    "trial_7": 1
+  },
+  "global_notes": []
+}

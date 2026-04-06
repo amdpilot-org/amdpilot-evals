@@ -1,0 +1,23 @@
+# Learned Insights
+
+- **Trial 1**: KernelBench Level 2 Problem 69: Conv2d(8->64, k=3) + HardSwish + ReLU, input (128,8,128,128), output (128,64,126,126)
+- **Trial 1**: Baseline: 0.786ms (score 62.2), reference: 0.956ms. Profiling: miopenSp3AsmConv 52.7%, elementwise bias-add 25.3%, fused activation 21.9%
+- **Trial 1**: Fusing bias into activation Triton kernel is the key optimization — eliminates 25.3% bias-add kernel. Use F.conv2d(x, weight, bias=None) then pass bias to Triton kernel
+- **Trial 1**: torch.compile with Triton kernels fails on this ROCm version with 'ttg.async_copy_global_to_local' legalization error
+- **Trial 1**: BLOCK_SIZE=1024 (multiple of 64 wavefront) works well on MI355X; BLOCK_SIZE=2048 was slightly slower
+- **Trial 1**: For NCHW layout, channel index from linear index: channel_idx = (linear_idx // (H * W)) % C
+- **Trial 2**: KernelBench Level 2 Problem 69: Conv2d(8->64, k=3) + HardSwish + ReLU, input (128,8,128,128), output (128,64,126,126)
+- **Trial 2**: Baseline: 0.786ms (score 62.2), reference: 0.956ms. Profiling: miopenSp3AsmConv 52.7%, elementwise bias-add 25.3%, fused activation 21.9%
+- **Trial 2**: Fusing bias into activation Triton kernel is the key optimization — eliminates 25.3% bias-add kernel. Use F.conv2d(x, weight, bias=None) then pass bias to Triton kernel
+- **Trial 2**: torch.compile with Triton kernels fails on this ROCm version with 'ttg.async_copy_global_to_local' legalization error
+- **Trial 2**: BLOCK_SIZE=1024 (multiple of 64 wavefront) works well on MI355X; BLOCK_SIZE=2048 was slightly slower
+- **Trial 2**: For NCHW layout, channel index from linear index: channel_idx = (linear_idx // (H * W)) % C
+- **Trial 2**: Trial 2 produced no output - agent may have gotten stuck. Need to be explicit about starting with code changes immediately
+- **Trial 3**: Agent got stuck with no output in trials 2 and 3 — needs extremely explicit code-level instructions with exact file content to write
+- **Trial 3**: Key optimization for Problem 69: Use F.conv2d(x, weight, bias=None) then fuse bias+hardswish+relu in single Triton kernel to eliminate separate bias-add kernel (25.3% of runtime)
+- **Trial 4**: Agent has been stuck for 3 consecutive trials (2,3,4) with no output on Problem 69 — needs exact code provided in hints
+- **Trial 4**: Key optimization: F.conv2d(x, weight, bias=None) + fused bias+hardswish+relu Triton kernel eliminates separate elementwise bias-add kernel (25.3% of runtime)
+- **Trial 4**: For NCHW layout bias fusion: channel_idx = (linear_idx // (H*W)) % C to index into 1D bias tensor
+- **Trial 5**: Agent has been stuck for 4 consecutive trials with no output on Problem 69 — likely timing out during planning/reasoning before executing any commands
+- **Trial 5**: Key optimization for Problem 69: F.conv2d(x, weight, bias=None) + fused bias+hardswish+relu Triton kernel eliminates separate elementwise bias-add kernel (25.3% of runtime)
+- **Trial 5**: Provide exact shell commands with heredoc (cat > file << 'EOF') rather than asking agent to write code — reduces planning overhead

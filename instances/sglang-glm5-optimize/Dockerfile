@@ -10,6 +10,7 @@ RUN /opt/venv/bin/pip install --upgrade transformers huggingface_hub 2>/dev/null
 COPY bench_glm5.sh /workspace/bench_glm5.sh
 RUN chmod +x /workspace/bench_glm5.sh
 
+COPY test_harness.py /workspace/test_harness.py
 COPY task_description.md /workspace/task_description.md
 
 CMD ["sleep", "infinity"]

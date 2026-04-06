@@ -1,0 +1,29 @@
+# Learned Insights
+
+- **Trial 1**: For Kimi K2.5 (E=384, N=128, int4_w4a16), the fused_moe_kernel dominates 92-97% of GPU time across all batch sizes
+- **Trial 1**: Default Triton config (BLOCK_SIZE_M=16, N=32, K=64) is pathological for E=384 — causes ~1.47x slowdown vs tuned configs
+- **Trial 1**: Config files go in triton_3_6_0/E=384,N=128,device_name=,dtype=int4_w4a16.json and matching _down.json
+- **Trial 1**: Triton version is 3.6.0 on AMD MI355X, configs directory is triton_3_6_0
+- **Trial 1**: Best general configs: small batch M=32,N=128,K=64,warps=4; medium M=64,N=128,K=128,warps=2; large M=128,N=128,K=64,warps=8
+- **Trial 1**: Weakest speedups at M=512 (1.17x) and M=2048 (1.19x) — these are the main optimization targets for higher scores
+- **Trial 1**: Score formula: Tier 0 (15pts profiling) + Tier 1 (10pts config files) + Tier 2 (10pts infra) + Tier 3 (65pts kernel speedup). Tier 3 is the main lever.
+- **Trial 1**: int4_w4a16 uses uint8 packed tensors with N//2 adjustment for the int4 packing scheme
+- **Trial 1**: scaled_fp4_quant import needs try/except on ROCm where sgl_kernel doesn't have this function
+- **Trial 2**: For M=2048 with E=384 N=128 int4_w4a16: BLOCK_M=64, N=128, K=128, G=8, w=2, s=0 gives 1.282x (significantly better than K=64, w=1, s=2 at 1.198x)
+- **Trial 2**: M=512 is extremely hard to improve beyond 1.18x — the bottleneck is launch overhead with E=384 and very low tokens_per_expert (~1.3)
+- **Trial 2**: M=8192 config (M=128, N=128, K=128, G=8, w=4, s=0) is already optimal
+- **Trial 2**: Systematic tuning scripts should use timeout limits per-config to avoid 300s timeouts on large batch sizes
+- **Trial 2**: num_stages=0 (no pipelining) is generally best for large compute-bound tiles on MI355X
+- **Trial 2**: The override_config mechanism sets a global config dict, bypassing file-based lookup — test harness loads from JSON files
+- **Trial 3**: The override_config context manager may not properly propagate separate DOWN projection configs — down_config stays None at line 591 even when override dict has a 'down' key
+- **Trial 3**: Score has plateaued at 74-75 with pure config tuning — kernel-level or config-plumbing changes needed for further gains
+- **Trial 3**: M=4096 speedup varies 1.72x-1.95x between runs, suggesting ~10% variance in benchmark scores
+- **Trial 3**: Exit code 124 means the agent was killed by timeout — 3000s (50min) per trial is tight for both exploration and verification
+- **Trial 4**: For Kimi K2.5 (E=384, N=128, int4_w4a16), separate UP and DOWN projection configs are critical: DOWN benefits from BLOCK_SIZE_N=256, K=32 while UP benefits from N=128, K=128
+- **Trial 4**: Implementing separate DOWN config requires modifying try_get_optimal_moe_config to support a 'down' key in override_config dict
+- **Trial 4**: M=512 with E=384 has a ceiling around 1.21x speedup due to kernel launch overhead with only ~1.3 tokens_per_expert
+- **Trial 4**: M=2048 shows bimodal performance (928us or 1010us) caused by expert assignment patterns, not config
+- **Trial 4**: num_warps=1 is optimal for small batch sizes (M<=2048) on AMD MI355X for this workload
+- **Trial 4**: GROUP_SIZE_M=4 is better than 8 for DOWN projection configs at batch sizes 1-8192
+- **Trial 4**: Score of 79 achievable with pure config tuning + separate UP/DOWN config plumbing; no kernel source changes needed
+- **Trial 4**: Triton config tuning yields diminishing returns after exhaustive search — further gains require kernel-level changes like multi-expert-per-block dispatch

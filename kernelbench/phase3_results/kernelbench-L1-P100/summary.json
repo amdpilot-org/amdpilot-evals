@@ -1,0 +1,29 @@
+{
+  "job": "kernelbench-L1-P100",
+  "type": "optimize",
+  "best_metric": "100.00",
+  "metric_name": "score",
+  "metric_direction": "higher",
+  "total_elapsed_s": 357,
+  "stages_completed": 1,
+  "total_trials": 1,
+  "failures": 0,
+  "trials": [
+    {
+      "trial": 1,
+      "stage": "stage1_baseline_and_profile",
+      "metric": "100.00",
+      "elapsed_s": 275,
+      "verified": true,
+      "verified_metric": 100.0,
+      "supervisor_action": "stop",
+      "supervisor_analysis": "Score is 100.0, which is the maximum possible. The Triton kernel achieves 0.761ms vs 5.370ms PyTorch baseline (7.06x speedup). No further optimization is possible since the score is already at the ceiling.",
+      "nudge": {
+        "polls": 3,
+        "noops": 3,
+        "nudges_sent": 0,
+        "nudges": []
+      }
+    }
+  ]
+}

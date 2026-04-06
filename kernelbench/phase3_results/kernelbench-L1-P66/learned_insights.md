@@ -1,0 +1,26 @@
+# Learned Insights
+
+- **Trial 1**: PyTorch Conv3d on MI355X uses optimized rocBLAS/hipBLASLt and runs at ~1.93ms for batch=16, in=3, out=64, input=(16,32,32), kernel=(3,5,7)
+- **Trial 1**: Adding any Triton kernel on top of Conv3d adds ~0.15ms overhead (kernel launch + memory copy)
+- **Trial 1**: Manual Triton 3D convolution with nested loops produces incorrect output due to indexing complexity
+- **Trial 1**: Im2col + GEMM approach for 3D conv in Triton is too complex to implement correctly in limited time
+- **Trial 1**: torch.compile with torch._inductor has ImportError on this ROCm environment - use @torch.compile decorator directly instead
+- **Trial 1**: Score 50.0 corresponds to speedup ~0.92x in the KernelBench scoring system
+- **Trial 1**: channels_last_3d memory format should be tried as it can speed up Conv3d on AMD GPUs
+- **Trial 2**: Trial 2 produced no output - agent may have run out of time or crashed during compilation
+- **Trial 2**: For Conv3d on MI355X, the reference already uses rocBLAS/hipBLASLt at ~1.93ms - very hard to beat with manual Triton
+- **Trial 2**: channels_last_3d memory format is untested and could provide speedup on AMD GPUs for Conv3d
+- **Trial 2**: Adding ANY extra Triton kernel on top of Conv3d adds ~0.15ms overhead - avoid unless the kernel replaces Conv3d entirely
+- **Trial 2**: Score 50 = speedup ~0.92x, meaning ModelNew is slower; need score > 100 for actual speedup
+- **Trial 3**: Trial 3 produced no output - agent is getting stuck, likely during compilation or complex implementation attempts
+- **Trial 3**: For Conv3d optimization on MI355X, channels_last_3d memory format is the most promising simple optimization that hasn't been tested yet
+- **Trial 3**: Agent needs copy-paste-ready solutions when it fails to produce output in multiple consecutive trials
+- **Trial 3**: Score 50 = speedup ~0.92x; need to eliminate all overhead to reach score >= 100
+- **Trial 4**: Agent produces no output when attempting complex Triton implementations for Conv3d - needs copy-paste-ready solutions
+- **Trial 4**: channels_last_3d memory format is the most promising untested optimization for Conv3d on MI355X
+- **Trial 4**: For Conv3d on MI355X, any solution adding kernels on top of nn.Conv3d adds ~0.15ms overhead and scores worse than baseline
+- **Trial 4**: Score 50 in KernelBench means the implementation is significantly slower than reference - must eliminate all overhead
+- **Trial 5**: Agent has failed to produce output 4 consecutive trials - likely getting stuck in complex implementation attempts that time out or crash
+- **Trial 5**: For Conv3d on MI355X, the simplest viable approach is just using nn.Conv3d directly - any added complexity makes things worse
+- **Trial 5**: Score 50 in KernelBench = new_time is 2x the reference time, meaning current ModelNew is drastically slower than reference
+- **Trial 5**: When agent repeatedly produces no output, provide complete copy-paste code rather than optimization strategies

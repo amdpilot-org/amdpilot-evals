@@ -1,0 +1,25 @@
+# Learned Insights
+
+- **Trial 1**: ROCm Triton lacks tl.tanh - must use manual implementation: (exp(2x)-1)/(exp(2x)+1)
+- **Trial 1**: torch.compile(mode='default') on nn.GRU gives no speedup (0.99x) on ROCm
+- **Trial 1**: Custom Triton GRU cell with full GEMM+elementwise had correctness issues (max_diff=0.8) - likely multi-layer indexing bug
+- **Trial 1**: KernelBench score: 50 = correct but not faster, >50 = correct and faster, score increases with speedup
+- **Trial 1**: GRU params: input_size=128, hidden_size=256, num_layers=3, batch_first=False - main cost is sequential timestep processing with GEMM per step
+- **Trial 1**: Simple nn.GRU wrapper achieves ~1.07x speedup (score 60) as baseline
+- **Trial 2**: ROCm Triton lacks tl.tanh - must use manual implementation: (exp(2x)-1)/(exp(2x)+1)
+- **Trial 2**: torch.compile(mode='default') on nn.GRU gives no speedup (0.99x) on ROCm
+- **Trial 2**: KernelBench score: 50 = correct but not faster, >50 = correct and faster
+- **Trial 2**: GRU params: input_size=128, hidden_size=256, num_layers=3, batch_first=False, seq_len likely 512, batch_size likely 10
+- **Trial 2**: Simple nn.GRU wrapper achieves ~1.07x speedup (score 60) as baseline
+- **Trial 2**: Key optimization: pre-compute input projections for all timesteps as one big GEMM, then fuse gate elementwise ops (sigmoid+tanh+interpolation) into single Triton kernel per timestep
+- **Trial 2**: hidden_size=256 fits in one Triton BLOCK - gate fusion kernel uses grid=(batch_size,) with BLOCK=256
+- **Trial 3**: Agent has timed out or gotten stuck in 2 consecutive trials (2 and 3) with no output - complex Triton GRU implementations are too risky
+- **Trial 3**: nn.GRU wrapper with float32 gives score 60 (~1.07-1.2x speedup) as reliable baseline
+- **Trial 3**: float16 GRU could give significant speedup on AMD MI355X due to faster GEMM operations
+- **Trial 3**: Custom Triton GRU cell with full GEMM+elementwise had correctness issues (max_diff=0.8) - avoid this approach
+- **Trial 4**: Agent times out when attempting complex custom Triton GRU implementations - 3 consecutive failures
+- **Trial 4**: Simple nn.GRU wrapper in float32 reliably gives score 60 as fallback
+- **Trial 4**: float16/bfloat16 GRU is the most promising simple optimization for AMD MI355X - untested so far
+- **Trial 5**: Agent consistently times out (4/4 trials) when attempting complex custom Triton GRU implementations - must use simplest possible approach
+- **Trial 5**: float16 GRU on AMD MI355X is still untested after 5 trials - the most promising simple optimization
+- **Trial 5**: For KernelBench GRU problem, nn.GRU wrapper with identity Triton kernel gives score 60 reliably

@@ -1,0 +1,21 @@
+# Learned Insights
+
+- **Trial 1**: KernelBench Level 2 Problem 43: conv3d dominates at 90.5% of runtime, max_pool3d 6.5%, logsumexp 5.6%, relu 0.1%
+- **Trial 1**: Triton kernel with 1M+ programs (one per spatial location) has prohibitive launch overhead — must tile spatial dims with BLOCK_SIZE>=256
+- **Trial 1**: torch.compile fails on this ROCm/Triton version with MLIR error: failed to legalize operation 'ttg.async_copy_global_to_local'
+- **Trial 1**: Use tl.math.exp and tl.math.log instead of tl.exp/tl.log for ROCm Triton compatibility
+- **Trial 1**: Fusing max_pool3d + logsumexp + relu covers ~12% of runtime and eliminates intermediate memory reads/writes
+- **Trial 1**: Reference baseline for this problem is ~3.45ms
+- **Trial 2**: KernelBench score of 50 means correct but no speedup — need score >50 for improvement
+- **Trial 2**: Online logsumexp (tracking running max + sum_exp) avoids materializing per-channel max values in the fusion
+- **Trial 2**: For fused max_pool3d+logsumexp+relu: output is (B,1,D/2,H/2,W/2)=262K elements, use ~1024 programs with BLOCK_SIZE=256
+- **Trial 2**: The 2x2x2 max_pool window requires 8 loads per channel, with 64 channels that's 512 loads per spatial position — memory bound, so fusion saves significant bandwidth
+- **Trial 3**: Agent got stuck with no output in trials 2 and 3 — must provide complete copy-paste solution
+- **Trial 3**: For fused maxpool+logsumexp+relu: use BLOCK_C=64 vector across channels, 262K grid programs, 8 vector loads per program for 2x2x2 pool window
+- **Trial 3**: Pass tensor strides as kernel args to handle any memory layout correctly
+- **Trial 4**: Agent has gotten stuck with no output 3 consecutive trials — must provide near-complete code to unblock
+- **Trial 4**: For 262K grid programs each doing 512 loads (64 channels * 8 pool elements), the kernel is memory-bound and fusion benefit comes from eliminating intermediate tensor writes
+- **Trial 4**: tl.max and tl.sum with axis=0 reduce a vector to scalar in Triton — use for logsumexp reduction across channels
+- **Trial 5**: Agent gets stuck when asked to design solutions from scratch — provide complete copy-paste code
+- **Trial 5**: 4 consecutive no-output failures indicate agent is overthinking — force immediate file write and benchmark run
+- **Trial 5**: For KernelBench problems dominated by one op (conv3d 90%), fusing remaining ops gives marginal speedup but satisfies Triton kernel requirement

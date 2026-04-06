@@ -1,0 +1,58 @@
+{
+  "job_name": "sglang-issue-19935",
+  "repo": "https://github.com/sgl-project/sglang.git",
+  "initial_baseline_ms": null,
+  "current_best_ms": null,
+  "stages_completed": [],
+  "current_stage": {
+    "stage": "stage1_fix_fp8_kscale_fallback",
+    "baseline_ms": 0.0,
+    "current_best_ms": 0.0,
+    "applied_optimizations": [],
+    "attempted_but_failed": [
+      {
+        "name": "trial_11",
+        "reason": "11 consecutive failures with no metric. The agent keeps defaulting to cd /workspace which doesn't exist. The symlink workaround from trial 10 was the right idea but apparently wasn't executed. Providi",
+        "error": "",
+        "approaches_tried": 1,
+        "timestamp": "2026-03-19T03:23:03.129457"
+      },
+      {
+        "name": "trial_12",
+        "reason": "12 consecutive failures with score 0.0. The agent keeps defaulting to 'cd /workspace' which doesn't exist. The symlink workaround has been suggested but not executed. Providing an ultra-explicit singl",
+        "error": "",
+        "approaches_tried": 1,
+        "timestamp": "2026-03-19T03:23:23.572724"
+      },
+      {
+        "name": "trial_13",
+        "reason": "Trial 13 produced no output at all. After 13 consecutive failures (all scoring 0.0), the agent keeps defaulting to 'cd /workspace' which doesn't exist. Trying an approach where the VERY FIRST command ",
+        "error": "",
+        "approaches_tried": 1,
+        "timestamp": "2026-03-19T03:24:03.404929"
+      }
+    ],
+    "profiling_summary": {
+      "top_bottlenecks": [],
+      "gpu_utilization": 0.0,
+      "memory_usage_gb": 0.0,
+      "kernel_breakdown": {},
+      "raw_profile_path": "",
+      "timestamp": ""
+    },
+    "active_backends": {},
+    "hotspot_targets": [],
+    "next_moves": [],
+    "environment_changes": [],
+    "notes": [],
+    "started_at": "2026-03-19T03:18:08.406905",
+    "completed_at": ""
+  },
+  "attempt_history": [],
+  "technique_attempts": {
+    "trial_11": 1,
+    "trial_12": 1,
+    "trial_13": 1
+  },
+  "global_notes": []
+}

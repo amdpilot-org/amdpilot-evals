@@ -1,0 +1,24 @@
+# Learned Insights
+
+- **Trial 1**: torch.compile fails on ROCm for ResNet-style models with error 'failed to legalize operation ttg.async_copy_global_to_local'
+- **Trial 1**: MI355X wavefront size is 64; BLOCK_SIZE should be multiples of 64
+- **Trial 1**: Test harness runs models in training mode - BN kernels must use batch statistics (mean/var computed from input), NOT running_mean/running_var
+- **Trial 1**: MIOpen assembly convolutions (miopenSp3AsmConv) for 3x3 convs are very hard to beat with Triton - keep nn.Conv2d for those
+- **Trial 1**: ResNet101 profiling breakdown: 3x3 conv 29.2%, GEMM/1x1 conv 18.5%, BatchNorm 15.7%, ReLU 9.3%, residual add 5.0%
+- **Trial 1**: Score of 50.0 means correctness passes but model is not faster than reference
+- **Trial 1**: Key fusion opportunities: BN+ReLU (saves 25% elementwise), residual_add+ReLU (saves 14% elementwise), conv1x1+BN+ReLU (eliminates intermediate tensors)
+- **Trial 2**: Trial 2 produced no output - agent may need explicit instructions to read existing code before modifying
+- **Trial 2**: channels_last memory format is the highest-impact optimization for conv-heavy models on AMD GPUs without requiring custom conv kernels
+- **Trial 3**: Agent has failed to produce output in 2 consecutive trials - needs extremely specific step-by-step instructions
+- **Trial 3**: channels_last memory format optimization has not been attempted yet despite being identified as highest-impact for conv-heavy models on AMD GPUs
+- **Trial 4**: Agent has failed to produce any output in 3 consecutive optimization trials - needs extremely explicit step-by-step instructions with complete code to paste
+- **Trial 4**: channels_last memory format optimization is still untested and is the simplest high-impact optimization for conv-heavy models on AMD GPUs
+- **Trial 5**: Agent has been completely unresponsive for 4 consecutive trials - may need absolute minimal instructions with zero ambiguity
+- **Trial 5**: channels_last memory format optimization still untested after 5 trials
+- **Trial 6**: Agent has been completely unresponsive for 5 consecutive trials - providing complete file content via heredoc as last resort
+- **Trial 6**: channels_last memory format optimization still untested after 6 trials - this is the simplest high-impact optimization for conv-heavy models on AMD GPUs
+- **Trial 7**: Agent was unable to make any optimization progress on ResNet101 beyond the initial baseline trial - 6 consecutive trials produced no output
+- **Trial 7**: channels_last memory format optimization was identified as the highest-impact single optimization for conv-heavy models on AMD GPUs but was never successfully attempted
+- **Trial 7**: Score of 50.0 for KernelBench means the model passes correctness but is not faster than the PyTorch reference implementation
+- **Trial 7**: For ResNet101 on MI355X, MIOpen assembly convolutions (miopenSp3AsmConv) dominate at 29.2% and are extremely difficult to beat with custom Triton kernels - focus should be on memory format and fusion optimizations instead
+- **Trial 7**: When an agent fails to produce output for multiple consecutive trials, the issue is likely systemic (context overflow, infinite loop, or environmental) rather than solvable by providing more detailed hints

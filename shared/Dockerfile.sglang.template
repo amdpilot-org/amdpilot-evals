@@ -1,0 +1,48 @@
+# ============================================================
+# SGLang Eval Instance Dockerfile Template
+# ============================================================
+# Structural fixes applied (from vllm-run-lessons.md):
+#   - Safe kill pattern (lesson #4)
+#   - Correct Python path for SGLang image (lesson #6)
+#   - No conflicting PYTHONPATH instructions (lesson #7)
+#   - Pre-built C extensions via venv (no pip install -e needed)
+#
+# Usage:
+#   Replace {{PLACEHOLDER}} values before building.
+#   ARG BASE_IMAGE can be overridden at build time:
+#     docker build --build-arg BASE_IMAGE=rocm/sgl-dev:... -t eval-name .
+#
+# Quick Reference (SGLang):
+#   Python:      /opt/venv/bin/python3
+#   Source:      /sgl-workspace/sglang (editable install in venv)
+#   Workspace:   /workspace/sglang → symlink to /sgl-workspace/sglang
+#   Kill:        pgrep -f 'python3 -m sglang' | xargs -r kill -9
+#   PYTHONPATH:  Not needed (venv handles it)
+# ============================================================
+
+ARG BASE_IMAGE=rocm/sgl-dev:v0.5.9-rocm720-mi35x-20260226
+FROM ${BASE_IMAGE}
+
+WORKDIR /workspace
+
+# --- Checkout source at pre-fix commit ---
+# {{COMMIT}}: the merge_commit~1 (state BEFORE the fix)
+# The sgl-dev image has SGLang pre-installed in /sgl-workspace/sglang
+# We fetch and checkout the specific pre-fix commit there
+RUN cd /sgl-workspace/sglang && \
+    git fetch origin && \
+    git checkout {{COMMIT}}
+
+# --- Ensure workspace symlink exists ---
+RUN ln -sfn /sgl-workspace/sglang /workspace/sglang
+
+# --- Copy eval artifacts ---
+COPY test_harness.py /workspace/test_harness.py
+COPY task_description.md /workspace/task_description.md
+
+# --- Structural safety: safe kill script ---
+# This script kills SGLang server processes without hitting the agent
+RUN printf '#!/bin/bash\npgrep -f "python3 -m sglang" | xargs -r kill -9\nsleep 3\n' \
+    > /usr/local/bin/safe-kill-server && chmod +x /usr/local/bin/safe-kill-server
+
+CMD ["sleep", "infinity"]

@@ -1,0 +1,23 @@
+# Learned Insights
+
+- **Trial 1**: ROCm Triton has no tl.tanh — must use manual tanh implementation: 2/(1+exp(-2x))-1
+- **Trial 1**: torch.compile(mode='default') gives ~1.5x speedup on ViT (score 64.5) as a baseline optimization
+- **Trial 1**: ViT profiling breakdown: GEMM 55%, Elementwise 15%, Attention 9.7%, LayerNorm 9.3%
+- **Trial 1**: Triton GELU approximation (tanh-based) causes numerical mismatch vs PyTorch GELU — use erf-based formula for correctness
+- **Trial 1**: Changing transformer to batch_first=True breaks output correctness
+- **Trial 1**: BLOCK_SIZE should be multiple of 64 on ROCm for Triton kernels
+- **Trial 1**: KernelBench score of 64.5 corresponds to ~1.5x speedup ratio
+- **Trial 2**: Trial 2 produced no output - agent may have tried too many changes at once without testing incrementally
+- **Trial 2**: torch.compile mode='max-autotune' is worth trying as it enables more aggressive GEMM autotuning
+- **Trial 2**: F.scaled_dot_product_attention enables Flash Attention on ROCm and could help with the 9.7% attention bottleneck
+- **Trial 3**: Trial 2 and 3 both produced no output - agent likely crashes when attempting too many simultaneous changes to ViT implementation
+- **Trial 3**: Must enforce incremental development: one change -> test -> next change
+- **Trial 3**: torch.compile mode='max-autotune' is the safest next optimization to try over mode='default'
+- **Trial 4**: Trials 2, 3, 4 all crashed with no output - agent must be forced to make minimal incremental changes
+- **Trial 4**: The only working approach so far is torch.compile(mode='default') giving score 64.50
+- **Trial 4**: Custom Triton kernels for GELU/LayerNorm consistently fail correctness checks
+- **Trial 4**: Agent needs explicit instruction to read current file state before making changes
+- **Trial 5**: Agent crashes 4 consecutive times when attempting complex ViT optimizations - must enforce single-line changes only
+- **Trial 5**: Previous working file state may be corrupted after multiple failed trials - agent should verify file state before modifying
+- **Trial 5**: torch.compile(mode='max-autotune') is the safest next step after mode='default' worked at score 64.50
+- **Trial 5**: Custom Triton kernels for ViT components (GELU, LayerNorm, MLP) have never passed correctness checks in this task

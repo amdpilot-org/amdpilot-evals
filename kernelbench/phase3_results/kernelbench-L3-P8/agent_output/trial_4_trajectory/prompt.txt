@@ -1,0 +1,452 @@
+# Task: Optimize Optimize KernelBench Level 3 Problem 8 with Triton on AMD MI355X on AMD GPU -- Stage2 Optimize Round1
+
+## Starting Point
+
+You are continuing from **stage1_baseline_and_profile** which already has changes applied.
+- Previous best: **0.00** score
+- The benchmark script and model code already work. Do NOT rewrite them from scratch.
+- **READ** `/workspace/optimization_state.json` first.
+- Run the existing benchmark first to confirm your starting point.
+
+## Task Description
+
+# KernelBench Level 3 Problem 8: 8_ResNetBasicBlock.py
+
+## Goal
+
+Write an optimized Triton kernel implementation (`ModelNew`) that:
+1. Produces the **exact same output** as the PyTorch reference `Model`
+2. Is **faster** than the PyTorch baseline
+3. Uses Triton `@triton.jit` kernels (NOT raw CUDA/HIP)
+
+## PyTorch Reference Implementation
+
+```python
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+class Model(nn.Module):
+    expansion = 1
+
+    def __init__(self, in_channels, out_channels, stride=1):
+        """
+        :param in_channels: Number of input channels
+        :param out_channels: Number of output channels
+        :param stride: Stride for the first convolutional layer
+        :param downsample: Downsample layer for the shortcut connection
+        """
+        super(Model, self).__init__()
+        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=stride, padding=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(out_channels)
+        self.relu = nn.ReLU(inplace=True)
+        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, stride=1, padding=1, bias=False)
+        self.bn2 = nn.BatchNorm2d(out_channels)
+        self.downsample = nn.Sequential(
+            nn.Conv2d(in_channels, out_channels * self.expansion, kernel_size=1, stride=stride, bias=False),
+            nn.BatchNorm2d(out_channels * self.expansion),
+        )
+        self.stride = stride
+
+    def forward(self, x):
+        """
+        :param x: Input tensor, shape (batch_size, in_channels, height, width)
+        :return: Output tensor, shape (batch_size, out_channels, height, width)
+        """
+        identity = x
+
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.relu(out)
+
+        out = self.conv2(out)
+        out = self.bn2(out)
+
+        if self.downsample is not None:
+            identity = self.downsample(x)
+
+        out += identity
+        out = self.relu(out)
+
+        return out
+    
+# Test code
+in_channels = 3
+out_channels = 64
+stride = 1
+batch_size = 10
+num_classes = 1000
+
+def get_inputs():
+    return [torch.rand(batch_size, in_channels, 224, 224)]
+
+def get_init_inputs():
+    return [in_channels, out_channels, stride]
+```
+
+## AMD ROCm Triton Constraints (CRITICAL)
+
+You are writing Triton kernels for AMD Instinct MI355X (gfx950, CDNA4) with ROCm.
+
+### Known Issues - You MUST follow these rules:
+
+1. **`tl.math.tanh` is UNAVAILABLE** on ROCm Triton. Use manual implementation:
+   ```python
+   x_clamped = tl.maximum(tl.minimum(x, 10.0), -10.0)
+   exp_2x = tl.math.exp(2.0 * x_clamped)
+   tanh_val = (exp_2x - 1.0) / (exp_2x + 1.0)
+   ```
+
+2. **`tl.libdevice.*` is UNAVAILABLE** on ROCm. Do NOT use `tl.libdevice.tanh`,
+   `tl.libdevice.exp`, etc. Use `tl.math.exp` or manual implementations.
+
+3. **Wavefront size is 64** (not 32 like NVIDIA). BLOCK_SIZE values that are
+   multiples of 64 align better with hardware.
+
+4. **Cast output to target dtype explicitly**: compute in float32, cast back on store:
+   ```python
+   x = tl.load(ptr, mask=mask, other=0.0).to(tl.float32)
+   y = compute(x)
+   tl.store(out_ptr, y.to(tl.float32), mask=mask)
+   ```
+
+5. **BLOCK_SIZE selection**: Use `triton.next_power_of_2(N)` for the hidden dimension.
+
+6. **Common kernel pattern**:
+   ```python
+   @triton.jit
+   def _kernel(X_ptr, Y_ptr, stride_x, stride_y, N, BLOCK_SIZE: tl.constexpr):
+       row = tl.program_id(0)
+       cols = tl.arange(0, BLOCK_SIZE)
+       mask = cols < N
+       x = tl.load(X_ptr + row * stride_x + cols, mask=mask, other=0.0).to(tl.float32)
+       y = compute(x)
+       tl.store(Y_ptr + row * stride_y + cols, y.to(tl.float32), mask=mask)
+   ```
+
+## Previous Failed Attempt
+
+A previous single-shot attempt failed. The output was incorrect.
+
+```python
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import triton
+import triton.language as tl
+
+
+@triton.jit
+def bn_relu_kernel(
+    x_ptr,
+    out_ptr,
+    mean_ptr,
+    var_ptr,
+    weight_ptr,
+    bias_ptr,
+    n_channels,
+    n_elements_per_channel,
+    eps,
+    BLOCK_SIZE: tl.constexpr,
+):
+    channel_id = tl.program_id(0)
+    for block_start in range(0, n_elements_per_channel, BLOCK_SIZE):
+        offsets = block_start + tl.arange(0, BLOCK_SIZE)
+        mask = offsets < n_elements_per_channel
+        x = tl.load(x_ptr + channel_id * n_elements_per_channel + offsets, mask=mask, other=0.0)
+        mean = tl.load(mean_ptr + channel_id)
+        var = tl.load(var_ptr + channel_id)
+        weight = tl.load(weight_ptr + channel_id)
+        bias = tl.load(bias_ptr + channel_id)
+        x_norm = (x - mean) / tl.sqrt(var + eps)
+        x_scaled = x_norm * weight + bias
+        out = tl.maximum(x_scaled, 0.0)
+        tl.store(out_ptr + channel_id * n_elements_per_channel + offsets, out, mask=mask)
+
+
+@triton.jit
+def bn_kernel(
+    x_ptr,
+    out_ptr,
+    mean_ptr,
+    var_ptr,
+    weight_ptr,
+    bias_ptr,
+    n_channels,
+    n_elements_per_channel,
+    eps,
+    BLOCK_SIZE: tl.constexpr,
+):
+    channel_id = tl.program_id(0)
+    for block_start in range(0, n_elements_per_channel, BLOCK_SIZE):
+        offsets = block_start + tl.arange(0, BLOCK_SIZE)
+        mask = offsets < n_elements_per_channel
+        x = tl.load(x_ptr + channel_id * n_elements_per_channel + offsets, mask=mask, other=0.0)
+        mean = tl.load(mean_ptr + channel_id)
+        var = tl.load(var_ptr + channel_id)
+        weight = tl.load(weight_ptr + channel_id)
+        bias = tl.load(bias_ptr + channel_id)
+        x_norm = (x - mean) / tl.sqrt(var + eps)
+        out = x_norm * weight + bias
+        tl.store(out_ptr + channel_id * n_elements_per_channel + offsets, out, mask=mask)
+
+
+@triton.jit
+def residual_add_relu_kernel(
+    x_ptr,
+    identity_ptr,
+    out_ptr,
+    n_elements,
+    BLOCK_SIZE: tl.constexpr,
+):
+    block_start = tl.program_id(0) * BLOCK_SIZE
+    offsets = block_start + tl.arange(0, BLOCK_SIZE)
+    mask = offsets < n_elements
+    x = tl.load(x_ptr + offsets, mask=mask, other=0.0)
+    identity = tl.load(identity_ptr + offsets, mask=mask, other=0.0)
+    out = tl.maximum(x + identity, 0.0)
+    tl.store(out_ptr + offsets, out, mask=mask)
+
+
+def triton_bn_relu(x: torch.Tensor, bn: nn.BatchNorm2d):
+    assert x.is_cuda, "Tensor must be on CUDA."
+    x = x.contiguous()
+    out = torch.empty_like(x)
+    batch_size, n_channels, height, width = x.shape
+    n_elements_per_channel = batch_size * height * width
+    eps = bn.eps
+    mean = bn.running_mean.contiguous()
+    var = bn.running_var.contiguous()
+    weight = bn.weight.contiguous()
+    bias = bn.bias.contiguous()
+    BLOCK_SIZE = 1024
+    grid = (n_channels,)
+    bn_relu_kernel[grid](
+        x, out, mean, var, weight, bias,
+        n_channels, n_elements_per_channel, eps,
+        BLOCK_SIZE=BLOCK_SIZE
+    )
+   
+```
+
+Analyze what went wrong and fix the issues.
+
+## Output Requirements
+
+Save your implementation to `/workspace/generated_kernel.py`.
+The file must define a `ModelNew` class with the same interface as `Model`.
+Run the test harness to verify:
+```bash
+/opt/venv/bin/python3 /workspace/test_harness.py --level 3 --problem-id 8
+```
+
+## Optimization Playbook
+
+Read both the `amd-kernel-optimization` and `gpu-profiling` skills before making source changes.
+Use this sequence unless the task description gives a stronger task-specific instruction:
+1. Establish the real baseline with the standard benchmark.
+2. Create or reuse a fast profiling path when the standard benchmark is too slow (for graph-heavy workloads, disable CUDA graphs first).
+3. Try `torch.compile(mode="default")` as the first major optimization lever, then fix graph breaks.
+4. Use profiler output to choose the next manual optimization instead of guessing.
+5. Run the standard benchmark as the final measurement and last command.
+
+## Previous Trial Results
+
+| Trial | Stage | Claimed | Verified | Source | Elapsed | Notes |
+|-------|-------|---------|----------|--------|---------|-------|
+| 1 | stage1_baseline_and_profile | 0.00 | N/A | unknown | 4s |  |
+| 1 | stage1_baseline_and_profile | N/A | N/A | unknown | 11s |  |
+| 2 | stage1_baseline_and_profile | N/A | N/A | unknown | 4s |  |
+| 3 | stage2_optimize_round1 | N/A | N/A | unknown | 4s |  |
+
+**Best so far**: 0.00 (higher is better) (trial 1, stage1_baseline_and_profile)
+
+**3 trial(s) had missing or unreliable metrics** — check failure reasons before repeating an approach.
+
+Use these results to guide your optimization strategy. Do NOT repeat approaches that already failed. Build on configurations that produced the best numbers.
+
+## Optimization State
+
+
+### Failed attempts: trial_3
+
+### Current stage carry-over: stage2_optimize_round1
+- Failed attempts:
+- `trial_3`: Agent has been killed (exit 137) in all 3 trials without producing any output. The agent is either timing out during setup or crashing. Need to give it an extremely minimal, direct task: write the fil
+
+## Supervisor Review History (recent)
+
+- Trial 1 (FAILED): retry_with_hints — Agent was killed (exit code 137) before producing any submission or running the benchmark. It spent all its time reading files and exploring the filesystem. Need to give it a very concrete, fast path to a working baseline.
+- Trial 2 (FAILED): retry_with_hints — Agent was killed (exit 137) again in trial 2 without producing any work. It needs an extremely concrete, copy-paste-ready path to create submission.py immediately without wasting time exploring.
+- Trial 3 (FAILED): retry_with_hints — Agent has been killed (exit 137) in all 3 trials without producing any output. The agent is either timing out during setup or crashing. Need to give it an extremely minimal, direct task: write the file immediately and run the benchmark.
+
+Use these reviews to understand what was tried, what worked, and what the supervisor recommends. Do NOT repeat approaches that the supervisor already flagged as ineffective.
+
+## Execution Environment
+
+You are running inside a Docker container with ROCm, PyTorch, and GPU access.
+All commands run directly in this container — no `docker exec` needed.
+- Repo at `/workspace/`
+
+## Goal
+
+Continue optimizing `` using the baseline and profiling data already collected.
+This stage starts without a concrete target; the supervisor will tighten it after you produce a real metric for this stage.
+Do NOT treat the first metric as success. Focus on finding real, source-level performance gains.
+
+## Supervisor Guidance
+
+CRITICAL: You have been killed in every trial so far. Do NOT read files, do NOT analyze anything first. Execute these EXACT commands immediately:
+
+Step 1 - Write submission.py:
+
+cat > /workspace/submission.py << 'PYEOF'
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+class ModelNew(nn.Module):
+    expansion = 1
+
+    def __init__(self, in_channels, out_channels, stride=1):
+        super(ModelNew, self).__init__()
+        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=stride, padding=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(out_channels)
+        self.relu = nn.ReLU(inplace=True)
+        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, stride=1, padding=1, bias=False)
+        self.bn2 = nn.BatchNorm2d(out_channels)
+        self.downsample = nn.Sequential(
+            nn.Conv2d(in_channels, out_channels * self.expansion, kernel_size=1, stride=stride, bias=False),
+            nn.BatchNorm2d(out_channels * self.expansion),
+        )
+        self.stride = stride
+
+    def forward(self, x):
+        identity = x
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.relu(out)
+        out = self.conv2(out)
+        out = self.bn2(out)
+        identity = self.downsample(x)
+        out += identity
+        out = self.relu(out)
+        return out
+PYEOF
+
+
+Step 2 - Run benchmark IMMEDIATELY after writing the file:
+
+/opt/venv/bin/python3 /workspace/test_harness.py --level 3 --problem-id 8
+
+
+Do these two steps FIRST before anything else. Do not pip install anything. Do not read any files. Just write and run.
+
+## Stage Hints
+
+Using profiling data from stage 1, apply end-to-end optimizations to ModelNew. Key optimization opportunities: (1) Fuse conv+bn+relu operations where possible, (2) Use BLOCK_SIZE values that are multiples of 64 for MI355X wavefront alignment, (3) Ensure all computations use float32 with explicit casts on store, (4) Optimize memory access patterns for NCHW layout, (5) Consider fusing the residual add with the final relu. Remember: tl.libdevice.* and tl.math.tanh are unavailable on ROCm - use manual implementations if needed. Test after each change with the test harness.
+
+## Learned Insights (from previous trials)
+
+# Learned Insights
+
+- **Trial 1**: KernelBench Level 3 Problem 8 is a ResNet BasicBlock with two conv3x3+BN paths plus a 1x1 downsample shortcut
+- **Trial 1**: The test harness is at /workspace/test_harness.py and expects a ModelNew class in /workspace/submission.py
+- **Trial 1**: Score of 0.00 means either no submission existed or correctness check failed
+- **Trial 2**: KernelBench Level 3 Problem 8 is a ResNet BasicBlock with two conv3x3+BN paths plus a 1x1 downsample shortcut
+- **Trial 2**: The test harness is at /workspace/test_harness.py and expects a ModelNew class in /workspace/submission.py
+- **Trial 2**: Score of 0.00 means either no submission existed or correctness check failed
+- **Trial 2**: Agent produced no output in trial 2 - likely a silent failure or timeout before any work was done
+- **Trial 1**: Agent was killed with exit code 137 (OOM/timeout) - need to be much more efficient with time
+- **Trial 1**: The agent needs to create /workspace/submission.py with a ModelNew class
+- **Trial 1**: Start with a PyTorch-identical baseline to get score > 0, then optimize
+- **Trial 1**: Problem params appear to be: in_channels=64, out_channels=128, stride=2, batch_size=128, height=56, width=56
+- **Trial 3**: Agent has failed 3 consecutive trials with no output - likely a silent crash or the agent not executing any commands
+- **Trial 3**: The minimum viable submission.py is just the reference Model class renamed to ModelNew
+- **Trial 3**: Must verify the test harness interface by reading it before attempting any submission
+- **Trial 2**: Agent has been killed (exit 137) in both trials 1 and 2 without producing any work - needs extremely direct copy-paste instructions
+- **Trial 2**: The minimum viable submission.py is the reference Model class renamed to ModelNew with identical forward logic
+- **Trial 2**: Agent must write submission.py and run benchmark within first 30 seconds to avoid timeout/kill
+- **Trial 4**: Agent has crashed/failed silently in 4 consecutive trials - need extremely explicit step-by-step instructions with exact file content
+- **Trial 4**: The minimum viable approach is to copy the reference Model as ModelNew in /workspace/submission.py
+- **Trial 4**: Do not attempt any optimization until a baseline score > 0 is established
+- **Trial 3**: Agent has crashed/failed silently in all 3 trials with exit code 137 - need extremely explicit step-by-step instructions with exact file content
+- **Trial 3**: The minimum viable approach is to copy the reference Model as ModelNew in /workspace/submission.py
+- **Trial 3**: Do not attempt any optimization until a baseline score > 0 is established
+- **Trial 3**: Agent must write submission.py and run benchmark within first 30 seconds to avoid timeout/kill
+
+## Workflow
+
+1. **Read state**: Read `/workspace/optimization_state.json` to understand prior work
+2. **Read skills**: Read your `amd-kernel-optimization` and `gpu-profiling` skills for techniques not yet tried
+3. **Verify baseline**: Run the benchmark command FIRST to confirm your starting point.
+   If the benchmark takes >5 minutes, set a high `timeout` (e.g. 2400).
+4. **Profile**: Use `torch.profiler` (disable CUDA graphs first) to identify current top bottlenecks
+5. **Apply optimizations** targeting the profiled bottlenecks, one at a time, benchmark after each change.
+   Prefer source-level changes (modifying runtime code defaults) over env-var tuning.
+   If the benchmark script sources a config file, use it to ensure verification reproduces your config.
+6. **Verify**: No regressions — if latency went UP or compile broke, revert immediately
+7. **Update state**: After each optimization, update `/workspace/optimization_state.json`
+8. **Re-profile and repeat**: After each optimization, profile again to find the next bottleneck
+
+## CRITICAL: Final Benchmark
+
+Before you finish, you MUST run the benchmark command one final time **directly** — do NOT
+pipe through grep or redirect output. The orchestrator needs the full raw output to extract
+the metric. A trial without a captured metric is recorded as a FAILURE.
+
+## Integrity Rules (MANDATORY)
+
+- Do NOT modify `test_harness.py` or the benchmark script.
+- Do NOT change benchmark parameters (warmup, iterations, batch size, input dimensions).
+- Do NOT redirect or filter benchmark output (no `grep`, no `| tail`).
+- The orchestrator independently re-runs the benchmark to verify your results. Any discrepancy between your claimed result and the verification run causes the trial to be marked as FAILED.
+- Achieve improvements through legitimate code changes only.
+
+## CRITICAL: Output Format
+
+Your LAST action before finishing MUST be running the benchmark command **directly** —
+do NOT pipe through `grep` or redirect output. The FULL benchmark output must appear
+in your output so the orchestrator can capture the metric via regex: `SCORE:\s+([\d.]+)`
+
+The output must include a line matching: `score: <value>`
+
+Without this line, the trial is recorded as a FAILURE even if you achieved great results.
+
+## State File
+
+After completing work, update `/workspace/optimization_state.json`:
+```json
+{
+  "job_name": "...",
+  "repo": "...",
+  "current_best_ms": 43.4,
+  "stages_completed": [...],
+  "current_stage": {
+    "stage": "<stage name>",
+    "current_best_ms": 41.2,
+    "applied_optimizations": [
+      {
+        "name": "<technique>",
+        "impact_ms": -5.0,
+        "files_changed": ["<path>"],
+        "description": "<what changed>"
+      }
+    ],
+    "attempted_but_failed": [
+      {"name": "<technique>", "reason": "<why>", "error": "<snippet>"}
+    ],
+    "profiling_summary": {
+      "top_bottlenecks": ["<kernel> <pct>"],
+      "gpu_utilization": 0.72,
+      "kernel_breakdown": {"gemm": 61.0, "attention": 24.0}
+    },
+    "environment_changes": ["pip install <pkg>"],
+    "notes": ["<important learning from this trial>"]
+  }
+}
+```
+The file already exists when the trial starts. Preserve the existing top-level
+structure and update the `current_stage` section with what you learned in this
+trial. If you only know part of the state, add just those fields and leave the
+rest intact. The orchestrator merges this file into the next trial's prompt.

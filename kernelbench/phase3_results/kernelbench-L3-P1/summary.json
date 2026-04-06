@@ -1,0 +1,29 @@
+{
+  "job": "kernelbench-L3-P1",
+  "type": "optimize",
+  "best_metric": "50.00",
+  "metric_name": "score",
+  "metric_direction": "higher",
+  "total_elapsed_s": 1223,
+  "stages_completed": 1,
+  "total_trials": 1,
+  "failures": 0,
+  "trials": [
+    {
+      "trial": 1,
+      "stage": "stage1_baseline_and_profile",
+      "metric": "50.00",
+      "elapsed_s": 670,
+      "verified": true,
+      "verified_metric": 50.0,
+      "supervisor_action": "continue",
+      "supervisor_analysis": "Baseline established at score 50.0 (0.644ms vs 0.632ms reference). Profiling shows GEMM dominates at 85% with 3 linear layers. Advancing to optimization stage.",
+      "nudge": {
+        "polls": 6,
+        "noops": 6,
+        "nudges_sent": 0,
+        "nudges": []
+      }
+    }
+  ]
+}
