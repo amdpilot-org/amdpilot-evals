@@ -4,7 +4,10 @@
   "difficulty": "medium-hard",
   "source": {
     "repo": "vllm-project/vllm",
-    "issue": 35925
+    "issue": 35925,
+    "pr": 37228,
+    "merge_commit": "a4cf9b22ba8f08df8d7977c2b0753fe20231cffc",
+    "parent_commit": "9c3ae04bfe6532d6d6d812ae6688366c9911555b"
   },
   "description": "Fix corrupted responses in Qwen3.5-35B-A3B when AITER attention and MoE paths are enabled.",
   "bug_type": "persistent",
@@ -12,16 +15,16 @@
   "runtime_family": "vllm-dev",
   "commit_window": {
     "introducing_pr": null,
-    "fix_pr": null,
-    "pin_commit": null,
-    "note": "Recovered from issue-vllm-35925 rerun materials; exact pre-fix commit window still needs tightening."
+    "fix_pr": 37228,
+    "pin_commit": "9c3ae04bfe6532d6d6d812ae6688366c9911555b",
+    "note": "Pinned to parent of fix commit a4cf9b22. Bug is in cp_mha_gather_cache_kernel stride handling for hybrid models."
   },
   "aiter_dependency": true,
   "model_required": true,
   "gpu_required": 4,
   "harness_type": "e2e_test",
   "affected_files": [
-    "vllm/platforms/rocm.py"
+    "vllm/v1/attention/backends/rocm_aiter_fa.py"
   ],
   "tags": [
     "vllm",
