@@ -1,0 +1,14 @@
+{
+  "name": "vllm-rocm-nonpow2-blocksize",
+  "category": "bugfix",
+  "difficulty": "hard",
+  "source": {
+    "repo": "vllm-project/vllm",
+    "pr": 31380,
+    "parent_commit": "c8ed39b9dd8efad4bed9547c52df7999c1735114"
+  },
+  "description": "ROCm Triton attention and KV-cache paths fail for Qwen3-Next-style KV block size 544 (non-power-of-two)",
+  "task_description_source": "GitHub PR #31380 (symptom only, no fix)",
+  "test_harness_type": "runtime",
+  "requires_gpu": true
+}

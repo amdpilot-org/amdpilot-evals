@@ -1,0 +1,27 @@
+{
+  "name": "sglang-kimi-moe-tune",
+  "category": "optimize",
+  "difficulty": "hard",
+  "source": {
+    "repo": "sgl-project/sglang",
+    "pr": 19228,
+    "merge_commit": "a1ef8e2cc0976eeb0b2bacf265bed80c645a7ded"
+  },
+  "description": "Optimize Kimi K2.5 fused_moe_triton performance by tuning",
+  "expected_loc_changed": 486,
+  "expected_files_changed": 5,
+  "affected_files": [
+    "benchmark/kernels/fused_moe_triton/common_utils.py",
+    "benchmark/kernels/fused_moe_triton/tuning_fused_moe_triton.py",
+    "benchmark/kernels/fused_moe_triton/tuning_fused_moe_triton_sep.py",
+    "python/sglang/srt/layers/moe/fused_moe_triton/configs/triton_3_4_0/E=384,N=128,device_name=,dtype=int4_w4a16.json",
+    "python/sglang/srt/layers/moe/fused_moe_triton/configs/triton_3_4_0/E=384,N=128,device_name=,dtype=int4_w4a16_down.json"
+  ],
+  "requires_gpu": true,
+  "requires_model_download": false,
+  "tags": [
+    "rocm",
+    "optimize",
+    "sgl-project"
+  ]
+}

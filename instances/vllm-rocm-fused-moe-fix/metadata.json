@@ -1,0 +1,15 @@
+{
+  "name": "vllm-rocm-fused-moe-fix",
+  "category": "bugfix",
+  "difficulty": "medium",
+  "source": {
+    "repo": "vllm-project/vllm",
+    "pr": 36100,
+    "merge_commit": "e99fb98867c222b73922f0120ee7a09e442bc8ea",
+    "parent_commit": "a16133a0f12e8e406206be1bc8041727d9f1ea7d"
+  },
+  "description": "ROCm AITER fused MoE: fused_moe fake signature must match impl; routed_scaling_factor must flow through grouped top-k",
+  "task_description_source": "Symptom only (signature mismatch and scaling propagation), no patch hints",
+  "test_harness_type": "runtime (inspect signatures + source forward check)",
+  "requires_gpu": true
+}

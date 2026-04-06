@@ -9,6 +9,9 @@ model_endpoint:
   base_url: "http://10.235.24.154:30000/v1"
   api_key: "EMPTY"
 
+kimi_cli:
+  thinking: true
+
 container:
   name: amdpilot_glm5
   gpu: "0,1,2,3,4,5,6,7"
@@ -18,7 +21,9 @@ container:
     TOKENIZERS_PARALLELISM: "false"
     GPU_COREDUMP_ENABLE: "0"
   volumes:
-    - "/mnt/dcgpuval/huggingface:/root/.cache/huggingface"
+    # Local NVMe copy for fast loading (~5min vs ~60min on NFS).
+    # Change to "/mnt/dcgpuval/huggingface:/root/.cache/huggingface" on other machines.
+    - "/home/yikzhang/huggingface:/root/.cache/huggingface"
 
 workload:
   description: "Optimize decode latency for GLM-5-FP8 MoE model on AMD MI355X with TP=8"

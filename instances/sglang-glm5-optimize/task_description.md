@@ -2,57 +2,33 @@
 
 Optimize the decode latency of the GLM-5-FP8 model on 8× AMD MI355X GPUs using SGLang.
 
-## Environment (read carefully)
+## Environment
 
-- **Installed SGLang runtime**: `/sgl-workspace/sglang/` — this is on `sys.path` and is what `python3 -m sglang.*` uses. **Edit files HERE to modify SGLang behavior.**
-- **SGLang reference checkout**: `/workspace/sglang/` — a fresh `git clone` for reference only. Changes here do NOT affect the runtime.
+- **Installed SGLang runtime**: `/sgl-workspace/sglang/` — on `sys.path`, used by `python3 -m sglang.*`. **Edit files HERE to modify SGLang behavior.**
+- **SGLang reference checkout**: `/workspace/sglang/` — fresh `git clone` for reference only. Changes here do NOT affect the runtime.
 - **Model weights**: `zai-org/GLM-5-FP8` cached at `/root/.cache/huggingface`.
-- **Benchmark script**: `/workspace/bench_glm5.sh` — pre-built and working. Run it first to establish a baseline.
+- **Benchmark script**: `/workspace/bench_glm5.sh` — runs `sglang.bench_one_batch` with fixed workload params.
 
-## Step 1 — Establish Baseline (do this FIRST)
+## Benchmark
 
+The benchmark runs `sglang.bench_one_batch` and prints:
+  `Decode median (ms): <value> | tp=8 batch=1`
+
+First run takes ~5 minutes (model loading from local NVMe + CUDA graph compilation).
+Set `timeout: 600` when running it. If it times out, kill leftover sglang processes
+(`ps aux | grep sglang | grep -v grep | awk '{print $2}' | xargs -r kill -9`) before retrying.
+
+`bench_one_batch` supports backend selection flags such as `--attention-backend`,
+`--decode-attention-backend`, `--fp8-gemm-backend`, etc. The benchmark script uses
+defaults but sources `/workspace/bench_config.env` if it exists. To set environment
+variables that configure backends, write them to that file:
 ```bash
-bash /workspace/bench_glm5.sh
+echo 'export SGLANG_ATTENTION_BACKEND=aiter' > /workspace/bench_config.env
 ```
-This prints `Decode median (ms): <value> | tp=8 batch=1`. Update optimization_state.json.
+This ensures the verification run uses the same configuration as your run.
 
-## Step 2 — Profile to Find Bottlenecks
-
-Use `torch.profiler` or `rpd` to identify the top GPU kernels by time. Example:
-```python
-import torch
-from torch.profiler import profile, ProfilerActivity
-with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA]) as prof:
-    # run a few decode steps
-    pass
-print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=20))
-```
-Classify bottlenecks: attention kernels, MoE dispatch/fused_moe, all-reduce, GEMM, other.
-
-## Step 3 — Source-Level Optimizations (REQUIRED)
-
-Config tuning alone (env vars, mem-fraction) yields marginal gains. You MUST attempt
-source-level changes in `/sgl-workspace/sglang/`. Concrete targets:
-
-1. **Attention backend** (`/sgl-workspace/sglang/python/sglang/srt/layers/attention/`):
-   - Check the tilelang NSA decode kernel for unnecessary synchronization
-   - Look at `nsa_backend.py` `_forward_tilelang` — can the tiling be improved?
-
-2. **MoE kernels** (`/sgl-workspace/sglang/python/sglang/srt/layers/moe/`):
-   - Profile `fused_moe` dispatch — is expert routing efficient?
-   - Check if `aiter` fused_moe is being used (preferred on AMD)
-
-3. **All-reduce** (`/sgl-workspace/sglang/python/sglang/srt/layers/`):
-   - With TP=8, all-reduce is on the critical path
-   - Check if custom all-reduce (AiterCustomAllReduce) is active
-
-4. **CUDA graph capture** — check if all decode layers are captured in the graph.
-   Any graph breaks force CPU-GPU synchronization.
-
-5. **Scheduling / batching** — for batch=1 decode, check if there's overhead from
-   dynamic batching logic that can be bypassed.
-
-After EACH change, re-run `bash /workspace/bench_glm5.sh` and compare.
+Read the benchmark output logs carefully to identify which backends are active (attention,
+MoE, all-reduce) before optimizing. Only optimize backends that are actually in use.
 
 ## Rules
 
@@ -60,4 +36,3 @@ After EACH change, re-run `bash /workspace/bench_glm5.sh` and compare.
 - Read error messages carefully and fix the root cause.
 - Final metrics must use CUDA graphs (no `--disable-cuda-graph`).
 - Run `bench_glm5.sh` as your LAST command.
-- Do NOT modify benchmark parameters (model, tp, batch, input/output lengths).

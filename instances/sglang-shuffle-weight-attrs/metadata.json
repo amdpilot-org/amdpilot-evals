@@ -1,0 +1,14 @@
+{
+  "name": "sglang-shuffle-weight-attrs",
+  "category": "bugfix",
+  "difficulty": "medium",
+  "source": {
+    "repo": "sgl-project/sglang",
+    "pr": 21825,
+    "merge_commit": "6b876a7710a1512f0f89097dd7d5821002913982"
+  },
+  "description": "MoE weight shuffling loses custom parameter attributes like weight_loader",
+  "task_description_source": "Error description (symptom only, no fix)",
+  "test_harness_type": "runtime",
+  "requires_gpu": false
+}

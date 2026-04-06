@@ -1,0 +1,17 @@
+{
+  "name": "sglang-kscale-vscale-fix",
+  "category": "bugfix",
+  "difficulty": "easy",
+  "source": {
+    "repo": "sgl-project/sglang",
+    "pr": 19736,
+    "merge_commit": "c6850ac30cbea6e751575beb150818e757c710b2"
+  },
+  "description": "extend_attention_fwd() call missing k_scale and v_scale arguments",
+  "task_description_source": "Error trace (symptom only, no fix)",
+  "test_harness_type": "runtime",
+  "requires_gpu": false,
+  "underlying_case_id": "fp8-mla-kscale-vscale-gate",
+  "related_instances": ["sglang-19935-fp8-kscale-fallback"],
+  "relation_note": "Both fix FP8 MLA scale args in aiter_backend.py: kscale-vscale-fix adds missing k_scale/v_scale args to extend_attention_fwd(), #19935 adds k_scale fallback when None"
+}

@@ -1,0 +1,47 @@
+{
+  "name": "vllm-aiter-corruption",
+  "category": "bugfix",
+  "difficulty": "medium-hard",
+  "source": {
+    "repo": "vllm-project/vllm",
+    "issue": 35925
+  },
+  "description": "Fix corrupted responses in Qwen3.5-35B-A3B when AITER attention and MoE paths are enabled.",
+  "bug_type": "persistent",
+  "bug_source": "vllm",
+  "runtime_family": "vllm-dev",
+  "commit_window": {
+    "introducing_pr": null,
+    "fix_pr": null,
+    "pin_commit": null,
+    "note": "Recovered from issue-vllm-35925 rerun materials; exact pre-fix commit window still needs tightening."
+  },
+  "aiter_dependency": true,
+  "model_required": true,
+  "gpu_required": 4,
+  "harness_type": "e2e_test",
+  "affected_files": [
+    "vllm/platforms/rocm.py"
+  ],
+  "tags": [
+    "vllm",
+    "bugfix",
+    "aiter",
+    "corruption",
+    "qwen3.5"
+  ],
+  "previous_runs": [
+    {
+      "experiment_id": "issue-vllm-35925-rerun4",
+      "best_score": 100.0,
+      "trials": 1,
+      "source_dir": "results/issue-vllm-35925-rerun4",
+      "notes": [
+        "Verified historical success recovered from v0.4.0 rerun4 materials."
+      ]
+    }
+  ],
+  "reconstructed_from": [
+    "results/issue-vllm-35925-rerun4"
+  ]
+}

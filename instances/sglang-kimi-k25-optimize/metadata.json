@@ -1,0 +1,9 @@
+{
+  "name": "sglang-kimi-k25-optimize",
+  "type": "optimize",
+  "difficulty": "hard",
+  "repo": "https://github.com/sgl-project/sglang.git",
+  "description": "Optimize Kimi-K2.5 (1T MoE) decode latency on 8x AMD MI355X GPUs using SGLang with TP=8",
+  "gpu_count": 8,
+  "source": "manual: Kimi-K2.5 optimization task for MI355X with AITER backend investigation"
+}

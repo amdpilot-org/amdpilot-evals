@@ -1,0 +1,41 @@
+{
+  "name": "sglang-21614-gibberish-concurrency",
+  "category": "bugfix",
+  "difficulty": "medium-hard",
+  "source": {
+    "repo": "sgl-project/sglang",
+    "issue": 21614,
+    "pr": null,
+    "merge_commit": null,
+    "pinned_commit": "3937a07b177274da508cb33391fff50075f69347"
+  },
+  "description": "Qwen3.5-397B-A17B-FP8 produces gibberish at batch concurrency >= 32 on AMD MI355X",
+  "expected_files_changed": 1,
+  "affected_files": [
+    "python/sglang/srt/managers/schedule_batch.py",
+    "python/sglang/srt/managers/tp_worker_overlap_thread.py"
+  ],
+  "requires_gpu": true,
+  "requires_model_download": true,
+  "model": "Qwen/Qwen3.5-397B-A17B-FP8",
+  "gpu_count": 4,
+  "tags": ["rocm", "bugfix", "sglang", "concurrency", "overlap-schedule"],
+  "previous_runs": [
+    {
+      "experiment_id": "issue-sglang-21614",
+      "system_version": "pre-0.4.0",
+      "best_score": 0,
+      "trials": 4,
+      "issues": ["unsafe kill pattern (agent self-kill)", "unset PYTHONPATH", "unpinned commit", "all trials N/A score"]
+    },
+    {
+      "experiment_id": "issue-sglang-21614-run1",
+      "system_version": "pre-0.4.0",
+      "best_score": 0,
+      "trials": 8,
+      "issues": ["same as above — all verification_failed"]
+    }
+  ],
+  "reformulated": true,
+  "reformulation_notes": "Fixed unsafe kill pattern (lesson #4), removed unset PYTHONPATH, pinned commit to 3937a07, added preflight_timeout 1200s, standardized volume path, added preexec_fn for server process isolation"
+}

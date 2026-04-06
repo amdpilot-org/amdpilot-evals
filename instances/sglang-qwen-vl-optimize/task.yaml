@@ -1,0 +1,56 @@
+name: sglang-qwen-vl-optimize
+type: optimize
+repo: https://github.com/Arist12/sglang.git
+repo_branch: main
+base_image: amdpilot-eval-sglang-qwen-vl-optimize
+
+model_endpoint:
+  model: "Qwen/Qwen3.5-397B-A17B"
+  base_url: "http://10.235.24.154:30000/v1"
+  api_key: "EMPTY"
+
+kimi_cli:
+  thinking: true
+
+container:
+  name: amdpilot_qwen_vl
+  gpu: "0"
+  shm_size: 64g
+  devices: [/dev/kfd, /dev/dri]
+  env:
+    TOKENIZERS_PARALLELISM: "false"
+    GPU_COREDUMP_ENABLE: "0"
+    SGLANG_DISABLE_CUDNN_CHECK: "1"
+  volumes:
+    - "/home/yikzhang/huggingface:/root/.cache/huggingface"
+
+workload:
+  description: "Optimize SGLang serving throughput for Qwen3-VL-8B-Instruct on AMD MI355X to match vLLM"
+  function: "sglang.bench_serving image"
+  framework: PyTorch
+
+benchmark:
+  command: "bash /workspace/bench_qwen_vl.sh"
+  metric_name: output_throughput_tok_s
+  metric_pattern: 'Output throughput \(tok/s\):\s+([\d.]+)'
+  metric_direction: higher
+  fixed_params:
+    model: Qwen/Qwen3-VL-8B-Instruct
+    concurrency: 16
+    num_prompts: 128
+    image_resolution: 720p
+  valid_context_pattern: "concurrency=16"
+  output_format: "Output throughput (tok/s): <value> | concurrency=16 model=Qwen3-VL-8B"
+
+task:
+  description_file: evals/instances/sglang-qwen-vl-optimize/task_description.md
+
+stages: auto
+
+max_retries_per_stage: 5
+max_total_hours: 8
+supervisor_mode: agent
+nudge_agent: oss
+
+slack:
+  enabled: true

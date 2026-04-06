@@ -1,0 +1,14 @@
+{
+  "name": "sglang-mla-ps-kernel-guard",
+  "category": "bugfix",
+  "difficulty": "medium",
+  "source": {
+    "repo": "sgl-project/sglang",
+    "pr": 20409,
+    "merge_commit": "93422f27d6f41c2cfb0315c9569c98fc3a55a322"
+  },
+  "description": "Non-MLA models crash with AttributeError on max_split_per_batch in aiter_backend",
+  "task_description_source": "Error trace (symptom only, no fix)",
+  "test_harness_type": "runtime",
+  "requires_gpu": false
+}
