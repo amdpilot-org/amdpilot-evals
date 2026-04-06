@@ -44,7 +44,21 @@ _PROMPTS = [
     "Explain photosynthesis step by step.",
     "Write a brief history of the internet.",
     "What are three benefits of regular exercise?",
+    "What causes rainbows to appear in the sky?",
+    "Describe how a car engine works.",
+    "What are the planets in our solar system in order?",
+    "Explain how email works from sender to receiver.",
+    "What is the difference between weather and climate?",
+    "Describe the water cycle in detail.",
+    "How does WiFi technology work?",
+    "What were the main causes of World War I?",
+    "Explain how vaccines work to protect against disease.",
+    "What is machine learning and how does it differ from traditional programming?",
+    "Describe the process of making chocolate from cacao beans.",
+    "What are the main types of renewable energy sources?",
 ]
+
+_NUM_ROUNDS = 2  # Both rounds must pass for score 100.0
 
 
 def _kill_existing():
@@ -130,35 +144,48 @@ def main():
             return
 
         print("  Server is ready.\n")
-        print("--- Sending inference requests ---")
 
-        total = len(_PROMPTS)
-        good = 0
-        consecutive_failures = 0
+        round_scores = []
+        for rnd in range(1, _NUM_ROUNDS + 1):
+            print(f"--- Round {rnd}/{_NUM_ROUNDS}: Sending {len(_PROMPTS)} inference requests ---")
 
-        for i, prompt in enumerate(_PROMPTS):
-            print(f"\n  Request {i + 1}/{total}: {prompt[:50]}...")
-            response = _send_request(prompt)
+            total = len(_PROMPTS)
+            good = 0
+            consecutive_failures = 0
 
-            if response is None:
-                print("    ERROR: no response received (timeout or server crash)")
-                consecutive_failures += 1
-            elif _is_garbage(response):
-                print(f"    GARBAGE: {response[:120]}...")
-                consecutive_failures += 1
-            else:
-                print(f"    OK: {response[:120]}...")
-                good += 1
-                consecutive_failures = 0
+            for i, prompt in enumerate(_PROMPTS):
+                print(f"\n  [{rnd}] Request {i + 1}/{total}: {prompt[:50]}...")
+                response = _send_request(prompt)
 
-            if consecutive_failures >= 2:
-                print(f"\n  Short-circuiting: {consecutive_failures} consecutive failures")
+                if response is None:
+                    print("    ERROR: no response received (timeout or server crash)")
+                    consecutive_failures += 1
+                elif _is_garbage(response):
+                    print(f"    GARBAGE: {response[:120]}...")
+                    consecutive_failures += 1
+                else:
+                    print(f"    OK: {response[:120]}...")
+                    good += 1
+                    consecutive_failures = 0
+
+                if consecutive_failures >= 2:
+                    print(f"\n  Short-circuiting: {consecutive_failures} consecutive failures")
+                    break
+
+            round_pct = good / total * 100.0
+            round_scores.append(round_pct)
+            print(f"\n  Round {rnd}: {good}/{total} coherent ({round_pct:.1f}%)")
+
+            if round_pct < 100.0:
+                print(f"  Round {rnd} failed — skipping remaining rounds")
                 break
 
         print(f"\n--- Results ---")
-        print(f"  {good}/{total} responses were coherent")
+        for rnd, pct in enumerate(round_scores, 1):
+            print(f"  Round {rnd}: {pct:.1f}%")
 
-        score = good / total * 100.0
+        # Score is 100.0 only if ALL rounds pass at 100%
+        score = 100.0 if all(s == 100.0 for s in round_scores) and len(round_scores) == _NUM_ROUNDS else min(round_scores)
         print(f"\nSCORE: {score:.1f}")
 
     finally:
