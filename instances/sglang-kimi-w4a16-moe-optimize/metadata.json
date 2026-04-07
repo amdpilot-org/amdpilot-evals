@@ -1,0 +1,18 @@
+{
+  "name": "sglang-kimi-w4a16-moe-optimize",
+  "type": "optimize",
+  "difficulty": "hard",
+  "repo": "https://github.com/sgl-project/sglang.git",
+  "description": "Fix W4A16 MoE dispatch and optimize Kimi-K2.5 (1T MoE, compressed-tensors INT4) decode latency on 8x AMD MI355X GPUs using SGLang with TP=8",
+  "gpu_count": 8,
+  "source": "AMD_OSS issue #4: kimi2.5 model support — missing kernels, dispatch fix + throughput optimization",
+  "requires_gpu": true,
+  "tags": [
+    "rocm",
+    "optimize",
+    "sgl-project",
+    "moe",
+    "quantization",
+    "w4a16"
+  ]
+}
