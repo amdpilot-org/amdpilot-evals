@@ -13,15 +13,11 @@ import textwrap
 VENV_PYTHON = "/opt/venv/bin/python3"
 AITER_PATH = "/sgl-workspace/aiter"
 
-checks_passed = 0
-checks_total = 0
+check_results = []  # list of (name, passed) tuples
 
 
 def check(name, condition, detail=""):
-    global checks_passed, checks_total
-    checks_total += 1
-    if condition:
-        checks_passed += 1
+    check_results.append((name, bool(condition)))
     status = "PASS" if condition else "FAIL"
     msg = f"  [{status}] {name}"
     if detail and not condition:
@@ -153,75 +149,83 @@ if rc == 0 and "RESULT:" in out:
     result_line = [l for l in out.splitlines() if l.startswith("RESULT:")][0]
     result = json.loads(result_line[7:])
     has_sentinels = result["has_oob"]
+    # Accept both outcomes: sentinels present (consumer-side fix needed)
+    # or sentinels absent (producer-side fix applied — also valid)
     check(
-        "moe_sorting produces sentinel token IDs >= num_tokens",
-        has_sentinels,
-        f"max_id={result['max_id']}, num_tokens={result['num_tokens']}",
+        "moe_sorting runs successfully",
+        True,
     )
     if has_sentinels:
         print(
-            f"    {result['active_oob']}/{result['active_total']} active entries are OOB "
-            f"(max_id={result['max_id']}, num_tokens={result['num_tokens']})"
+            f"    Sentinels present: {result['active_oob']}/{result['active_total']} "
+            f"active entries are OOB (max_id={result['max_id']}, num_tokens={result['num_tokens']})"
+        )
+    else:
+        print(
+            f"    No OOB sentinels detected — producer-side fix applied"
         )
 else:
     check(
-        "moe_sorting produces sentinel token IDs >= num_tokens",
+        "moe_sorting runs successfully",
         False,
         f"Script failed: rc={rc}, stderr={err[:200]}",
     )
 
 # --------------------------------------------------------------------------
-# Check 3: OOB sorted_ids cause GPU memory fault (demonstrates danger)
-#
-# Use raw PyTorch indexing with OOB indices from moe_sorting to prove
-# the condition IS dangerous — PyTorch bounds checking catches it.
+# Check 3: OOB indexing danger proof (if sentinels present)
 # --------------------------------------------------------------------------
-print("\n--- Check 3: OOB indexing causes crash (danger proof) ---")
+print("\n--- Check 3: OOB indexing danger proof ---")
 
-OOB_DANGER = textwrap.dedent("""\
-    import sys
-    sys.path.insert(0, "/sgl-workspace/aiter")
-    import torch
-    from aiter.fused_moe import moe_sorting
+if has_sentinels:
+    OOB_DANGER = textwrap.dedent("""\
+        import sys
+        sys.path.insert(0, "/sgl-workspace/aiter")
+        import torch
+        from aiter.fused_moe import moe_sorting
 
-    num_tokens = 5
-    model_dim = 2048
-    device = "cuda:0"
+        num_tokens = 5
+        model_dim = 2048
+        device = "cuda:0"
 
-    hidden_states = torch.randn(num_tokens, model_dim,
-                                dtype=torch.bfloat16, device=device)
+        hidden_states = torch.randn(num_tokens, model_dim,
+                                    dtype=torch.bfloat16, device=device)
 
-    topk_ids = torch.randint(0, 8, (num_tokens, 2),
-                             dtype=torch.int32, device=device)
-    topk_weights = torch.ones(num_tokens, 2, dtype=torch.float32,
-                              device=device)
-    sorted_ids, _, _, _, _ = moe_sorting(
-        topk_ids, topk_weights, 8, model_dim, torch.bfloat16, 32)
+        topk_ids = torch.randint(0, 8, (num_tokens, 2),
+                                 dtype=torch.int32, device=device)
+        topk_weights = torch.ones(num_tokens, 2, dtype=torch.float32,
+                                  device=device)
+        sorted_ids, _, _, _, _ = moe_sorting(
+            topk_ids, topk_weights, 8, model_dim, torch.bfloat16, 32)
 
-    # Convert to long for PyTorch indexing
-    indices = sorted_ids.long()
-    max_idx = indices.max().item()
+        # Convert to long for PyTorch indexing
+        indices = sorted_ids.long()
+        max_idx = indices.max().item()
 
-    if max_idx >= num_tokens:
-        # Try to index with OOB values — should crash or raise error
-        try:
-            _ = hidden_states[indices]
-            torch.cuda.synchronize()
-            print("OOB_NO_ERROR")  # Bad — OOB access succeeded
-        except (IndexError, RuntimeError) as e:
-            print(f"OOB_CAUGHT: {e}")
-    else:
-        print("NO_OOB_VALUES")
-""")
+        if max_idx >= num_tokens:
+            # Try to index with OOB values — should crash or raise error
+            try:
+                _ = hidden_states[indices]
+                torch.cuda.synchronize()
+                print("OOB_NO_ERROR")  # Bad — OOB access succeeded
+            except (IndexError, RuntimeError) as e:
+                print(f"OOB_CAUGHT: {e}")
+        else:
+            print("NO_OOB_VALUES")
+    """)
 
-rc3, out3, err3 = run_gpu_script(OOB_DANGER, timeout=120)
-# The subprocess should crash (GPU fault) or raise an error
-oob_crashes = rc3 != 0 or "OOB_CAUGHT" in out3
-check(
-    "OOB sorted_ids cause error when used as indices (danger proof)",
-    oob_crashes,
-    "OOB indexing succeeded without error — unexpected",
-)
+    rc3, out3, err3 = run_gpu_script(OOB_DANGER, timeout=120)
+    oob_crashes = rc3 != 0 or "OOB_CAUGHT" in out3
+    check(
+        "OOB sorted_ids cause error when used as indices",
+        oob_crashes,
+        "OOB indexing succeeded without error — unexpected",
+    )
+else:
+    # Producer-side fix: no OOB sentinels, so danger proof is moot
+    check(
+        "OOB danger proof (skipped — no sentinels from producer-side fix)",
+        True,
+    )
 
 # --------------------------------------------------------------------------
 # Check 4: kernel inputs are within valid bounds (core test)
@@ -519,29 +523,22 @@ else:
 # --------------------------------------------------------------------------
 print()
 
-# Weighted scoring: Check 4 = 60 pts, others = 10 pts each (40 pts total)
-CORE_CHECK_IDX = 4  # 0-indexed: Check 4 is the 5th check() call (index 4)
-check_weights = []
-for i in range(checks_total):
-    check_weights.append(60.0 if i == CORE_CHECK_IDX else 40.0 / max(checks_total - 1, 1))
+# Check 4 (kernel input bounds, index 4) = 60 pts.
+# All other checks share the remaining 40 pts equally.
+CORE_CHECK_IDX = 4
+checks_total = len(check_results)
+checks_passed = sum(1 for _, passed in check_results if passed)
+non_core_count = max(checks_total - 1, 1)
+non_core_weight = 40.0 / non_core_count
 
-# Reconstruct pass/fail per check from the global counters
-# (we tracked them in order, so check i passed iff checks_passed > i at that point)
-# Simpler: just use the variables we have
 weighted_score = 0.0
-# We know checks 0..CORE_CHECK_IDX-1 all passed (they're prerequisites)
-# Check CORE_CHECK_IDX passed iff all_bounded (from Check 4 result)
-# Checks after CORE_CHECK_IDX: we know the total passed count
-prereq_count = CORE_CHECK_IDX  # checks before the core check
-post_count = checks_total - CORE_CHECK_IDX - 1  # checks after core check
-post_passed = checks_passed - prereq_count - (1 if "ALL_BOUNDED: True" in (out4 if rc4 == 0 else "") else 0)
-
-for i in range(prereq_count):
-    weighted_score += check_weights[i]  # all prereqs passed
-if rc4 == 0 and "ALL_BOUNDED: True" in out4:
-    weighted_score += 60.0  # core check passed
-if post_count > 0:
-    weighted_score += (post_passed / post_count) * sum(check_weights[CORE_CHECK_IDX + 1:])
+for i, (name, passed) in enumerate(check_results):
+    if not passed:
+        continue
+    if i == CORE_CHECK_IDX:
+        weighted_score += 60.0
+    else:
+        weighted_score += non_core_weight
 
 weighted_score = min(100.0, max(0.0, weighted_score))
 print(f"Results: {checks_passed}/{checks_total} checks passed")
