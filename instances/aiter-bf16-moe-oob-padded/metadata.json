@@ -1,0 +1,23 @@
+{
+  "name": "aiter-bf16-moe-oob-padded",
+  "category": "bugfix",
+  "difficulty": "medium",
+  "source": {
+    "repo": "ROCm/aiter",
+    "issue": "https://github.com/zyzshishui/AMD_OSS/issues/5"
+  },
+  "description": "BF16 CK 2-stage MoE kernel OOB on padded/sentinel rows in partially filled blocks",
+  "expected_loc_changed": 5,
+  "expected_files_changed": 1,
+  "requires_gpu": true,
+  "requires_model_download": false,
+  "tags": [
+    "rocm",
+    "bugfix",
+    "aiter",
+    "moe",
+    "bf16",
+    "oob",
+    "memory-fault"
+  ]
+}
