@@ -1,0 +1,25 @@
+{
+  "name": "sglang-kimi-w4a16-moe-dispatch",
+  "category": "bugfix",
+  "difficulty": "medium",
+  "source": {
+    "repo": "sgl-project/sglang",
+    "pr": 17863,
+    "merge_commit": "1953efb60e82250cd704199833dcaf5075928f29",
+    "parent_commit": "1953efb60e82250cd704199833dcaf5075928f29~1"
+  },
+  "description": "W4A16-quantized MoE dispatch routes to Marlin (NVIDIA-only) on ROCm, crashing Kimi K2.5",
+  "task_description_source": "Symptom only (model fails to load on ROCm with missing kernel error), no solution revealed",
+  "test_harness_type": "runtime (dispatch routing + GPU forward pass with synthetic W4A16 tensors)",
+  "expected_loc_changed": 74,
+  "expected_files_changed": 2,
+  "requires_gpu": true,
+  "requires_model_download": false,
+  "tags": [
+    "rocm",
+    "bugfix",
+    "sgl-project",
+    "moe",
+    "quantization"
+  ]
+}
