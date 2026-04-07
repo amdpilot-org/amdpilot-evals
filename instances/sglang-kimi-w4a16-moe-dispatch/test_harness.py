@@ -575,7 +575,7 @@ def main():
     c3_keys += [k for k in scores if k.startswith("Output shape")]
     c3 = sum(scores.get(k, 0) for k in c3_keys)
     c4_keys = [k for k in scores
-               if k.startswith(("Cosine", "Output is input", "M="))]
+               if k.startswith(("Cosine", "Relative L2", "Output is input", "M="))]
     c4 = sum(scores.get(k, 0) for k in c4_keys)
     print(f"  Check 1 (Dispatch):    {c1:>3} / 25")
     print(f"  Check 2 (Weights):     {c2:>3} / 25")
@@ -585,7 +585,7 @@ def main():
     print(f"  Total:                 {total:>3} / 100")
     print()
     print(f"SCORE: {total:.1f}")
-    sys.exit(0 if total >= 20 else 1)
+    sys.exit(0 if total == 100 else 1)
 
 
 if __name__ == "__main__":
