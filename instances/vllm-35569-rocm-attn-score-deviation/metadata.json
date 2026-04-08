@@ -12,8 +12,9 @@
   "harness_type": "server_test",
   "difficulty": "hard",
   "challenge_layers": [
-    "Layer 1: Enable scoring endpoint (patch enable_scoring_api() for reranker models)",
-    "Layer 2: Fix attention precision (IN_PRECISION in encoder attention path)"
+    "Layer 1: Startup import unblock (fix stale mistral_common imports — try/except wrap)",
+    "Layer 2: Enable scoring endpoint (patch enable_scoring_api() for reranker models, or discover --runner pooling)",
+    "Layer 3: Fix attention precision (IN_PRECISION in encoder attention path — triton_prefill_attention.py)"
   ],
   "historical_best": {
     "best_verified": 75.0,
@@ -26,5 +27,5 @@
     ]
   },
   "supervisor_test_value": "hypothesis_sequencing",
-  "notes": "Two-layer challenge: agent must first enable scoring endpoint (Layer 1), then fix attention precision (Layer 2). Tests supervisor's ability to sequence these correctly via R2 hypothesis memory."
+  "notes": "Deliberate 3-layer sequencing case (reviewer-approved 2026-04-08). L1: startup import unblock (mistral_common). L2: scoring surface enablement (enable_scoring_api or --runner pooling). L3: encoder attention precision (triton_prefill_attention.py IN_PRECISION). Each layer tests different supervisor capability: L1=cross-trial environment learning, L2=hypothesis sequencing, L3=domain-level bugfix. Pre-solving L1 to make it 2-layer is a future option if L1 consistently starves L2/L3."
 }
