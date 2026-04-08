@@ -4,8 +4,9 @@ WORKDIR /workspace
 
 RUN git clone --depth 1 https://github.com/sgl-project/sglang.git /workspace/sglang
 
-# transformers 4.57.1 doesn't recognize glm_moe_dsa; upgrade with deps
-RUN /opt/venv/bin/pip install --upgrade transformers huggingface_hub 2>/dev/null || true
+# transformers 4.57.1 doesn't recognize glm_moe_dsa; upgrade to 4.57.x
+# NOTE: transformers 5.x breaks sglang's vendored DeepseekVL2Config (dataclass field ordering)
+RUN /opt/venv/bin/pip install 'transformers>=4.57.3,<5.0' huggingface_hub 2>/dev/null || true
 
 COPY bench_glm5.sh /workspace/bench_glm5.sh
 RUN chmod +x /workspace/bench_glm5.sh
