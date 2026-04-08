@@ -13,7 +13,7 @@ if [ -f /workspace/bench_config.env ]; then
 fi
 
 OUTPUT=$(/opt/venv/bin/python3 -m sglang.bench_one_batch \
-    --model-path zai-org/GLM-5-FP8 \
+    --model-path /data/GLM-5-FP8 \
     --tensor-parallel-size 8 \
     --batch-size 1 \
     --input-len 1024 \

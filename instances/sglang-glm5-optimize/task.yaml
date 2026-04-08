@@ -24,6 +24,7 @@ container:
     # Local NVMe copy for fast loading (~5min vs ~60min on NFS).
     # Change to "/mnt/dcgpuval/huggingface:/root/.cache/huggingface" on other machines.
     - "/home/yikzhang/huggingface:/root/.cache/huggingface"
+    - "/data/GLM-5-FP8:/data/GLM-5-FP8"  # 705G model on NVMe
 
 workload:
   description: "Optimize decode latency for GLM-5-FP8 MoE model on AMD MI355X with TP=8"
