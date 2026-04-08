@@ -28,11 +28,18 @@ benchmark:
   metric_pattern: 'SCORE:\s+([\d.]+)'
   metric_direction: higher
   preflight_timeout: 1200
+  verify_timeout_min: 1200  # 397B model on TP=4 takes 10-15 min to load
 
 task:
   description_file: evals/instances/sglang-21614-gibberish-concurrency/task_description.md
 
+environment_notes:
+  - "L1: The bug only manifests at concurrency >= 32. --disable-overlap-schedule is a known workaround, suggesting the bug is in the overlap scheduling logic (schedule_batch.py / tp_worker_overlap_thread.py)."
+  - "L2: Server startup with 397B model takes 10-15 minutes. Do not restart the server repeatedly — make the fix first based on code analysis, then verify once."
+
 stages: auto
+supervisor_mode: agent
+nudge_agent: oss
 
 kimi_cli:
   repo_url: "https://github.com/Arist12/kimi-cli.git"

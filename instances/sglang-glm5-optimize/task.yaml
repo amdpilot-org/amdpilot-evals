@@ -35,6 +35,7 @@ benchmark:
   metric_name: decode_median_ms
   metric_pattern: 'Decode median \(ms\):\s+([\d.]+)'
   metric_direction: lower
+  verify_timeout_min: 1800  # GLM-5-FP8 (705G) needs ~20min for model load + compile + benchmark
   fixed_params:
     model: zai-org/GLM-5-FP8
     tp: 8
