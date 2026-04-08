@@ -15,6 +15,7 @@ disabled.
 - Python: `/usr/bin/python3`
 - GPUs: 4x MI355X available in the container, but the harness reproduces with `TP=1`
 - The preinstalled wheel has been removed; edits under `/workspace/vllm` are the runtime source of truth
+- The image already ships with source-matched vLLM native extensions (`_C.abi3.so`, `_rocm_C.abi3.so`, `_moe_C.abi3.so`, `cumem_allocator.abi3.so`). If those imports fail, treat that as environment drift rather than the intended bug surface.
 
 ## Reproduction
 
@@ -40,4 +41,5 @@ appears under the AITER-enabled path while the disabled baseline stays clean.
 - Do **not** modify `test_harness.py`
 - Do **not** blank or clear `PYTHONPATH`
 - Use the safe kill pattern shown above; never use broad `pkill` / `kill $(pgrep ...)`
+- Do **not** treat rebuilding missing vLLM native extensions as the fix; this case is meant to test the AITER corruption path itself, not image bootstrap
 - Keep the fix minimal and focused on the corruption path
