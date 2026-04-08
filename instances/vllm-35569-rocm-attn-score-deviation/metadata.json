@@ -1,0 +1,30 @@
+{
+  "bug_source": "vllm",
+  "bug_type": "persistent",
+  "issue_url": "https://github.com/vllm-project/vllm/issues/35569",
+  "commit_window": {
+    "pin_commit": "d56e952"
+  },
+  "aiter_dependency": false,
+  "model_required": true,
+  "model_name": "Qwen/Qwen3-VL-Reranker-2B",
+  "gpu_required": 1,
+  "harness_type": "server_test",
+  "difficulty": "hard",
+  "challenge_layers": [
+    "Layer 1: Enable scoring endpoint (patch enable_scoring_api() for reranker models)",
+    "Layer 2: Fix attention precision (IN_PRECISION in encoder attention path)"
+  ],
+  "historical_best": {
+    "best_verified": 75.0,
+    "total_trials_attempted": 20,
+    "runs": [
+      {"name": "original", "trials": 8, "best_verified": 0},
+      {"name": "rerun3", "trials": 4, "best_verified": 0},
+      {"name": "rerun4", "trials": 6, "best_verified": 75},
+      {"name": "clean2", "trials": 2, "best_verified": 0, "notes": "formulation-blocked (stale env var, 600s timeout)"}
+    ]
+  },
+  "supervisor_test_value": "hypothesis_sequencing",
+  "notes": "Two-layer challenge: agent must first enable scoring endpoint (Layer 1), then fix attention precision (Layer 2). Tests supervisor's ability to sequence these correctly via R2 hypothesis memory."
+}

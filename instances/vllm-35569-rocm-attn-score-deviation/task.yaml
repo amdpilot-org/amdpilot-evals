@@ -1,0 +1,51 @@
+name: vllm-35569-rocm-attn-score-deviation
+type: bugfix
+repo: https://github.com/vllm-project/vllm.git
+repo_branch: main
+base_image: vllm-35569-rerun4:base
+
+model_endpoint:
+  model: "Qwen/Qwen3.5-397B-A17B"
+  base_url: "http://10.235.24.154:30000/v1"
+  api_key: "EMPTY"
+
+kimi_cli:
+  thinking: true
+
+container:
+  name: amdpilot_vllm_35569_v2
+  gpu: "0"
+  shm_size: 128g
+  devices: [/dev/kfd, /dev/dri]
+  env:
+    TOKENIZERS_PARALLELISM: "false"
+    GPU_COREDUMP_ENABLE: "0"
+    HSA_DISABLE_COREDUMP: "1"
+  volumes:
+    - "/home/yikzhang/huggingface:/root/.cache/huggingface"
+
+workload:
+  description: "Fix ROCM_ATTN backend ~8.5% systematic score deviation on Qwen3-VL-Reranker pooling"
+  framework: PyTorch
+
+benchmark:
+  command: "/usr/bin/python3 /workspace/test_harness.py"
+  metric_name: score
+  metric_pattern: 'SCORE:\s+([\d.]+)'
+  metric_direction: higher
+  verify_timeout_min: 1200  # reranker model cold reload on MI355X takes ~600-700s
+
+task:
+  description_file: evals/instances/vllm-35569-rocm-attn-score-deviation/task_description.md
+
+environment_notes:
+  - "L1: The base image has a stale mistral_common version. If the server fails to start with NamedToolChoice/ToolChoiceEnum import errors, the agent should wrap those imports in try/except blocks."
+  - "L1: The scoring endpoint (/v1/score) is NOT pre-enabled. The agent must trace and fix enable_scoring_api() in vllm/entrypoints/pooling/utils.py to support reranker models (num_labels=2)."
+  - "L2: This model uses encoder attention path (triton_prefill_attention.py) for pooling, NOT the decoder path (prefix_prefill.py). The attention precision fix may need to target the encoder path."
+
+stages: auto
+
+max_retries_per_stage: 5
+max_total_hours: 6
+supervisor_mode: agent
+nudge_agent: oss
