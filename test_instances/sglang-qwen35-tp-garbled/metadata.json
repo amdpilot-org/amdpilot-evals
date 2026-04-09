@@ -1,21 +1,9 @@
 {
-  "name": "aiter-fp8-blockscale-stream-dispatch",
+  "name": "sglang-qwen35-tp-garbled",
   "category": "bugfix",
   "difficulty": "hard",
-  "source": {
-    "repo": "ROCm/aiter",
-    "issue": null,
-    "pr": 2520,
-    "upstream_issue": "sgl-project/sglang#21566"
-  },
-  "description": "FP8 block-scale GEMM kernel launches on default HIP stream instead of caller's stream, causing data races and incorrect output under overlap scheduling",
-  "task_description_source": "GitHub issue sgl-project/sglang#21566 (symptom only, no fix details)",
   "test_harness_type": "behavioral",
   "requires_gpu": true,
-  "gpu_count": 1,
-  "base_image": "lmsysorg/sglang-rocm:v0.5.9-rocm720-mi35x-20260326",
-  "version_pins": {
-    "rocm": "7.2",
-    "note": "Bug is nullptr passed to stream_config in CK-tile blockscale GEMM kernel launch. Base image has the bug; fix was merged in aiter PR#2520 after this image."
-  }
+  "gpu_count": 4,
+  "base_image": "rocm/sgl-dev:v0.5.10rc0-rocm720-mi35x-20260406"
 }

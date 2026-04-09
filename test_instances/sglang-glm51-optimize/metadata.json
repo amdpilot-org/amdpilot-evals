@@ -2,8 +2,8 @@
   "name": "sglang-glm51-optimize",
   "type": "optimize",
   "difficulty": "hard",
-  "repo": "https://github.com/sgl-project/sglang.git",
-  "description": "Optimize GLM-5.1-FP8 decode latency on 8× AMD MI355X GPUs using SGLang with TP=8",
+  "description": "Optimize GLM-5.1-FP8 decode latency on 8x AMD MI355X GPUs using SGLang with TP=8",
+  "requires_gpu": true,
   "gpu_count": 8,
-  "source": "adapted from xsun_wip branch glm5-optimize job for MI355X"
+  "base_image": "rocm/sgl-dev:v0.5.10rc0-rocm720-mi35x-20260406"
 }
