@@ -44,7 +44,7 @@ benchmark:
   output_format: "Decode median (ms): <value> | tp=8 batch=1"
 
 task:
-  description_file: evals/instances/sglang-glm51-optimize/task_description.md
+  description_file: evals/test_instances/sglang-glm51-optimize/task_description.md
 
 stages: auto
 
