@@ -1,243 +1,211 @@
 #!/usr/bin/env python3
-"""Test harness for vllm PR #34570: AITER paged_attention_v1 decode fallback
-for small head sizes.
+"""Behavioral test: AITER paged attention fallback for small head sizes.
 
-Bug: The ll4mi kernel used in AITER's paged_attention_v1 has a minimum
-head size requirement. Models with smaller head sizes (e.g., head_size=32)
-crash with an obscure kernel error.
-
-Tests:
-  1. A head size threshold constant exists to guard the kernel path.
-  2. Small head sizes are dispatched to a fallback attention path.
-  3. The fallback attention kernel is imported and callable.
-  4. Fallback dispatch occurs before other specialized paths.
-  5. Fallback is called with the correct attention arguments.
+Models with head_size < 64 must fall back to unified_attention (Triton)
+instead of ll4mi (native HIP kernel, requires head_size >= 64). Pre-fix
+code crashed with an error from the ll4mi kernel when head_size was too small.
 """
-import ast
-import os
+import subprocess
 import sys
+import os
+import textwrap
 
-checks_passed = 0
-checks_total = 0
-
-AITER_FA_PATH = "/workspace/vllm/vllm/v1/attention/backends/rocm_aiter_fa.py"
-
-
-def check(name, condition, detail=""):
-    global checks_passed, checks_total
-    checks_total += 1
-    if condition:
-        checks_passed += 1
-    status = "PASS" if condition else "FAIL"
-    msg = f"  [{status}] {name}"
-    if detail and not condition:
-        msg += f": {detail}"
-    print(msg)
-    return condition
+NUM_CHECKS = 3
+results = {}
 
 
-print("=" * 60)
-print("vllm-rocm-aiter-headsize-fallback test harness (PR #34570)")
-print("=" * 60)
+def run_subprocess(test_code: str) -> tuple:
+    proc = subprocess.run(
+        [sys.executable, "-c", test_code],
+        capture_output=True, text=True, timeout=120, env=os.environ.copy()
+    )
+    return proc.returncode == 0, proc.stdout + proc.stderr
 
-# ---------------------------------------------------------------------------
-# Check 0: target file exists
-# ---------------------------------------------------------------------------
-if not check("rocm_aiter_fa.py exists", os.path.isfile(AITER_FA_PATH)):
-    print(f"\nSCORE: 0.0")
-    sys.exit(1)
 
+# CHECK 1: Import succeeds
+check1_code = textwrap.dedent("""
+import torch
+if not torch.cuda.is_available() or 'gfx9' not in torch.cuda.get_device_properties(0).gcnArchName:
+    print("IMPORT_SKIP")
+    exit(1)
 try:
-    with open(AITER_FA_PATH) as f:
-        source = f.read()
-    tree = ast.parse(source)
-except SyntaxError as e:
-    check("rocm_aiter_fa.py is valid Python", False, str(e))
-    print(f"\nSCORE: 0.0")
-    sys.exit(1)
+    from vllm.v1.attention.backends.rocm_aiter_fa import AiterFlashAttentionBackend
+    print("IMPORT_OK")
+except Exception as e:
+    print(f"IMPORT_FAIL: {e}")
+    exit(1)
+""")
+ok, out = run_subprocess(check1_code)
+if "IMPORT_SKIP" in out:
+    print("SCORE: 0 (IMPORT_SKIP — not ROCm gfx9, auto-FAIL)")
+    sys.exit(0)
+results[1] = ok and "IMPORT_OK" in out
+print(f"CHECK 1: {'PASS' if results[1] else 'FAIL'} — AiterFlashAttentionBackend import")
 
-# ---------------------------------------------------------------------------
-# Check 1: _MIN_HEAD_SIZE_FOR_LL4MI constant exists with value 64.
-#
-# Before fix: no head_size check — ll4mi kernel crashes on head_size < 64.
-# After fix: explicit constant defines the minimum head_size threshold.
-# ---------------------------------------------------------------------------
-print("\n--- Check 1: Head size threshold constant ---")
+# CHECK 2: Run actual attention forward at head_size=32 (triggers unified_attention fallback)
+check2_code = textwrap.dedent("""
+import torch, sys, inspect
 
-has_min_head_constant = False
-min_head_value_64 = False
+from vllm.v1.attention.backends.rocm_aiter_fa import AiterFlashAttentionBackend
 
-# Check for the constant in the source (could be module-level or method-local)
-for node in ast.walk(tree):
-    if isinstance(node, ast.Assign):
-        for target in node.targets:
-            if isinstance(target, ast.Name) and "MIN_HEAD_SIZE" in target.id:
-                has_min_head_constant = True
-                if isinstance(node.value, ast.Constant) and node.value.value == 64:
-                    min_head_value_64 = True
+device = torch.device("cuda:0")
+head_size = 32  # Below _MIN_HEAD_SIZE_FOR_LL4MI (64), must trigger fallback
+num_heads = 8
+num_kv_heads = 2
+scale = head_size ** -0.5
 
-check(
-    "_MIN_HEAD_SIZE_FOR_LL4MI constant exists",
-    has_min_head_constant,
-    "No head_size threshold constant found — ll4mi kernel will crash on small head sizes",
-)
+# Step 1: Verify backend reports support
+if not AiterFlashAttentionBackend.supports_head_size(head_size):
+    print("HEADSIZE32_NOT_SUPPORTED")
+    sys.exit(0)
 
-check(
-    "Head size threshold is 64 (16 * NWARPS=4)",
-    min_head_value_64,
-    "Expected threshold of 64 for ll4mi kernel compatibility",
-)
-
-# ---------------------------------------------------------------------------
-# Check 2: forward method has head_size comparison that routes to fallback.
-#
-# Before fix: decode path goes directly to paged_attention_v1 or shuffle path.
-# After fix: head_size < threshold check routes to unified_attention first.
-# ---------------------------------------------------------------------------
-print("\n--- Check 2: Head size dispatch in forward ---")
-
-# Find the forward method in the impl class and look for head_size comparison
-has_headsize_check = False
-has_unified_import = False
-has_unified_call = False
-
-# Search for the decode section of forward that has the head_size check
-source_lines = source.splitlines()
-
-# Look for the pattern: use_unified_attention = self.head_size < _MIN_HEAD_SIZE
-for node in ast.walk(tree):
-    if isinstance(node, ast.Assign):
-        for target in node.targets:
-            if isinstance(target, ast.Name) and "use_unified_attention" in target.id:
-                has_headsize_check = True
-    # Also check for direct if-comparison
-    if isinstance(node, ast.If):
-        test_src = ast.dump(node.test)
-        if "head_size" in test_src and "MIN_HEAD_SIZE" in test_src:
-            has_headsize_check = True
-
-check(
-    "Forward method has head_size < threshold dispatch",
-    has_headsize_check,
-    "No head_size comparison found — small head_size models will crash",
-)
-
-# ---------------------------------------------------------------------------
-# Check 3: unified_attention import exists in the fallback path.
-#
-# The fix adds a local import of unified_attention from
-# aiter.ops.triton.unified_attention when head_size < 64.
-# ---------------------------------------------------------------------------
-print("\n--- Check 3: unified_attention fallback import ---")
-
-for node in ast.walk(tree):
-    if isinstance(node, ast.ImportFrom):
-        if node.module and "unified_attention" in node.module:
-            for alias in node.names:
-                if alias.name == "unified_attention":
-                    has_unified_import = True
-
-check(
-    "unified_attention imported from aiter.ops.triton",
-    has_unified_import,
-    "Missing unified_attention import — no fallback path for small head_size",
-)
-
-# ---------------------------------------------------------------------------
-# Check 4: unified_attention is actually called in the fallback branch.
-#
-# Verify that unified_attention() is called with the expected keyword args
-# (softmax_scale, causal, block_table, etc.)
-# ---------------------------------------------------------------------------
-print("\n--- Check 4: unified_attention call with correct args ---")
-
-for node in ast.walk(tree):
-    if isinstance(node, ast.Call):
-        func = node.func
-        if isinstance(func, ast.Name) and func.id == "unified_attention":
-            has_unified_call = True
-        elif isinstance(func, ast.Attribute) and func.attr == "unified_attention":
-            has_unified_call = True
-
-# Also check key args in the source around the unified_attention call
-ua_call_section = ""
-for i, line in enumerate(source_lines):
-    if "unified_attention(" in line and "import" not in line:
-        # Grab surrounding context (the call with keyword args)
-        ua_call_section = "\n".join(source_lines[max(0, i):min(len(source_lines), i + 20)])
-        break
-
-has_key_args = (
-    "softmax_scale" in ua_call_section
-    and "block_table" in ua_call_section
-    and "causal" in ua_call_section
-)
-
-check(
-    "unified_attention called in fallback branch",
-    has_unified_call,
-    "unified_attention not called — fallback path incomplete",
-)
-
-check(
-    "unified_attention called with required args (softmax_scale, causal, block_table)",
-    has_key_args,
-    "Missing key arguments in unified_attention call",
-)
-
-# ---------------------------------------------------------------------------
-# Check 5: Fallback dispatches BEFORE the shuffle_kv_cache path.
-#
-# The fix adds the head_size check as an if/elif before the existing
-# is_shuffle_kv_cache_enabled() branch. This ensures small head_size
-# models take the fallback path instead of the ll4mi kernel.
-# ---------------------------------------------------------------------------
-print("\n--- Check 5: Fallback ordering ---")
-
-# Find lines with use_unified_attention and is_shuffle_kv_cache_enabled
-ua_line = -1
-shuffle_line = -1
-for i, line in enumerate(source_lines):
-    stripped = line.strip()
-    if "use_unified_attention" in stripped and ("if " in stripped or "elif " in stripped):
-        ua_line = i
-    if "is_shuffle_kv_cache_enabled" in stripped and ("if " in stripped or "elif " in stripped):
-        if ua_line > 0:  # Only check after we found the ua check
-            shuffle_line = i
+# Step 2: Construct the impl and attempt a real forward pass
+# This catches the case where supports_head_size returns True
+# but the actual forward path crashes (pre-fix: ll4mi kernel fails)
+try:
+    # Import the impl class
+    mod = __import__('vllm.v1.attention.backends.rocm_aiter_fa', fromlist=[''])
+    impl_cls = None
+    for attr in dir(mod):
+        obj = getattr(mod, attr)
+        if isinstance(obj, type) and 'impl' in attr.lower() and 'flash' in attr.lower():
+            impl_cls = obj
             break
 
-check(
-    "Head size fallback dispatches before shuffle_kv_cache path",
-    ua_line > 0 and shuffle_line > ua_line,
-    "Fallback path not ordered before shuffle_kv_cache — wrong dispatch order",
-)
+    if impl_cls is None:
+        print("FORWARD_FAIL: impl class not found")
+        sys.exit(0)
 
-# ---------------------------------------------------------------------------
-# Check 6: The fallback path asserts shuffle KV cache is not enabled.
-#
-# unified_attention fallback doesn't support shuffle layout, so the fix
-# adds an assertion for safety.
-# ---------------------------------------------------------------------------
-print("\n--- Check 6: Safety assertion ---")
+    # Construct with head_size=32
+    impl = impl_cls(
+        num_heads=num_heads, head_size=head_size, scale=scale,
+        num_kv_heads=num_kv_heads, alibi_slopes=None,
+        sliding_window=None, kv_cache_dtype="auto",
+        blocksparse_params=None,
+    )
 
-has_shuffle_assert = False
-for i, line in enumerate(source_lines):
-    if ("assert" in line and "shuffle" in line.lower()
-            and "unified_attention" in "\n".join(source_lines[max(0, i-5):i+5]).lower()):
-        has_shuffle_assert = True
-        break
+    # Create minimal decode inputs
+    batch = 4
+    seq_len = 64
+    total_tokens = batch  # decode: 1 new token per sequence
+    q = torch.randn(total_tokens, num_heads * head_size, device=device, dtype=torch.bfloat16)
+    output = torch.empty_like(q)
 
-check(
-    "Fallback path asserts shuffle KV cache is not enabled",
-    has_shuffle_assert,
-    "Missing safety assertion — unified_attention with shuffle layout is unsupported",
-)
+    # KV cache: [num_blocks, page_size, num_kv_heads, head_size]
+    num_blocks = batch * seq_len
+    k_cache = torch.randn(num_blocks, 1, num_kv_heads, head_size, device=device, dtype=torch.bfloat16)
+    v_cache = torch.randn(num_blocks, 1, num_kv_heads, head_size, device=device, dtype=torch.bfloat16)
 
-# ---------------------------------------------------------------------------
-# Summary
-# ---------------------------------------------------------------------------
-print()
-score = (checks_passed / checks_total * 100.0) if checks_total > 0 else 0.0
-print(f"Results: {checks_passed}/{checks_total} checks passed")
-print(f"SCORE: {score:.1f}")
-sys.exit(0 if checks_passed == checks_total else 1)
+    block_tables = torch.zeros(batch, seq_len, dtype=torch.int32, device=device)
+    for i in range(batch):
+        block_tables[i] = torch.arange(i * seq_len, (i + 1) * seq_len, dtype=torch.int32, device=device)
+    seq_lens_t = torch.full((batch,), seq_len, dtype=torch.int32, device=device)
+
+    # Attempt forward — pre-fix: ll4mi kernel crashes on head_size=32
+    # Post-fix: dispatches to unified_attention (Triton) which handles any head_size
+    impl.forward(
+        query=q, key=None, value=None,
+        key_cache=k_cache, value_cache=v_cache,
+        output=output, block_tables=block_tables,
+        seq_lens=seq_lens_t,
+    )
+
+    # Verify output is valid (not NaN/Inf from kernel failure)
+    if torch.isnan(output).any() or torch.isinf(output).any():
+        print(f"FORWARD_NAN: {torch.isnan(output).sum().item()} NaN values")
+    elif output.shape == q.shape:
+        print("FORWARD_OK")
+    else:
+        print(f"FORWARD_SHAPE: expected {q.shape}, got {output.shape}")
+
+except TypeError as e:
+    # Constructor signature mismatch — use signature introspection to adapt
+    try:
+        insp = inspect
+        sig = insp.signature(impl_cls)
+        kwargs = {}
+        for name, param in sig.parameters.items():
+            if name == 'self':
+                continue
+            nl = name.lower()
+            if 'num_head' in nl and 'kv' not in nl:
+                kwargs[name] = num_heads
+            elif 'head_size' in nl or 'head_dim' in nl:
+                kwargs[name] = head_size
+            elif 'scale' in nl:
+                kwargs[name] = scale
+            elif 'kv' in nl and 'head' in nl:
+                kwargs[name] = num_kv_heads
+            elif param.default is not insp.Parameter.empty:
+                continue
+            else:
+                kwargs[name] = None
+        impl = impl_cls(**kwargs)
+
+        # Re-attempt forward with introspected impl
+        try:
+            fwd_sig = insp.signature(impl.forward)
+            fwd_kwargs = {}
+            for name, param in fwd_sig.parameters.items():
+                if name == 'self':
+                    continue
+                nl = name.lower()
+                if 'query' in nl or name == 'q':
+                    fwd_kwargs[name] = q
+                elif 'key_cache' in nl:
+                    fwd_kwargs[name] = k_cache
+                elif 'value_cache' in nl:
+                    fwd_kwargs[name] = v_cache
+                elif 'output' in nl:
+                    fwd_kwargs[name] = output
+                elif 'block_table' in nl:
+                    fwd_kwargs[name] = block_tables
+                elif 'seq_len' in nl:
+                    fwd_kwargs[name] = seq_lens_t
+                elif 'key' in nl or name == 'k':
+                    fwd_kwargs[name] = None
+                elif 'value' in nl or name == 'v':
+                    fwd_kwargs[name] = None
+                elif param.default is not insp.Parameter.empty:
+                    continue
+                else:
+                    fwd_kwargs[name] = None
+            impl.forward(**fwd_kwargs)
+
+            if torch.isnan(output).any() or torch.isinf(output).any():
+                print(f"FORWARD_NAN: {torch.isnan(output).sum().item()} NaN values")
+            else:
+                print("FORWARD_OK")
+        except Exception as e2:
+            print(f"FORWARD_FAIL: cannot reach forward path: {e2}")
+    except Exception as e2:
+        print(f"FORWARD_FAIL: cannot construct impl: {e2}")
+
+except Exception as e:
+    print(f"FORWARD_FAIL: {e}")
+""")
+ok, out = run_subprocess(check2_code)
+results[2] = ok and "FORWARD_OK" in out
+print(f"CHECK 2: {'PASS' if results[2] else 'FAIL'} — head_size=32 attention forward (unified_attention fallback)")
+
+# CHECK 3: head_size=128 (>= 64) — also supported (no regression)
+check3_code = textwrap.dedent("""
+import torch
+from vllm.v1.attention.backends.rocm_aiter_fa import AiterFlashAttentionBackend
+
+supported_128 = AiterFlashAttentionBackend.supports_head_size(128)
+supported_64 = AiterFlashAttentionBackend.supports_head_size(64)
+supported_256 = AiterFlashAttentionBackend.supports_head_size(256)
+
+if supported_128 and supported_64 and supported_256:
+    print("LARGE_HEADS_OK")
+else:
+    print(f"LARGE_HEADS_FAIL: 64={supported_64}, 128={supported_128}, 256={supported_256}")
+""")
+ok, out = run_subprocess(check3_code)
+results[3] = ok and "LARGE_HEADS_OK" in out
+print(f"CHECK 3: {'PASS' if results[3] else 'FAIL'} — head_size=64/128/256 supported (no regression)")
+
+passed = sum(1 for v in results.values() if v)
+score = int(100 * passed / NUM_CHECKS)
+print(f"SCORE: {score}")
