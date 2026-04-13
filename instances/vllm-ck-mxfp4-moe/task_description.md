@@ -1,11 +1,10 @@
-# vLLM MXFP4 quantization lacks fused MoE support on ROCm
+# vLLM MXFP4 quantization: MoE models run slowly on ROCm
 
-vLLM's MXFP4 quantization layer has no fused MoE support on ROCm. Models using MXFP4 quantization with MoE layers fall back to dense per-expert computation, which is significantly slower. The MXFP4 quantization module needs a fused MoE backend for AMD GPUs using AITER's CK operators.
+Models using MXFP4 quantization with Mixture-of-Experts layers run significantly slower than expected on ROCm GPUs. The MoE computation falls back to dense per-expert execution instead of using fused kernels.
 
-## Affected Files
+## How to reproduce
 
-- `vllm/_aiter_ops.py`
-- `vllm/model_executor/layers/quantization/mxfp4.py`
+Run an MXFP4-quantized MoE model on a ROCm GPU and observe that MoE layer performance is far below what fused execution should achieve.
 
 ## Environment
 

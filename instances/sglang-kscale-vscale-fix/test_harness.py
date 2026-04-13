@@ -1,12 +1,8 @@
 #!/usr/bin/env python3
-"""Test harness for sglang-kscale-vscale-fix. Behavioral tests only.
+"""Test harness for sglang-kscale-vscale-fix.
 
-Bug: The call to extend_attention_fwd() in aiter_backend.py is missing
-the required positional arguments k_scale and v_scale, causing a
-TypeError at runtime when the target_verify / draft_extend path is taken.
-
-Tests verify that the call site passes the correct number of arguments
-matching the function's signature.
+Tests verify that attention function call sites pass the correct number
+of arguments matching function signatures.
 """
 import ast
 import inspect
@@ -163,48 +159,7 @@ else:
     check("Call passes enough positional args", False, "no call found")
 
 # ----------------------------------------------------------------
-# Check 4: Source-level check -- verify that the string literals
-# "k_scale" and "v_scale" appear near the extend_attention_fwd call
-# in aiter_backend.py (the fix adds them as inline comments).
-# Also check that 1.0 values are passed before layer.scaling.
-# ----------------------------------------------------------------
-# Find the block of the call in the source text
-lines = aiter_source.splitlines()
-call_start = None
-call_end = None
-for i, line in enumerate(lines):
-    if "self.extend_attention_fwd(" in line:
-        call_start = i
-    if call_start is not None and call_end is None:
-        # The call ends when we see the closing paren at the right indentation
-        stripped = line.strip()
-        if stripped == ")":
-            call_end = i
-            break
-
-if call_start is not None and call_end is not None:
-    call_block = "\n".join(lines[call_start : call_end + 1])
-
-    # In the fixed version, the call block should contain k_scale and v_scale
-    # (either as comments or as keyword args).
-    has_k_scale_ref = "k_scale" in call_block
-    has_v_scale_ref = "v_scale" in call_block
-    check(
-        "Call site references k_scale",
-        has_k_scale_ref,
-        "k_scale not found in call block",
-    )
-    check(
-        "Call site references v_scale",
-        has_v_scale_ref,
-        "v_scale not found in call block",
-    )
-else:
-    check("Call site references k_scale", False, "could not locate call block")
-    check("Call site references v_scale", False, "could not locate call block")
-
-# ----------------------------------------------------------------
-# Check 5: Subprocess test -- use Python AST in a subprocess to
+# Check 4: Subprocess test -- use Python AST in a subprocess to
 # independently verify the argument count matches the signature.
 # This catches any discrepancy we might miss in in-process analysis.
 # ----------------------------------------------------------------

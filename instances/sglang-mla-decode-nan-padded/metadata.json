@@ -1,0 +1,23 @@
+{
+  "name": "sglang-mla-decode-nan-padded",
+  "category": "bugfix",
+  "difficulty": "hard",
+  "source": {
+    "repo": "sgl-project/sglang",
+    "pr": 19902,
+    "merge_commit": "27053aa5ed2d7e8f080720ec1ad96cbeb353bb59",
+    "parent_commit": ""
+  },
+  "description": "MLA decode path returns unwritten padded rows from output buffer, causing intermittent NaN propagation during speculative decoding",
+  "task_description_source": "PR description (symptom only, no fix details)",
+  "test_harness_type": "behavioral",
+  "requires_gpu": true,
+  "gpu_count": 2,
+  "base_image": "lmsysorg/sglang-rocm:v0.5.9-rocm720-mi35x-20260326",
+  "model": "Qwen/Qwen3.5-397B-A17B-FP8",
+  "version_pins": {
+    "sglang_pre_fix_commit": "27053aa5ed2d7e8f080720ec1ad96cbeb353bb59~1",
+    "rocm": "7.2",
+    "note": "Fix is 1 line in aiter_backend.py. Checkout sglang to pre-fix commit. Bug is intermittent (depends on uninitialized memory contents)."
+  }
+}

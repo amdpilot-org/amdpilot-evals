@@ -1,15 +1,23 @@
-FROM rocm/vllm-dev:rocm7.2.1_v0.18.0_20260330
+## Stage 1: check out the target commit in a throwaway builder
+FROM rocm/vllm-dev:rocm7.2.1_v0.18.0_20260330 AS builder
 WORKDIR /workspace
-RUN mkdir -p /opt/venv/bin && ln -sf /usr/bin/python3 /opt/venv/bin/python3
 RUN git clone --depth 100 https://github.com/vllm-project/vllm.git /workspace/vllm && \
     cd /workspace/vllm && \
     git fetch --depth 100 origin 9fa6c68fa627c7ab041c48ac9987fb093719597f && \
     git checkout -f 9fa6c68fa627c7ab041c48ac9987fb093719597f~1 && \
-    pip install --no-build-isolation --no-deps -e . && \
-    rm -f .git/FETCH_HEAD && \
+    git checkout --orphan _clean && git add -A && \
+    git commit -m "baseline" && \
+    git branch -D main 2>/dev/null; git branch -M _clean main && \
     git remote remove origin 2>/dev/null; \
     git reflog expire --expire=now --all && \
     git gc --prune=now -q
+
+## Stage 2: fresh base — copy only the cleaned repo
+FROM rocm/vllm-dev:rocm7.2.1_v0.18.0_20260330
+WORKDIR /workspace
+RUN mkdir -p /opt/venv/bin && ln -sf /usr/bin/python3 /opt/venv/bin/python3
+COPY --from=builder /workspace/vllm /workspace/vllm
+RUN cd /workspace/vllm && pip install --no-build-isolation --no-deps -e .
 COPY test_harness.py /workspace/test_harness.py
 COPY task_description.md /workspace/task_description.md
 CMD ["sleep", "infinity"]

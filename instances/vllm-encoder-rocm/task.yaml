@@ -13,7 +13,7 @@ container:
   devices: [/dev/kfd, /dev/dri]
 
 workload:
-  description: "ROCm attention backends raise NotImplementedError for encoder self-attention"
+  description: "Encoder-decoder models fail during attention computation on ROCm"
   framework: PyTorch
 
 benchmark:

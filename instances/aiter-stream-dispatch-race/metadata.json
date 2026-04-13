@@ -1,0 +1,21 @@
+{
+  "name": "aiter-stream-dispatch-race",
+  "category": "bugfix",
+  "difficulty": "hard",
+  "source": {
+    "repo": "ROCm/aiter",
+    "pr": 2564,
+    "merge_commit": "a65065d55f89ab51b4a7fab8cce65b3d6557c09b",
+    "parent_commit": ""
+  },
+  "description": "FMHA, sampling, and MM kernels launch on default HIP stream instead of current PyTorch stream, causing race conditions in multi-stream scenarios",
+  "task_description_source": "PR description (symptom only, no fix details)",
+  "test_harness_type": "behavioral",
+  "requires_gpu": true,
+  "gpu_count": 1,
+  "base_image": "lmsysorg/sglang-rocm:v0.5.9-rocm720-mi35x-20260326",
+  "version_pins": {
+    "rocm": "7.2",
+    "note": "Bug present in base image (PR merged Apr 1, image from Mar 26). Fix spans 12 .cu files. Agent must modify C++ and recompile."
+  }
+}

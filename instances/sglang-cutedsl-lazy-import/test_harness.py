@@ -1,12 +1,8 @@
 #!/usr/bin/env python3
-"""Test harness for sglang-cutedsl-lazy-import (PR #21428).
-
-Bug: Importing kda_backend crashes on ROCm with ModuleNotFoundError because
-CuteDSL (which requires cuda.bindings) is imported at module top level.
-Fix: Move the CuteDSL import inside __init__() with an is_cuda() guard.
+"""Test harness for sglang-cutedsl-lazy-import.
 
 Tests are behavioral -- they verify the import succeeds and the module
-structure is correct, without checking for specific code patterns of the fix.
+structure is correct without triggering the cuda.bindings crash on ROCm.
 """
 import sys
 import subprocess

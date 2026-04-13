@@ -1,0 +1,28 @@
+name: aiter-blockscale-use-after-free
+type: bugfix
+repo: https://github.com/ROCm/aiter.git
+base_image: amdpilot-eval-aiter-blockscale-use-after-free
+
+container:
+  name: amdpilot_eval_aiter_blockscale_uaf
+  gpu: "0"
+  shm_size: 64g
+  devices: [/dev/kfd, /dev/dri]
+
+workload:
+  description: "FP8 blockscale GEMM uses dangling pointer to freed x_scale memory, producing incorrect results under memory pressure"
+  framework: aiter
+
+benchmark:
+  command: "/opt/venv/bin/python3 /workspace/test_harness.py"
+  metric_name: score
+  metric_pattern: 'SCORE:\s+([\d.]+)'
+  metric_direction: higher
+  metric_max: 100.0
+
+task:
+  description_file: evals/instances/aiter-blockscale-use-after-free/task_description.md
+
+stages: auto
+max_retries_per_stage: 3
+max_total_hours: 4

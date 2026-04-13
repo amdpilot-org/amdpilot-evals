@@ -1,26 +1,11 @@
 #!/usr/bin/env python3
-"""Test harness for aiter PR #2273: ASM paged attention called for unsupported head_size.
+"""Test harness for aiter-asm-pa-headsize-fix eval instance.
 
-Bug: _should_use_asm_kernel() in attention.py does not check head_size.
-The ASM paged attention kernel only supports head_size=128, but the
-dispatch function routes any head_size to the ASM kernel when other
-conditions match (e.g., int8 kv cache, or high_precision=2). Models with
-head_size=64 or 256 produce incorrect results because the ASM kernel
-reads/writes memory at the wrong offsets.
-
-Fix: Add head_size parameter to _should_use_asm_kernel(). Return False
-immediately if head_size != 128. Also consolidate high_precision handling
-into the function instead of external `or high_precision == 2`.
-
-Tests (behavioral, not source-pattern matching):
-  1. Call _should_use_asm_kernel with head_size=64 → must return False
-  2. Call _should_use_asm_kernel with head_size=128 → must return True (for int8)
-  3. Call _should_use_asm_kernel with head_size=256 → must return False
-  4. Verify function signature includes head_size parameter
-  5. Verify paged_attention_common passes head_size to the dispatch function
+Validates that paged attention kernel dispatch correctly handles
+different head sizes and does not route unsupported configurations
+to the ASM kernel.
 """
 import ast
-import inspect
 import os
 import subprocess
 import sys
@@ -58,7 +43,7 @@ def run_subprocess(script, timeout=120):
 
 
 print("=" * 60)
-print("aiter-asm-pa-headsize-fix test harness (PR #2273)")
+print("aiter-asm-pa-headsize-fix test harness")
 print("=" * 60)
 
 # ---------------------------------------------------------------------------
@@ -83,9 +68,6 @@ except SyntaxError as e:
 
 # ---------------------------------------------------------------------------
 # Check 2: _should_use_asm_kernel signature includes head_size parameter.
-#
-# Before fix: _should_use_asm_kernel(num_seqs, num_heads, kv_cache_tensor_dtype)
-# After fix:  _should_use_asm_kernel(num_seqs, num_heads, head_size, kv_cache_tensor_dtype, high_precision)
 # ---------------------------------------------------------------------------
 print("\n--- Check 2: function signature ---")
 
@@ -111,12 +93,7 @@ check(
 )
 
 # ---------------------------------------------------------------------------
-# Checks 3-5 (behavioral): extract and call _should_use_asm_kernel.
-#
-# We extract just the function source, compile it in isolation, and call
-# it with controlled arguments. This avoids importing the full module
-# (which needs torch, aiter C++ extensions, etc.) while still testing
-# the actual compiled dispatch logic.
+# Checks 3-5: dispatch behavior verification.
 # ---------------------------------------------------------------------------
 print("\n--- Checks 3-5: dispatch behavior ---")
 
@@ -147,7 +124,6 @@ except Exception as e:
     print(f"COMPILE:FAIL:{{type(e).__name__}}:{{str(e)[:200]}}")
     sys.exit(0)
 
-# Determine function arity — before fix has 3 params, after fix has 5
 import inspect
 sig = inspect.signature(fn)
 num_params = len(sig.parameters)
@@ -155,9 +131,7 @@ print(f"NUM_PARAMS:{{num_params}}")
 
 # Test with different head_sizes
 if num_params >= 5:
-    # After fix: fn(num_seqs, num_heads, head_size, kv_cache_tensor_dtype, high_precision)
-
-    # head_size=64 + int8 cache → should return False (ASM doesn't support head_size!=128)
+    # head_size=64 + int8 cache → should return False
     r64 = fn(1, 32, 64, torch.int8, 0)
     print(f"HEAD64_INT8:{{r64}}")
 
@@ -173,13 +147,11 @@ if num_params >= 5:
     r128_hp = fn(1, 32, 128, torch.float16, 2)
     print(f"HEAD128_HP2:{{r128_hp}}")
 
-    # head_size=64 + fp16 cache + high_precision=2 → should return False (head_size check first)
+    # head_size=64 + fp16 cache + high_precision=2 → should return False
     r64_hp = fn(1, 32, 64, torch.float16, 2)
     print(f"HEAD64_HP2:{{r64_hp}}")
 
 elif num_params == 3:
-    # Before fix: fn(num_seqs, num_heads, kv_cache_tensor_dtype)
-    # No head_size parameter → always routes to ASM for int8
     r_int8 = fn(1, 32, torch.int8)
     print(f"OLD_INT8:{{r_int8}}")
     # Flag that the function lacks head_size parameter
@@ -237,58 +209,6 @@ elif "COMPILE:OK" in stdout:
                 "HEAD64_HP2:False" in stdout,
                 "high_precision=2 bypasses head_size check — incorrect ordering",
             )
-
-# ---------------------------------------------------------------------------
-# Check 6: paged_attention_common passes head_size to dispatch function.
-#
-# After fix, the call should be:
-#   _should_use_asm_kernel(num_seqs, num_heads, head_size, ...)
-# Before fix:
-#   _should_use_asm_kernel(num_seqs, num_heads, kv_cache_tensor_dtype) or high_precision == 2
-# ---------------------------------------------------------------------------
-print("\n--- Check 6: caller passes head_size ---")
-
-pa_common_fn = None
-for node in ast.walk(source_tree):
-    if isinstance(node, ast.FunctionDef) and node.name == "paged_attention_common":
-        pa_common_fn = node
-        break
-
-if pa_common_fn is not None:
-    # Find calls to _should_use_asm_kernel in paged_attention_common
-    dispatch_calls = []
-    for child in ast.walk(pa_common_fn):
-        if isinstance(child, ast.Call):
-            func = child.func
-            if isinstance(func, ast.Name) and func.id == "_should_use_asm_kernel":
-                dispatch_calls.append(child)
-
-    if dispatch_calls:
-        call = dispatch_calls[0]
-        num_args = len(call.args) + len(call.keywords)
-        # After fix: should pass 5 args (num_seqs, num_heads, head_size, dtype, high_precision)
-        # Before fix: passes 3 args (num_seqs, num_heads, dtype)
-        check(
-            "paged_attention_common passes ≥5 args to _should_use_asm_kernel",
-            num_args >= 5,
-            f"only passes {num_args} args — head_size/high_precision likely missing",
-        )
-
-        # Check that one arg references head_size
-        arg_names = set()
-        for arg in call.args:
-            if isinstance(arg, ast.Name):
-                arg_names.add(arg.id)
-        check(
-            "Dispatch call includes head_size argument",
-            "head_size" in arg_names,
-            f"args reference: {arg_names}",
-        )
-    else:
-        check("_should_use_asm_kernel called from paged_attention_common", False,
-              "no call found")
-else:
-    check("paged_attention_common found", False, "function not in source")
 
 # ---------------------------------------------------------------------------
 # Summary

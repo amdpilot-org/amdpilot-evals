@@ -1,22 +1,10 @@
 #!/usr/bin/env python3
-"""Test harness for vllm PR #34108: Dynamo tracing crash from amdsmi calls.
+"""Test harness for vllm-rocm-dynamo-arch-crash.
 
-Bug: on_gfx9(), on_gfx942(), etc. are @cache-decorated functions that call
-_get_gcn_arch_via_amdsmi() → amdsmi_init() at runtime. When called inside
-a torch.compile region, Dynamo can't trace through the amdsmi FFI call →
-torch._dynamo.exc.Unsupported crash.
-
-Fix: Resolve arch detection once at module load time into plain Python bool
-constants (_ON_GFX9, _ON_GFX942, etc.). The on_gfx*() functions just return
-these constants — no runtime FFI calls, fully Dynamo-safe.
-
-Tests (behavioral):
-  1. on_gfx*() functions are Dynamo-safe — calling inside torch.compile works.
-  2. on_gfx*() returns plain bool (not wrapped/traced object).
-  3. Module-level constants (_ON_GFX9, etc.) exist.
-  4. AST: on_gfx*() functions don't call amdsmi or torch.cuda internally.
+Behavioral test: verifies that ROCm GPU architecture detection functions
+(on_gfx9, on_gfx942, etc.) work correctly inside torch.compile regions
+without crashing TorchDynamo.
 """
-import ast
 import os
 import subprocess
 import sys
@@ -25,7 +13,6 @@ checks_passed = 0
 checks_total = 0
 
 VENV_PYTHON = "/opt/venv/bin/python3"
-ROCM_PY_PATH = "/workspace/vllm/vllm/platforms/rocm.py"
 
 
 def check(name, condition, detail=""):
@@ -53,40 +40,20 @@ def run_subprocess(script, timeout=120):
 
 
 print("=" * 60)
-print("vllm-rocm-dynamo-arch-crash test harness (PR #34108)")
+print("vllm-rocm-dynamo-arch-crash test harness")
 print("=" * 60)
 
 # ---------------------------------------------------------------------------
-# Check 0: target file exists
-# ---------------------------------------------------------------------------
-if not check("rocm.py exists", os.path.isfile(ROCM_PY_PATH)):
-    print(f"\nSCORE: 0.0")
-    sys.exit(1)
-
-# ---------------------------------------------------------------------------
-# Check 1: file is valid Python
-# ---------------------------------------------------------------------------
-try:
-    with open(ROCM_PY_PATH) as fh:
-        source_text = fh.read()
-    source_tree = ast.parse(source_text)
-    check("rocm.py is valid Python", True)
-except SyntaxError as e:
-    check("rocm.py is valid Python", False, str(e))
-    print(f"\nSCORE: 0.0")
-    sys.exit(1)
-
-# ---------------------------------------------------------------------------
-# Checks 2-3 (behavioral, subprocess): on_gfx*() must be Dynamo-safe.
+# Test 1: Import and call arch detection functions.
+# Verify they return plain Python bools (not traced/wrapped objects).
 #
-# Before fix: on_gfx9() calls amdsmi_init() via @cache function → Dynamo
-#   can't trace the FFI call → Unsupported crash.
-#
-# After fix: on_gfx9() returns a plain Python bool constant → Dynamo-safe.
+# Pre-fix: These functions call amdsmi FFI at runtime via @cache. The
+# return type may be a cached result object, not a plain bool.
+# Post-fix: Functions return pre-computed module-level bool constants.
 # ---------------------------------------------------------------------------
-print("\n--- Checks 2-3: Dynamo compatibility ---")
+print("\n--- Test 1: Arch detection returns plain bools ---")
 
-dynamo_test_script = """
+import_test_script = """
 import sys
 sys.stdout = open(sys.stdout.fileno(), 'w', buffering=1)
 
@@ -97,7 +64,6 @@ except ImportError:
     print("TORCH:FAIL")
     sys.exit(0)
 
-# Import the arch detection functions
 try:
     from vllm.platforms.rocm import on_gfx9, on_gfx942, on_gfx950, on_mi3xx
     print("IMPORT:OK")
@@ -108,7 +74,6 @@ except Exception as e:
     print(f"IMPORT:FAIL:{type(e).__name__}:{str(e)[:200]}")
     sys.exit(0)
 
-# Check that the functions return plain bools
 r_gfx9 = on_gfx9()
 r_942 = on_gfx942()
 r_950 = on_gfx950()
@@ -120,13 +85,67 @@ print(f"ON_GFX942:{r_942}")
 print(f"ON_GFX950:{r_950}")
 print(f"ON_MI3XX:{r_mi3xx}")
 
-# Verify they return plain Python bools (not traced/wrapped objects)
 all_bool = all(isinstance(v, bool) for v in [r_gfx9, r_942, r_950, r_mi3xx])
 print(f"ALL_PLAIN_BOOL:{all_bool}")
+"""
 
-# Try calling inside torch.compile — this is the actual bug test
 try:
-    @torch.compile(backend="eager")
+    stdout1, stderr1, rc1 = run_subprocess(import_test_script, timeout=60)
+except subprocess.TimeoutExpired:
+    stdout1, rc1 = "TIMEOUT", -1
+
+if "TORCH:FAIL" in stdout1:
+    print("  [SKIP] torch not available")
+elif "IMPORT:FAIL" in stdout1:
+    err = stdout1.split("IMPORT:FAIL:")[1].split("\n")[0]
+    check("Import arch detection functions", False, err)
+elif "IMPORT:OK" in stdout1:
+    check("Import arch detection functions", True)
+    check(
+        "on_gfx*() functions return plain Python bools",
+        "ALL_PLAIN_BOOL:True" in stdout1,
+        f"got non-bool type: {[l for l in stdout1.splitlines() if 'TYPE' in l]}",
+    )
+
+# ---------------------------------------------------------------------------
+# Test 2: Call on_gfx9() inside a torch.compile region.
+# This is the core bug test.
+#
+# Pre-fix: on_gfx9() calls amdsmi_init() via @cache → Dynamo cannot trace
+# the FFI call → torch._dynamo.exc.Unsupported crash.
+# Post-fix: on_gfx9() returns a pre-computed bool constant → Dynamo-safe.
+# ---------------------------------------------------------------------------
+print("\n--- Test 2: torch.compile with arch detection (Dynamo safety) ---")
+
+dynamo_test_script = """
+import sys
+sys.stdout = open(sys.stdout.fileno(), 'w', buffering=1)
+
+try:
+    import torch
+    import torch._dynamo
+except ImportError:
+    print("TORCH:FAIL")
+    sys.exit(0)
+
+try:
+    from vllm.platforms.rocm import on_gfx9
+    print("IMPORT:OK")
+except Exception as e:
+    print(f"IMPORT:FAIL:{type(e).__name__}:{str(e)[:200]}")
+    sys.exit(0)
+
+try:
+    # Clear functools.cache so Dynamo must re-trace through the function body.
+    # Pre-fix: on_gfx9() is @cache-wrapped and calls amdsmi FFI — cache gets
+    # pre-populated during import, hiding the FFI from Dynamo. Clearing it
+    # forces Dynamo to trace through the actual FFI call path.
+    # Post-fix: on_gfx9() returns a module-level bool constant — no FFI.
+    if hasattr(on_gfx9, 'cache_clear'):
+        on_gfx9.cache_clear()
+    torch._dynamo.reset()
+
+    @torch.compile(backend="eager", fullgraph=True)
     def test_fn(x):
         if on_gfx9():
             return x + 1
@@ -136,124 +155,72 @@ try:
     print(f"TORCH_COMPILE:OK:result={result.item()}")
 except Exception as e:
     ename = type(e).__name__
-    # The specific crash is torch._dynamo.exc.Unsupported
     is_dynamo_crash = "Unsupported" in ename or "dynamo" in str(e).lower()
     print(f"TORCH_COMPILE:FAIL:{ename}:{str(e)[:200]}")
     print(f"IS_DYNAMO_CRASH:{is_dynamo_crash}")
 """
 
 try:
-    stdout, stderr, rc = run_subprocess(dynamo_test_script, timeout=120)
+    stdout2, stderr2, rc2 = run_subprocess(dynamo_test_script, timeout=120)
 except subprocess.TimeoutExpired:
-    stdout, rc = "TIMEOUT", -1
+    stdout2, rc2 = "TIMEOUT", -1
 
-if "TORCH:FAIL" in stdout:
+if "TORCH:FAIL" in stdout2:
     print("  [SKIP] torch not available")
-elif "IMPORT:FAIL" in stdout:
-    err = stdout.split("IMPORT:FAIL:")[1].split("\n")[0]
-    check("Import arch detection functions", False, err)
-elif "IMPORT:OK" in stdout:
-    check("Import arch detection functions", True)
-
-    # Check 2: functions return plain bools
+elif "IMPORT:FAIL" in stdout2:
+    err = stdout2.split("IMPORT:FAIL:")[1].split("\n")[0]
+    check("Import on_gfx9 for Dynamo test", False, err)
+elif "TORCH_COMPILE:OK" in stdout2:
+    check("on_gfx9() inside torch.compile does not crash (Dynamo-safe)", True)
+elif "TORCH_COMPILE:FAIL" in stdout2:
+    is_dynamo = "IS_DYNAMO_CRASH:True" in stdout2
+    err = stdout2.split("TORCH_COMPILE:FAIL:")[1].split("\n")[0]
     check(
-        "on_gfx*() functions return plain Python bools",
-        "ALL_PLAIN_BOOL:True" in stdout,
-        f"got type: {[l for l in stdout.splitlines() if 'TYPE' in l]}",
+        "on_gfx9() inside torch.compile does not crash (Dynamo-safe)",
+        False,
+        f"{'Dynamo tracing crash — ' if is_dynamo else ''}{err}",
     )
-
-    # Check 3: torch.compile with on_gfx9() doesn't crash
-    if "TORCH_COMPILE:OK" in stdout:
-        check("on_gfx9() inside torch.compile does not crash (Dynamo-safe)", True)
-    elif "TORCH_COMPILE:FAIL" in stdout:
-        is_dynamo = "IS_DYNAMO_CRASH:True" in stdout
-        err = stdout.split("TORCH_COMPILE:FAIL:")[1].split("\n")[0]
-        check(
-            "on_gfx9() inside torch.compile does not crash (Dynamo-safe)",
-            False,
-            f"{'Dynamo tracing crash — ' if is_dynamo else ''}{err}",
-        )
 
 # ---------------------------------------------------------------------------
-# Checks 4-5 (AST): on_gfx*() functions should be trivial (return constant).
-#
-# After fix: each on_gfx*() is a 1-line function returning a module-level bool.
-# Before fix: each calls _get_gcn_arch_via_amdsmi() → amdsmi FFI.
+# Test 3: Repeated calls return consistent results.
+# Pre-fix: @cache + FFI could have race conditions or inconsistent state.
+# Post-fix: Module-level constants are immutable.
 # ---------------------------------------------------------------------------
-print("\n--- Checks 4-5: function body analysis ---")
+print("\n--- Test 3: Consistency of arch detection ---")
 
-gfx_funcs = {}
-for node in ast.walk(source_tree):
-    if isinstance(node, ast.FunctionDef) and node.name in (
-        "on_gfx9", "on_gfx942", "on_gfx950", "on_mi3xx", "on_gfx1x"
-    ):
-        gfx_funcs[node.name] = node
+consistency_script = """
+import sys
+sys.stdout = open(sys.stdout.fileno(), 'w', buffering=1)
 
-if gfx_funcs:
-    # Check 4: none of the on_gfx*() functions call amdsmi or _get_gcn_arch
-    has_runtime_call = False
-    for name, fn_node in gfx_funcs.items():
-        fn_src = "\n".join(
-            source_text.splitlines()[fn_node.lineno - 1:fn_node.end_lineno]
-        )
-        if any(pattern in fn_src for pattern in [
-            "_get_gcn_arch", "amdsmi", "torch.cuda.get_device_properties",
-            "amdsmi_get_gpu_asic_info",
-        ]):
-            has_runtime_call = True
-            break
+try:
+    from vllm.platforms.rocm import on_gfx9, on_gfx942
+except Exception as e:
+    print(f"IMPORT:FAIL:{e}")
+    sys.exit(0)
 
-    check(
-        "on_gfx*() functions have NO runtime arch detection calls",
-        not has_runtime_call,
-        "function body calls amdsmi or torch.cuda — not Dynamo-safe",
-    )
+results_9 = [on_gfx9() for _ in range(100)]
+results_942 = [on_gfx942() for _ in range(100)]
 
-    # Check 5: functions are simple (≤3 lines body — just return a constant)
-    all_simple = True
-    for name, fn_node in gfx_funcs.items():
-        body_lines = fn_node.end_lineno - fn_node.lineno
-        if body_lines > 5:  # generous: decorated function might have extra lines
-            all_simple = False
-            break
+consistent_9 = len(set(results_9)) == 1
+consistent_942 = len(set(results_942)) == 1
 
-    check(
-        "on_gfx*() functions are trivial (return pre-computed constant)",
-        all_simple,
-        "function body is too complex — likely does runtime computation",
-    )
+print(f"CONSISTENT_GFX9:{consistent_9}")
+print(f"CONSISTENT_GFX942:{consistent_942}")
+print(f"ALL_CONSISTENT:{consistent_9 and consistent_942}")
+"""
+
+try:
+    stdout3, stderr3, rc3 = run_subprocess(consistency_script, timeout=30)
+except subprocess.TimeoutExpired:
+    stdout3, rc3 = "TIMEOUT", -1
+
+if "IMPORT:FAIL" in stdout3:
+    check("Arch detection is consistent across calls", False,
+          stdout3.split("IMPORT:FAIL:")[1].split("\n")[0])
 else:
-    # Functions may have been completely removed and replaced with constants
-    has_constants = (
-        "_ON_GFX9" in source_text
-        and "_ON_GFX942" in source_text
-        and "_ON_GFX950" in source_text
-    )
-    check(
-        "Module-level arch constants exist (_ON_GFX9, _ON_GFX942, etc.)",
-        has_constants,
-        "no on_gfx*() functions or module-level constants found",
-    )
-    # Functions might be inlined, which is fine — the torch.compile test above
-    # is the authoritative check.
-    check("Arch detection is Dynamo-safe (module-level constants)", has_constants)
-
-# ---------------------------------------------------------------------------
-# Check 6: module-level _GCN_ARCH or equivalent constant exists.
-# This is the arch string resolved once at import time.
-# ---------------------------------------------------------------------------
-print("\n--- Check 6: module-level arch resolution ---")
-
-has_module_arch = (
-    "_GCN_ARCH" in source_text
-    or "_get_gcn_arch()" in source_text  # called at module level
-    or "_get_gcn_arch_via_amdsmi" in source_text  # cached version
-)
-check(
-    "Module has module-level arch resolution (_GCN_ARCH or equivalent)",
-    has_module_arch,
-    "no module-level arch detection — arch resolved at function call time",
-)
+    check("Arch detection is consistent across 100 repeated calls",
+          "ALL_CONSISTENT:True" in stdout3,
+          "inconsistent results from repeated calls")
 
 # ---------------------------------------------------------------------------
 # Summary

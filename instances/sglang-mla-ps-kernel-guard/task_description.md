@@ -10,10 +10,6 @@ The crash occurs in both `init_forward_metadata_capture_cuda_graph` and `init_fo
 
 This breaks ALL non-MLA model inference when using the AITer backend.
 
-## Affected File
-
-- `python/sglang/srt/layers/attention/aiter_backend.py`
-
 ## Environment
 
 - SGLang at `/workspace/sglang`

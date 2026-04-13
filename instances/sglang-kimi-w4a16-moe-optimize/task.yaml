@@ -2,21 +2,14 @@ name: sglang-kimi-w4a16-moe-optimize
 type: optimize
 repo: https://github.com/sgl-project/sglang.git
 repo_branch: main
-base_image: amdpilot-eval-sglang-kimi-w4a16-moe-optimize
-
-model_endpoint:
-  model: "Qwen/Qwen3.5-397B-A17B"
-  base_url: "http://10.235.24.154:30000/v1"
-  api_key: "EMPTY"
-
-kimi_cli:
-  thinking: true
+base_image: sglang-kimi-w4a16-moe-optimize:best
 
 container:
   name: amdpilot_kimi_w4a16
   gpu: "0,1,2,3,4,5,6,7"
   shm_size: 64g
   devices: [/dev/kfd, /dev/dri]
+  workdir: /root
   env:
     TOKENIZERS_PARALLELISM: "false"
     GPU_COREDUMP_ENABLE: "0"
@@ -27,12 +20,13 @@ container:
     - "/home/yikzhang/.ssh:/root/.ssh:ro"
 
 workload:
-  description: "Fix W4A16 MoE dispatch and optimize Kimi-K2.5 decode latency on AMD MI355X with TP=8"
+  description: "Add W4A16 support to CK MoE kernels and optimize Kimi-K2.5 decode latency on AMD MI355X with TP=8"
   function: "sglang.bench_one_batch decode"
   framework: PyTorch
 
 benchmark:
   command: "bash /workspace/bench_kimi_w4a16.sh"
+  fast_profile_command: "bash /workspace/bench_kimi_w4a16_smoke.sh"
   metric_name: decode_median_ms
   metric_pattern: 'Decode median \(ms\):\s+([\d.]+)'
   metric_direction: lower
@@ -50,11 +44,13 @@ task:
 
 immutable_files:
   - /workspace/bench_kimi_w4a16.sh
+  - /workspace/bench_kimi_w4a16_smoke.sh
   - /workspace/test_harness.py
 
 stages: auto
 
 max_retries_per_stage: 5
 max_total_hours: 12
-supervisor_mode: agent
-nudge_agent: oss
+supervisor: true
+nudge: true
+frontier_model: true

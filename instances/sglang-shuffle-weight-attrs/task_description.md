@@ -12,13 +12,6 @@ to still be present on the parameters after shuffling. For example, model
 checkpoint saving/loading pipelines that rely on `weight_loader` will break
 because the attribute no longer exists on the shuffled parameter.
 
-## Affected File
-
-`python/sglang/srt/layers/quantization/unquant.py`
-
-The issue occurs at the call sites where `shuffle_weight(...)` results are
-assigned back to layer parameters (e.g., `w13_weight`, `w2_weight`).
-
 ## How to Reproduce
 
 1. Create a `torch.nn.Parameter` with a custom attribute (e.g.,

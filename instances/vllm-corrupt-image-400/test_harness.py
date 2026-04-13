@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Test harness for vllm-corrupt-image-400 (PR #38253).
+"""Test harness for vllm-corrupt-image-400.
 
-Bug: ImageMediaIO did not validate full decode; corrupt bytes could surface as OSError
-(UnidentifiedImageError) from PIL instead of a single validation error type.
-Test: load_base64 / load_bytes on corrupt data raises ValueError with failed-to-load message.
+Tests that corrupt or truncated image data is handled gracefully by the
+multimodal image loading API.
 """
 import subprocess
 import sys

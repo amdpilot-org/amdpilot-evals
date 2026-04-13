@@ -1,0 +1,14 @@
+{
+  "name": "vllm-rocm-bitmatrix-routing-hip",
+  "category": "bugfix",
+  "difficulty": "hard",
+  "source": {
+    "repo": "vllm-project/vllm",
+    "pr": 38504,
+    "parent_commit": null
+  },
+  "description": "MoE expert routing produces corrupted outputs on ROCm due to integer division semantics difference",
+  "task_description_source": "Symptom only, no fix direction",
+  "test_harness_type": "behavioral",
+  "requires_gpu": true
+}

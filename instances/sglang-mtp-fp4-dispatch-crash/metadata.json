@@ -1,0 +1,10 @@
+{
+  "difficulty": "hard",
+  "repo": "sgl-project/sglang",
+  "pr_number": 20647,
+  "pr_title": "[AMD][MORI] Fix MTP crash with FP4/FP8 dispatch and add NEXTN dispatch env vars",
+  "merge_commit": "385a35bd118d2e420be1fd6978c703d22a3bcc77",
+  "merged_at": "2026-03-17",
+  "files_changed": 6,
+  "tags": ["amd", "moe", "mtp", "quantization", "dispatch", "cuda-graph", "rocm"]
+}

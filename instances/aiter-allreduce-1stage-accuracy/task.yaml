@@ -1,0 +1,28 @@
+name: aiter-allreduce-1stage-accuracy
+type: bugfix
+repo: https://github.com/ROCm/aiter.git
+base_image: amdpilot-eval-aiter-allreduce-1stage-accuracy
+
+container:
+  name: amdpilot_eval_aiter_allreduce_1stage
+  gpu: "0,1"
+  shm_size: 64g
+  devices: [/dev/kfd, /dev/dri]
+
+workload:
+  description: "Fused allreduce+RMSNorm 1-stage kernel produces numerical divergence from unfused path on AMD GPUs"
+  framework: aiter
+
+benchmark:
+  command: "/opt/venv/bin/python3 /workspace/test_harness.py"
+  metric_name: score
+  metric_pattern: 'SCORE:\s+([\d.]+)'
+  metric_direction: higher
+  metric_max: 100.0
+
+task:
+  description_file: evals/instances/aiter-allreduce-1stage-accuracy/task_description.md
+
+stages: auto
+max_retries_per_stage: 3
+max_total_hours: 4

@@ -1,0 +1,15 @@
+type: bugfix
+gpus: 2
+max_hours: 4
+repo: https://github.com/ROCm/aiter
+description: >
+  Fix accuracy issues in top-p sampling kernels that cause repetitive/corrupted
+  output under tensor parallelism and accuracy regressions on benchmarks like
+  GSM8K. The bug manifests on AMD GPUs when using multi-GPU tensor-parallel
+  inference.
+tags:
+  - sampling
+  - rocm
+  - tensor-parallelism
+  - amd-gpu
+  - kernel

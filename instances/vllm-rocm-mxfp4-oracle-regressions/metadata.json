@@ -1,0 +1,14 @@
+{
+  "name": "vllm-rocm-mxfp4-oracle-regressions",
+  "category": "bugfix",
+  "difficulty": "hard",
+  "source": {
+    "repo": "vllm-project/vllm",
+    "pr": 37787,
+    "parent_commit": null
+  },
+  "description": "MXFP4 MoE regressions: architecture gating, alignment checks, and padding parameters lost after refactor",
+  "task_description_source": "Symptom only, no fix direction",
+  "test_harness_type": "behavioral",
+  "requires_gpu": true
+}

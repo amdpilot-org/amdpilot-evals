@@ -8,10 +8,6 @@ ModuleNotFoundError: No module named 'cuda'
 
 The error occurs when importing `sglang.srt.layers.attention.linear.kda_backend`. The module-level import chain pulls in CuteDSL, which depends on `cuda.bindings` -- a package that only exists on NVIDIA CUDA platforms. This makes the entire `kda_backend` module unimportable on ROCm, even if KDA is never actually used.
 
-## Affected File
-
-- `python/sglang/srt/layers/attention/linear/kda_backend.py`
-
 ## Reproduction
 
 ```bash

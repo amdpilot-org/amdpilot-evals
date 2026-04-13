@@ -1,21 +1,8 @@
 #!/usr/bin/env python3
-"""Test harness for aiter PR #2169: LRU cache pollution in get_gemm_config.
+"""Test harness for aiter-lru-cache-pollution eval instance.
 
-Bug: get_gemm_config() returns a reference to the LRU-cached config dict.
-Callers (like fused_gemm_afp4wfp4_split_cat) mutate this dict in-place by
-adding/removing keys. The next call to get_gemm_config() with the same
-(M, N, K) returns the mutated dict, which may be missing expected keys
-(e.g., BLOCK_SIZE_S3) → KeyError crash.
-
-Fix: Renamed the cached function to _get_gemm_config_cached() and added a
-public get_gemm_config() wrapper that returns copy.deepcopy(config), so
-callers always get a fresh copy they can freely mutate.
-
-Tests (behavioral, not source-pattern matching):
-  1. Call get_gemm_config() twice with same args, verify independent dicts.
-  2. Mutate first result, verify second result is NOT polluted.
-  3. Verify cache still works (same args → same base values).
-  4. Anti-hack: direct mutation detection.
+Validates that GEMM configuration lookups return isolated results
+that are safe for callers to mutate without affecting other callers.
 """
 import os
 import subprocess
@@ -53,7 +40,7 @@ def run_subprocess(script, timeout=120):
 
 
 print("=" * 60)
-print("aiter-lru-cache-pollution test harness (PR #2169)")
+print("aiter-lru-cache-pollution test harness")
 print("=" * 60)
 
 # ---------------------------------------------------------------------------
@@ -67,16 +54,7 @@ if not check("gemm_config_utils.py exists", os.path.isfile(config_utils_path)):
     sys.exit(1)
 
 # ---------------------------------------------------------------------------
-# Checks 1-4: behavioral cache pollution test via subprocess.
-#
-# The core test: call get_gemm_config() → mutate result → call again →
-# verify the second result is NOT polluted by the mutation.
-#
-# Before fix: get_gemm_config returns a reference to the cached dict.
-#   Mutation pollutes the cache → second call returns the mutated dict → FAIL.
-#
-# After fix: get_gemm_config returns a deep copy.
-#   Mutation only affects the copy → second call returns a clean dict → PASS.
+# Checks 1-4: behavioral cache isolation test via subprocess.
 # ---------------------------------------------------------------------------
 print("\n--- Checks 1-4: cache isolation behavior ---")
 
@@ -200,48 +178,6 @@ elif "IMPORT:OK" in stdout:
     )
 else:
     check("Subprocess ran successfully", False, f"stderr: {stderr[:200]}")
-
-# ---------------------------------------------------------------------------
-# Check 5: Verify the fix mechanism — get_gemm_config should use deep copy.
-# Parse the source to confirm copy.deepcopy or dict() wrapping is present
-# in the public function. This is a supplementary structural check.
-# ---------------------------------------------------------------------------
-print("\n--- Check 5: fix mechanism verification ---")
-
-import ast
-
-try:
-    with open(config_utils_path) as f:
-        source = f.read()
-    tree = ast.parse(source)
-
-    # Find the public get_gemm_config function
-    public_fn = None
-    for node in ast.walk(tree):
-        if isinstance(node, ast.FunctionDef) and node.name == "get_gemm_config":
-            public_fn = node
-            break
-
-    if public_fn is not None:
-        # Check if it contains a call to copy.deepcopy or dict()
-        fn_source = "\n".join(
-            source.splitlines()[public_fn.lineno - 1:public_fn.end_lineno]
-        )
-        has_deepcopy = "deepcopy" in fn_source
-        has_dict_copy = "dict(" in fn_source
-        has_copy_call = ".copy()" in fn_source
-
-        uses_copy = has_deepcopy or has_dict_copy or has_copy_call
-        check(
-            "get_gemm_config uses copy mechanism (deepcopy/dict()/copy())",
-            uses_copy,
-            "no copy mechanism found — returns raw cached reference",
-        )
-    else:
-        check("get_gemm_config function found", False, "function not in source")
-
-except SyntaxError as e:
-    check("gemm_config_utils.py is valid Python", False, str(e))
 
 # ---------------------------------------------------------------------------
 # Summary

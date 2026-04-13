@@ -1,13 +1,8 @@
 #!/usr/bin/env python3
-"""Test harness for sglang-mla-ps-kernel-guard (PR #20409).
+"""Test harness for sglang-mla-ps-kernel-guard.
 
-Bug: init_forward_metadata_capture_cuda_graph and init_forward_metadata_replay_cuda_graph
-in aiter_backend.py guard a MLA-only code path with just `if _use_mla_ps_kernel:`
-instead of `if self.use_mla and _use_mla_ps_kernel:`. This causes non-MLA models to
-crash with AttributeError on `max_split_per_batch`.
-
-Tests use file-based AST analysis to verify the guard condition logic in each method.
-No module import required — reads the source file directly.
+Verify that MLA-specific code paths are properly guarded so non-MLA
+models can run without errors.
 """
 import ast
 import sys
@@ -90,12 +85,7 @@ def check_method_guard(method_name):
     if method_def is None:
         return None, f"method {method_name} not found in source"
 
-    # Count _use_mla_ps_kernel If nodes that DO include use_mla in the test.
-    # The fix adds `self.use_mla and _use_mla_ps_kernel` to the top-level
-    # guard in each method. Some deeper nested guards are already inside
-    # use_mla blocks and don't need the redundant check.
-    # Before fix: 0 guarded nodes (all bare _use_mla_ps_kernel).
-    # After fix: >= 1 guarded node per method (the top-level one).
+    # Count _use_mla_ps_kernel If nodes that include use_mla in the test.
     guarded_count = 0
     total_refs = 0
 

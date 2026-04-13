@@ -1,12 +1,7 @@
 #!/usr/bin/env python3
-"""Test harness for sglang-shuffle-weight-attrs (PR #21825).
+"""Test harness for sglang-shuffle-weight-attrs.
 
-Bug: In unquant.py, MoE weight shuffling uses direct Parameter() reassignment
-like `layer.w13_weight = torch.nn.Parameter(shuffle_weight(...))`, which loses
-custom attributes (like weight_loader) on the original parameter.
-Fix: Use copy_or_rebind_param() which preserves custom attributes.
-
-Tests verify the fix via AST analysis of the correct file (unquant.py).
+Verify that MoE weight shuffling preserves custom attributes on parameters.
 """
 import ast
 import sys
@@ -42,7 +37,7 @@ print("=" * 60)
 print("sglang-shuffle-weight-attrs test harness")
 print("=" * 60)
 
-# The PR modifies unquant.py, NOT ep_moe/layer.py
+# Target file for weight shuffling
 TARGET = "/workspace/sglang/python/sglang/srt/layers/quantization/unquant.py"
 
 if not check("Target file exists", Path(TARGET).is_file()):
@@ -91,8 +86,7 @@ check("copy_or_rebind_param is imported in unquant.py",
 
 # ---------------------------------------------------------------------------
 # Check 2: AST — copy_or_rebind_param calls exist with shuffle_weight
-# The fix replaces direct Parameter() assignments with copy_or_rebind_param()
-# calls wrapping shuffle_weight.
+# Check that shuffle_weight results are handled correctly.
 # ---------------------------------------------------------------------------
 good_copy_or_rebind = 0
 for node in ast.walk(tree):
@@ -116,7 +110,7 @@ check("copy_or_rebind_param calls wrap shuffle_weight (>= 2 expected)",
 
 # ---------------------------------------------------------------------------
 # Check 3: No direct Parameter() assignment with shuffle_weight
-# The old buggy pattern: layer.w13_weight = torch.nn.Parameter(shuffle_weight(...))
+# Check for direct Parameter() assignment with shuffle_weight (attribute-losing pattern)
 # ---------------------------------------------------------------------------
 bad_direct_assignments = 0
 for node in ast.walk(tree):

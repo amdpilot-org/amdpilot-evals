@@ -1,0 +1,28 @@
+{
+  "name": "sglang-speculative-decode-fix",
+  "category": "bugfix",
+  "difficulty": "hard",
+  "source": {
+    "repo": "ROCm/aiter",
+    "pr": 2520,
+    "issue": "sgl-project/sglang#21566",
+    "merge_commit": "357e60096b08291886b89c354a97f8fb20a64728",
+    "parent_commit": "5f88ca1cd5f097b3e408fb4afe938e74b7f59f8a"
+  },
+  "description": "Qwen3.5-397B-A17B-FP8 generates garbage/crashes with EAGLE speculative decoding on ROCm due to upstream GPU compute library bug",
+  "task_description_source": "GitHub issue sgl-project/sglang#21566 (symptom only, no root cause)",
+  "test_harness_type": "behavioral",
+  "requires_gpu": true,
+  "gpu_count": 2,
+  "base_image": "lmsysorg/sglang-rocm:v0.5.9-rocm720-mi35x-20260326",
+  "base_image_digest": "sha256:f0231c2bf55893e858ea53832f7856e5d65b87ff2e63029b7ba3d4c6fef14e3e",
+  "model": "Qwen/Qwen3.5-397B-A17B-FP8",
+  "model_snapshot": "9f1f3de9a3a48cfd340fd73ca98c02625b7afb3b",
+  "version_pins": {
+    "aiter_pre_fix_commit": "5f88ca1cd5f097b3e408fb4afe938e74b7f59f8a",
+    "sglang_commit": "0906e45ce",
+    "sglang_docker": "lmsysorg/sglang-rocm:v0.5.9-rocm720-mi35x-20260326",
+    "rocm": "7.2",
+    "note": "TP=2 required for model serving, 2x MI355X. Pre-fix code causes deadlock (spec decode) or GPU hardware exception (non-spec) on first inference request."
+  }
+}

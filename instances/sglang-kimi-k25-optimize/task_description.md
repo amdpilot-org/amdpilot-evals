@@ -68,12 +68,12 @@ After optimization is complete, push your changes and write a setup guide:
    - SSH keys are mounted at `/root/.ssh/`
    - Set `GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=no'` before git operations
 
-2. **Push changes**: Create branch `kimi-k25-optimize-v3` on each fork with your changes:
+2. **Push changes**: Create branch `kimi-k25-optimize` on each fork with your changes:
    ```bash
    cd /sgl-workspace/sglang
-   git checkout -b kimi-k25-optimize-v3
+   git checkout -b kimi-k25-optimize
    git add -A && git commit -m "Kimi-K2.5 decode optimization for MI355X"
-   GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=no' git push fork kimi-k25-optimize-v3
+   GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=no' git push fork kimi-k25-optimize
    ```
    Do the same for aiter if you modified it.
 

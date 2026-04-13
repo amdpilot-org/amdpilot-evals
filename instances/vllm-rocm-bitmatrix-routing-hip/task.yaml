@@ -1,0 +1,31 @@
+name: vllm-rocm-bitmatrix-routing-hip
+type: bugfix
+repo: https://github.com/vllm-project/vllm.git
+base_image: amdpilot-eval-vllm-rocm-bitmatrix-routing-hip
+
+model_endpoint:
+  base_url: "http://localhost:30000/v1"
+  api_key: "sk-dummy"
+
+container:
+  name: amdpilot_eval_vllm_rocm_bitmatrix_routing_hip
+  shm_size: 16g
+  devices: [/dev/kfd, /dev/dri]
+
+workload:
+  description: "MoE expert routing produces corrupted outputs on ROCm GPUs"
+  framework: PyTorch
+
+benchmark:
+  command: "/opt/venv/bin/python3 /workspace/test_harness.py"
+  metric_name: score
+  metric_pattern: 'SCORE:\s+([\d.]+)'
+  metric_direction: higher
+
+task:
+  description_file: evals/instances/vllm-rocm-bitmatrix-routing-hip/task_description.md
+
+stages: auto
+
+max_retries_per_stage: 3
+max_total_hours: 2
