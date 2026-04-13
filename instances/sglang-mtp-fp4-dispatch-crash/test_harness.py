@@ -657,7 +657,7 @@ def run_behavioral_tests():
 
 def main():
     print("=" * 70)
-    print("Test Harness: MTP Crash with FP4/FP8 Dispatch (PR #20647)")
+    print("Test Harness: sglang-mtp-fp4-dispatch-crash")
     print("=" * 70)
 
     # --- AST-based source analysis ---
@@ -691,12 +691,10 @@ def main():
 
     print(f"\nTotal: {total}  Passed: {passed}  Failed: {failed}")
 
-    if failed > 0:
-        print("\nRESULT: FAIL")
-        sys.exit(1)
-    else:
-        print("\nRESULT: PASS")
-        sys.exit(0)
+    score = (passed / total * 100.0) if total > 0 else 0.0
+    print(f"\nResults: {passed}/{total}")
+    print(f"SCORE: {score:.1f}")
+    sys.exit(0 if failed == 0 else 1)
 
 
 if __name__ == "__main__":

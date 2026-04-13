@@ -3,7 +3,7 @@
 
 Runs the GLM-5.1-FP8 decode benchmark and scores based on latency improvement.
 The benchmark runs sglang.bench_one_batch with fixed workload params (TP=8,
-batch=1, input=1024, output=128) and reports decode median latency in ms.
+batch=1, input=8192, output=2048) and reports decode median latency in ms.
 
 Scoring (continuous, open-ended):
   - 0.0: benchmark fails to run or extract metric
@@ -18,8 +18,10 @@ import sys
 # Baseline latency (ms) — established during Docker validation.
 # BASELINE_MS: unoptimized decode latency (what you get out of the box)
 # This is an open-ended optimization task: lower latency is always better.
-# These values are calibrated for GLM-5.1-FP8 on 8x MI355X with TP=8, batch=1.
-BASELINE_MS = 23.6    # decode median on 8x MI355X, TP=8, batch=1 (unoptimized)
+# Calibrated for GLM-5.1-FP8 on 8x MI355X with TP=8, batch=1, input=8192, output=2048.
+# REQUIRES GPU RECALIBRATION: original value (23.6) was measured on the short
+# workload (1024/128). Recalibrate on GPU with the 8192/2048 workload.
+BASELINE_MS = 23.6    # decode median on 8x MI355X, TP=8, batch=1 — recalibrate for 8192/2048
 
 
 def score_latency(measured, baseline):

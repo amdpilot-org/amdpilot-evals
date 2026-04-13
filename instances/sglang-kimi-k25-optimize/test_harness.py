@@ -6,39 +6,36 @@ improvement. The benchmark runs sglang.bench_one_batch with fixed workload
 params (TP=8, batch=1, input=8192, output=2048) and reports decode median
 latency in ms.
 
-Scoring (continuous, not binary):
+Scoring (continuous, open-ended):
   - 0.0: benchmark fails to run or extract metric
   - 33.3: benchmark runs but no improvement over baseline
-  - 33.3–100.0: linear interpolation based on improvement toward target
-  - 100.0: latency at or below target
+  - 33.3+: score increases with % improvement (no cap — lower latency is always better)
+    e.g. 10% improvement = 43.3, 30% = 63.3, 50% = 83.3
 """
 import re
 import subprocess
 import sys
 
-# Baseline and target latencies (ms) — established during Docker validation.
+# Baseline latency (ms) — established during Docker validation.
 # BASELINE_MS: unoptimized decode latency (what you get out of the box)
-# TARGET_MS: latency that earns 100.0 (meaningful optimization achieved)
-# These values are calibrated for Kimi-K2.5 on 8x MI355X with TP=8, batch=1,
+# Calibrated for Kimi-K2.5 on 8x MI355X with TP=8, batch=1,
 # input=8192, output=2048.
-BASELINE_MS = 999.0   # placeholder — set during Docker baseline measurement
-TARGET_MS = 999.0      # placeholder — set to meaningful improvement threshold
+# REQUIRES GPU CALIBRATION: run bench_kimi_k25.sh on unmodified container
+# and set this to the measured decode median.
+BASELINE_MS = 55.0    # initial estimate — recalibrate on GPU before launch
 
 
-def score_latency(measured, baseline, target):
-    """Score latency on a 0-100 scale with partial credit.
+def score_latency(measured, baseline):
+    """Score latency on a continuous scale based on % improvement.
 
     - At or above baseline: 33.3 (benchmark ran successfully, no improvement)
-    - Between baseline and target: linear interpolation 33.3 -> 100.0
-    - At or below target: 100.0
+    - Below baseline: 33.3 + improvement_pct (no cap — lower is always better)
+      e.g. 10% improvement = 43.3, 30% improvement = 63.3, 50% = 83.3
     """
     if measured >= baseline:
         return 33.3
-    if measured <= target:
-        return 100.0
-    # Linear interpolation between baseline (33.3) and target (100.0)
-    improvement_ratio = (baseline - measured) / (baseline - target)
-    return 33.3 + improvement_ratio * (100.0 - 33.3)
+    improvement_pct = (baseline - measured) / baseline * 100.0
+    return 33.3 + improvement_pct
 
 
 print("=" * 60)
@@ -95,19 +92,14 @@ print("  [PASS] CUDA graphs enabled")
 # --- Score based on improvement ---
 print(f"\n--- Performance scoring ---")
 print(f"  Baseline (unoptimized): {BASELINE_MS:.1f} ms")
-print(f"  Target (100.0 score):   {TARGET_MS:.1f} ms")
 print(f"  Measured:               {decode_ms:.1f} ms")
 
-score = score_latency(decode_ms, BASELINE_MS, TARGET_MS)
+score = score_latency(decode_ms, BASELINE_MS)
 
 if decode_ms >= BASELINE_MS:
     print(f"  No improvement over baseline")
-elif decode_ms <= TARGET_MS:
-    improvement_pct = (BASELINE_MS - decode_ms) / BASELINE_MS * 100
-    print(f"  Target reached! {improvement_pct:.1f}% improvement over baseline")
 else:
     improvement_pct = (BASELINE_MS - decode_ms) / BASELINE_MS * 100
-    target_pct = (BASELINE_MS - TARGET_MS) / BASELINE_MS * 100
-    print(f"  Partial improvement: {improvement_pct:.1f}% (need {target_pct:.1f}% for full score)")
+    print(f"  Improvement: {improvement_pct:.1f}% over baseline")
 
 print(f"\nSCORE: {score:.1f}")
