@@ -6,10 +6,10 @@ WORKDIR /workspace
 # Merge commit: e20e6c28b9bf56f632c64fdfeb5b8871237e8d88
 # Checkout to merge_commit~1 to get the pre-fix (buggy) state.
 RUN cd /sgl-workspace/sglang && \
-    git fetch origin && \
-    git checkout -- . && \
-    git checkout e20e6c28b9bf56f632c64fdfeb5b8871237e8d88~1 && \
-    pip install --no-deps -e python/
+    git checkout -f HEAD && \
+    git fetch --depth 100 origin e20e6c28b9bf56f632c64fdfeb5b8871237e8d88 && \
+    git checkout -f e20e6c28b9bf56f632c64fdfeb5b8871237e8d88~1 && \
+    /opt/venv/bin/pip install --no-deps -e python/
 
 # Clean git history to prevent data leak
 RUN cd /sgl-workspace/sglang && \

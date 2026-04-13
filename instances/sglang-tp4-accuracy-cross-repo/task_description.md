@@ -26,13 +26,9 @@ quality compared to TP=8 or non-MTP configurations.
 
 ## Key Observations
 
-- At TP=4, the model has 128 / 4 = 32 attention heads per GPU.
-- At TP=8, the model has 128 / 8 = 16 attention heads per GPU.
-- The aiter attention backend in the aiter attention backend has code paths that
-  configure MLA decode kernel modes (persist kernel, fast mode,
-  intra-batch mode) and metadata flags.
-- The kernel configuration and metadata generation may not correctly handle
-  all head count configurations.
+- The issue only manifests at TP=4, not TP=8.
+- The aiter attention backend's MLA decode path may not correctly handle
+  all tensor parallelism configurations.
 - This is a **cross-repo** issue: the fix may involve changes to both sglang
   source code and the aiter dependency version.
 
@@ -56,9 +52,9 @@ Run exactly:
 /opt/venv/bin/python3 /workspace/test_harness.py
 ```
 
-The harness inspects the aiter backend source code and the aiter library
-version to verify the fix handles TP=4 (32-head) configurations correctly.
-It reports a `SCORE` from `0` to `100`.
+The harness starts the server at TP=4 with the aiter attention backend,
+sends inference requests, and checks that outputs are coherent and
+factually correct. It reports a `SCORE` from `0` to `100`.
 
 ## Rules
 

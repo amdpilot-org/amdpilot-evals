@@ -15,7 +15,7 @@ container:
     - "/mnt/dcgpuval/huggingface:/root/.cache/huggingface"
 
 workload:
-  description: "Fix accuracy degradation at TP=4 with MTP on AMD GPUs due to unconfigured head_count=32 and wrong metadata flag"
+  description: "Fix accuracy degradation at TP=4 with MTP on AMD GPUs using aiter attention backend"
   framework: SGLang
 
 benchmark:

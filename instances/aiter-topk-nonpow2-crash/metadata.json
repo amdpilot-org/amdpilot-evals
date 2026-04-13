@@ -11,7 +11,7 @@
   "description": "MoE expert routing crashes at long sequences for models with non-power-of-2 expert counts (e.g., Kimi-K2.5 with 384 experts)",
   "expected_loc_changed": 7,
   "expected_files_changed": 1,
-  "requires_gpu": false,
+  "requires_gpu": true,
   "requires_model_download": false,
   "tags": [
     "rocm",
