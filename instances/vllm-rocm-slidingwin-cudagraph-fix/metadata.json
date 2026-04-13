@@ -9,10 +9,14 @@
   },
   "description": "AITER FlashAttention decode dispatch includes sliding_window condition that forces unified_attention path during CUDA graph capture, causing crash since unified_attention is incompatible with graph capture",
   "expected_files_changed": 1,
-  "affected_files": [
-    "vllm/v1/attention/backends/rocm_aiter_fa.py"
-  ],
   "requires_gpu": false,
   "requires_model_download": false,
-  "tags": ["rocm", "bugfix", "attention", "cuda-graph", "sliding-window", "aiter"]
+  "tags": [
+    "rocm",
+    "bugfix",
+    "attention",
+    "cuda-graph",
+    "sliding-window",
+    "aiter"
+  ]
 }

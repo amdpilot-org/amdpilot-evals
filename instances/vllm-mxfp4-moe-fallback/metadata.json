@@ -5,11 +5,6 @@
   "repo": "https://github.com/vllm-project/vllm",
   "pr": 35893,
   "merge_commit": "5dc3538736e40428d388f6980025340f4f7524af",
-  "affected_files": [
-    "vllm/model_executor/layers/quantization/mxfp4.py",
-    "vllm/model_executor/layers/quantization/quark/quark_moe.py",
-    "vllm/model_executor/layers/quantization/utils/mxfp4_utils.py"
-  ],
   "tags": [
     "rocm",
     "mxfp4",

@@ -22,7 +22,6 @@
     "aiter_pre_fix_commit": "5f88ca1cd5f097b3e408fb4afe938e74b7f59f8a",
     "sglang_commit": "0906e45ce",
     "sglang_docker": "lmsysorg/sglang-rocm:v0.5.9-rocm720-mi35x-20260326",
-    "rocm": "7.2",
-    "note": "TP=2 required for model serving, 2x MI355X. Pre-fix code causes deadlock (spec decode) or GPU hardware exception (non-spec) on first inference request."
+    "rocm": "7.2"
   }
 }

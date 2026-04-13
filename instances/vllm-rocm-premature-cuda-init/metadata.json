@@ -9,10 +9,13 @@
   },
   "description": "Importing vllm.platforms triggers torch.cuda.get_device_properties at module load, initializing CUDA before Ray workers can set CUDA_VISIBLE_DEVICES",
   "expected_files_changed": 1,
-  "affected_files": [
-    "vllm/platforms/rocm.py"
-  ],
   "requires_gpu": true,
   "requires_model_download": false,
-  "tags": ["rocm", "bugfix", "platform", "cuda-init", "ray"]
+  "tags": [
+    "rocm",
+    "bugfix",
+    "platform",
+    "cuda-init",
+    "ray"
+  ]
 }

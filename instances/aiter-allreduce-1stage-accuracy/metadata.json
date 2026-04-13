@@ -15,7 +15,6 @@
   "gpu_count": 2,
   "base_image": "lmsysorg/sglang-rocm:v0.5.9-rocm720-mi35x-20260326",
   "version_pins": {
-    "rocm": "7.2",
-    "note": "Bug present in base image (PR merged Apr 2, image from Mar 26). Fix is in csrc/include/custom_all_reduce.cuh. Agent must modify C++ and recompile."
+    "rocm": "7.2"
   }
 }

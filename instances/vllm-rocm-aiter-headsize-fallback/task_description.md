@@ -4,10 +4,6 @@
 
 When running models with attention head size smaller than 64 (e.g., head_size=32) on the AITER FlashAttention backend on ROCm, the `paged_attention_v1` ll4mi kernel crashes with an obscure kernel error. The ll4mi kernel requires `HEAD_SIZE >= 16 * NWARPS = 64`, but there is no fallback path for smaller head sizes.
 
-## Affected File
-
-- `vllm/v1/attention/backends/rocm_aiter_fa.py`
-
 ## How to Reproduce
 
 1. Load a model with attention head size < 64 on a ROCm GPU using the AITER FlashAttention backend.

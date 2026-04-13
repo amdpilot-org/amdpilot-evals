@@ -7,9 +7,6 @@ But the CK kernel operates on sorted_token_ids (which can be larger than
 token_num * topk due to block_m padding). The kernel writes to
 sorted_token_ids.shape[0] rows via hipMemsetAsync, overflowing the buffer.
 
-Fix: Allocate tmp_out using sorted_size = min(token_num * topk * block_m,
-sorted_token_ids.shape[0]) rows instead. Also slice valid output before
-passing to silu_and_mul/gelu_and_mul: valid_out = tmp_out[:token_num * topk, :].
 
 Tests (behavioral, not source-pattern matching):
   1. AST extraction: verify ck_moe_stage1 buffer allocation uses sorted_size or

@@ -9,10 +9,14 @@
   },
   "description": "paged_kv_last_page_len incorrectly set to sequence lengths instead of all-ones in AITER MLA decode (block_size=1)",
   "expected_files_changed": 1,
-  "affected_files": [
-    "vllm/v1/attention/backends/mla/rocm_aiter_mla.py"
-  ],
   "requires_gpu": true,
   "requires_model_download": false,
-  "tags": ["rocm", "bugfix", "mla", "attention", "aiter", "paged-kv"]
+  "tags": [
+    "rocm",
+    "bugfix",
+    "mla",
+    "attention",
+    "aiter",
+    "paged-kv"
+  ]
 }

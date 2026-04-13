@@ -15,7 +15,6 @@
   "gpu_count": 1,
   "base_image": "rocm/vllm-dev:rocm7.2.1_v0.18.0_20260330",
   "version_pins": {
-    "rocm": "7.2",
-    "note": "Multi-bug PR (6 distinct issues across 12 files). PR merged Mar 25, image from Mar 30 — image may have fix. Need checkout to pre-fix commit."
+    "rocm": "7.2"
   }
 }

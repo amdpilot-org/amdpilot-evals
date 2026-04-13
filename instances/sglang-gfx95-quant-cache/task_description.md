@@ -2,7 +2,7 @@
 
 ## Problem
 
-In `python/sglang/srt/models/deepseek_v2.py`, the `DeepseekV2DecoderLayer.forward()` method performs gfx95 quantization format detection on **every forward call**. This involves:
+In the DeepseekV2 model implementation, the `DeepseekV2DecoderLayer.forward()` method performs gfx95 quantization format detection on **every forward call**. This involves:
 
 1. Checking whether the platform is gfx95
 2. Inspecting weight tensors via `getattr()` chains to determine if they are `mxfp4` (`torch.uint8`) or `fp8` (`torch.float8_e4m3fn`)

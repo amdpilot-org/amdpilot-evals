@@ -17,7 +17,6 @@
   "model": "Qwen/Qwen3.5-397B-A17B-FP8",
   "version_pins": {
     "sglang_pre_fix_commit": "27053aa5ed2d7e8f080720ec1ad96cbeb353bb59~1",
-    "rocm": "7.2",
-    "note": "Fix is 1 line in aiter_backend.py. Checkout sglang to pre-fix commit. Bug is intermittent (depends on uninitialized memory contents)."
+    "rocm": "7.2"
   }
 }

@@ -3,24 +3,17 @@
 
 Bug: The AITER MLA kernel uses block_size=1, meaning every page holds exactly
 one token. Therefore paged_kv_last_page_len must always be 1 for every
-request. However, the buggy code sets it to the full sequence length:
-
-    paged_kv_last_page_len = torch.where(seq_lens_device == 0, 1, seq_lens_device)
-
-This causes wrong attention scores and potential out-of-bounds memory access
+request. However, the buggy code derives it from the sequence length, which
+causes wrong attention scores and potential out-of-bounds memory access
 for sequences whose length is not a power of two (e.g., prime-length
 sequences).
 
-Fix: Pre-initialize a persistent buffer of all-ones in __init__ and slice it
-in _build_decode, so paged_kv_last_page_len is always 1 regardless of
-sequence length.
-
 Tests (behavioral, source-inspection, and AST-based):
   1. Import check -- AiterMLADecodeMetadata can be imported.
-  2. Source inspection -- paged_kv_last_page_len is set via torch.ones (all-1s
-     buffer) rather than derived from seq_lens_device.
-  3. AST analysis -- the __init__ buffer creation uses torch.ones, not a
-     variable-based expression tied to seq_lens.
+  2. Source inspection -- paged_kv_last_page_len is a constant all-ones buffer
+     rather than derived from variable sequence lengths.
+  3. AST analysis -- the buffer initialization uses a fixed-value pattern, not
+     a variable-based expression tied to sequence lengths.
 """
 import ast
 import os
@@ -114,12 +107,9 @@ except Exception as e:
     print(f"\nSCORE: 0.0")
     sys.exit(1)
 
-# The fix introduces: self.paged_kv_last_page_len = torch.ones(...)
-# The buggy code has: paged_kv_last_page_len = torch.where(seq_lens_device == 0, 1, seq_lens_device)
-#
 # We check that:
-#  a) torch.ones is used with paged_kv_last_page_len (the fix pattern)
-#  b) The old buggy pattern (torch.where with seq_lens_device) is NOT present
+#  a) paged_kv_last_page_len is initialized as a constant all-ones buffer
+#  b) The old buggy pattern (deriving last_page_len from seq_lens) is NOT present
 
 has_ones_init = ("paged_kv_last_page_len" in source_text
                  and "torch.ones" in source_text)

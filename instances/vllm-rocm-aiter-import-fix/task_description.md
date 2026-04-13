@@ -12,12 +12,6 @@ The environment variable is intended to control the **default** backend selectio
 
 The same crash occurs for `pa_fwd_asm` (paged attention assembly kernel).
 
-## Affected files
-
-- `vllm/_aiter_ops.py`
-- `vllm/v1/attention/backends/rocm_aiter_fa.py`
-- `vllm/v1/spec_decode/eagle.py`
-
 ## Expected behavior
 
 - The env var `VLLM_ROCM_USE_AITER=0` should only control whether the AITER backend is chosen during **auto-discovery** (default backend selection).

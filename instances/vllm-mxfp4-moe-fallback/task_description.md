@@ -4,12 +4,6 @@ On ROCm with AITER fused MoE enabled, serving some MXFP4 MoE models (for example
 
 The failure appears when combining MXFP4-quantized MoE weights, ROCm AITER MoE, and a TP split that yields an incompatible effective expert intermediate width after partitioning.
 
-## Affected areas (for orientation)
-
-- `vllm/model_executor/layers/quantization/mxfp4.py`
-- `vllm/model_executor/layers/quantization/quark/quark_moe.py`
-- `vllm/model_executor/layers/quantization/utils/mxfp4_utils.py`
-
 ## Environment
 
 - vLLM source at `/workspace/vllm`

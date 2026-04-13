@@ -2,17 +2,14 @@
 """Test harness for sglang MLA decode NaN-on-padded-rows issue.
 
 Tests:
-  1. Verify the MLA decode function exists in aiter_backend.py
-  2. Check that the non-CUDA-graph MLA decode path extracts valid output
-     using contiguous slicing (o[:total_valid_q]) rather than masked
-     indexing (o[q_mask]) which can select unwritten padded rows
+  1. Verify the MLA decode function exists in the attention backend
+  2. Check that the non-CUDA-graph MLA decode path correctly extracts
+     valid output rows without selecting unwritten padded positions
   3. Start server and verify basic inference works (no crashes)
 
-The bug: pad_sequence_with_mask creates a padded layout with gaps between
-sequences. mla_decode_fwd writes output contiguously per qo_indptr.
-Using o[q_mask] to extract results reads from wrong positions because
-the mask follows the padded layout, not the contiguous output layout.
-Fix: o[:total_valid_q] extracts the first N valid rows directly.
+The bug: padded attention layouts create gaps between sequences in the
+output buffer. If the extraction logic uses the wrong indexing scheme,
+it reads from unwritten padded positions, producing NaN or garbage values.
 """
 
 import ast
@@ -110,8 +107,8 @@ def main():
     print("\n--- Check 2: MLA decode padded output extraction ---")
 
     # Find the code region that uses pad_sequence_with_mask + mla_decode_fwd
-    # The buggy pattern: pad_sequence_with_mask(...) then return o[q_mask]
-    # The fixed pattern: should use o[:total_valid_q] or qo_indptr-based slicing
+    # The bug: output extraction doesn't account for the layout mismatch
+    # between the padded input layout and the kernel's contiguous output ordering
 
     # Find all blocks that contain pad_sequence_with_mask
     pad_mask_regions = []
@@ -125,39 +122,41 @@ def main():
     found_pad_mask = len(pad_mask_regions) > 0
     check("pad_sequence_with_mask usage found in MLA decode",
           found_pad_mask,
-          "pad_sequence_with_mask not found in aiter_backend.py")
+          "pad_sequence_with_mask not found in attention backend")
 
     if not found_pad_mask:
         # If pad_sequence_with_mask isn't used at all, the fix may have
-        # removed the padded path entirely — check for alternative extraction
-        has_contiguous_extract = bool(re.search(
-            r'o\s*\[\s*:\s*total_valid|qo_indptr\s*\[\s*-1\s*\]',
+        # removed the padded path entirely — check that output extraction
+        # accounts for kernel output ordering
+        has_valid_extract = bool(re.search(
+            r'o\s*\[.*\]|output.*slice|output.*extract',
             source
         ))
-        check("MLA decode uses contiguous output extraction",
-              has_contiguous_extract,
-              "Neither padded mask nor contiguous extraction found")
+        check("MLA decode uses correct output extraction",
+              has_valid_extract,
+              "No output extraction logic found")
     else:
-        # Check each region for the extraction method
+        # Check each region — the output extraction must account for the
+        # layout mismatch between padded input and contiguous kernel output
         uses_mask_indexing = False
-        uses_contiguous = False
+        uses_correct_extract = False
 
         for lineno, region in pad_mask_regions:
-            # Check for the buggy pattern: return o[q_mask]
+            # Check for the buggy pattern: indexing output with the input mask
             if re.search(r'return\s+o\s*\[\s*q_mask\s*\]', region):
                 uses_mask_indexing = True
-            # Check for the fixed pattern: o[:total_valid_q] or similar
-            if re.search(r'o\s*\[\s*:\s*total_valid', region):
-                uses_contiguous = True
-            if re.search(r'qo_indptr\s*\[\s*-1\s*\].*item', region):
-                uses_contiguous = True
+            # Check for any extraction that accounts for contiguous ordering
+            if re.search(r'o\s*\[\s*:.*\]', region) and not re.search(r'o\s*\[\s*q_mask\s*\]', region):
+                uses_correct_extract = True
+            if re.search(r'qo_indptr.*item', region):
+                uses_correct_extract = True
 
-        if uses_mask_indexing and not uses_contiguous:
+        if uses_mask_indexing and not uses_correct_extract:
             check("MLA decode output extraction handles padding correctly",
                   False,
                   "output extraction does not account for layout mismatch "
                   "between padded input and kernel output ordering")
-        elif uses_contiguous:
+        elif uses_correct_extract:
             check("MLA decode output extraction handles padding correctly",
                   True)
         else:

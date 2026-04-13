@@ -75,15 +75,15 @@ Bring triton-backend output throughput to **≥1600 tok/s** (vLLM achieves 1648 
 
 The decode path is where the regression lives (TPOT 12.21ms vs 9.09ms). Focus here:
 
-1. **Triton attention kernel tuning**: The triton decode attention kernels in `sglang/srt/layers/attention/triton_ops/` may have suboptimal tile sizes, num_kv_splits, or memory access patterns for MI355X. Profile with `rocprof` to find the hotspot kernels. Check `triton_attention_num_kv_splits` and `triton_attention_reduce_in_fp32` server args.
+1. **Triton attention kernel tuning**: The triton decode attention kernels may have suboptimal tile sizes, num_kv_splits, or memory access patterns for MI355X. Profile with `rocprof` to find the hotspot kernels. Check `triton_attention_num_kv_splits` and `triton_attention_reduce_in_fp32` server args.
 
-2. **CUDA graph overhead**: VL models may have variable input shapes that cause excessive CUDA graph recompilation or suboptimal graph capture. Check `sglang/srt/layers/attention/triton_backend.py` for how CUDA graphs interact with the triton attention path.
+2. **CUDA graph overhead**: VL models may have variable input shapes that cause excessive CUDA graph recompilation or suboptimal graph capture. Investigate how CUDA graphs interact with the triton attention path.
 
 3. **Vision token handling in decode**: During batched decode with image tokens, the KV cache access pattern may differ from text-only. Check if the triton attention kernel handles multimodal KV entries efficiently.
 
-4. **Scheduling inefficiency**: Image requests with many vision tokens may cause the scheduler to create suboptimal batches during decode. Check `sglang/srt/managers/schedule_batch.py`.
+4. **Scheduling inefficiency**: Image requests with many vision tokens may cause the scheduler to create suboptimal batches during decode.
 
-5. **Memory fragmentation**: Multimodal tokens may cause memory fragmentation in the KV cache, leading to non-contiguous memory access during triton attention. Check `sglang/srt/mem_cache/`.
+5. **Memory fragmentation**: Multimodal tokens may cause memory fragmentation in the KV cache, leading to non-contiguous memory access during triton attention.
 
 6. **torch.compile and triton interaction**: Check if `torch.compile` or piecewise CUDA graph compilation introduces overhead specific to the triton attention path on AMD.
 

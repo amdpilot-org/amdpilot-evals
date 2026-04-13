@@ -1,22 +1,16 @@
 #!/usr/bin/env python3
 """Test harness for vllm PR #37606: cache block size mismatch for aiter unified attention.
 
-Bug: Block size for the AITER unified attention backend was hardcoded in
-RocmPlatform.check_and_update_config() — setting cache_config.block_size = 64
-for aiter unified attention and block_size = 16 otherwise. This platform-level
-hardcoding caused block_size mismatches: the backend expected 64, but if the
-config flags didn't match exactly, the platform set 16 (or vice versa).
-
-Fix: Move block_size configuration to the backend itself via a new
-get_preferred_block_size() classmethod. Remove the hardcoded block_size logic
-and the empty update_block_size_for_backend stub from the platform.
+Bug: Block size for the AITER unified attention backend was hardcoded at the
+platform level rather than owned by the backend itself. This caused block size
+mismatches when config flags didn't align with the platform's assumptions.
 
 Tests:
-  1. Backend has get_preferred_block_size() returning 64.
-  2. check_and_update_config does NOT hardcode cache_config.block_size.
-  3. update_block_size_for_backend stub is removed.
-  4. get_supported_kernel_block_sizes still present on backend.
-  5. Behavioral: calling get_preferred_block_size returns 64.
+  1. The backend reports its own preferred block size.
+  2. The platform config method does not hardcode cache block size.
+  3. Obsolete block-size stub methods are removed from the platform.
+  4. The backend still reports its set of supported block sizes.
+  5. Behavioral: the backend's preferred block size is callable and correct.
 """
 import ast
 import os

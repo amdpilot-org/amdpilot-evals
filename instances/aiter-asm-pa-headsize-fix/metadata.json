@@ -9,10 +9,13 @@
   },
   "description": "ASM paged attention kernel dispatched for unsupported head_size!=128, producing incorrect results",
   "expected_files_changed": 1,
-  "affected_files": [
-    "aiter/ops/attention.py"
-  ],
   "requires_gpu": false,
   "requires_model_download": false,
-  "tags": ["rocm", "bugfix", "attention", "dispatch", "head_size"]
+  "tags": [
+    "rocm",
+    "bugfix",
+    "attention",
+    "dispatch",
+    "head_size"
+  ]
 }

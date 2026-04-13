@@ -6,11 +6,6 @@ When using the AITER unified attention backend on ROCm, the KV cache block size 
 
 The result is incorrect attention computation or crashes due to block size mismatch between the cache layout and the attention kernel.
 
-## Affected Files
-
-- `vllm/platforms/rocm.py`
-- `vllm/v1/attention/backends/rocm_aiter_unified_attn.py`
-
 ## How to Reproduce
 
 1. Configure vLLM to use the AITER unified attention backend on a ROCm GPU.

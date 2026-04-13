@@ -1,9 +1,8 @@
 FROM lmsysorg/sglang-rocm:v0.5.9-rocm720-mi35x-20260326
 WORKDIR /workspace
 
-# The base image's aiter already has the bug (stream_config{nullptr} at line
-# 240 of gemm_a8w8_blockscale_cktile_common.cuh).  No git checkout needed.
-# Just clean up git to prevent the executor from finding the fix via history.
+# The base image's aiter contains the pre-fix version.  No git checkout needed.
+# Clean up git to prevent the executor from finding the fix via history.
 RUN cd /sgl-workspace/aiter && \
     git remote remove origin 2>/dev/null; \
     git reflog expire --expire=now --all && \

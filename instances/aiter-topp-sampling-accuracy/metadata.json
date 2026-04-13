@@ -9,12 +9,6 @@
   "files_changed": 4,
   "lines_added": 35,
   "lines_removed": 10,
-  "changed_files": [
-    "csrc/include/sampling.cuh",
-    "op_tests/test_top_k_top_p_sampling_from_probs.py",
-    "op_tests/test_top_p_sampling_from_probs.py",
-    "aiter/util.py"
-  ],
   "categories": [
     "sampling",
     "rng",

@@ -6,10 +6,6 @@ When running models with sliding window attention (e.g., Mistral) on the AITER F
 
 The decode dispatch logic incorrectly routes sliding window models to the `unified_attention` Triton path even during normal single-token decode, where they should use the standard paged attention path that supports CUDA graphs.
 
-## Affected File
-
-- `vllm/v1/attention/backends/rocm_aiter_fa.py`
-
 ## How to Reproduce
 
 1. Load a sliding window model (e.g., Mistral) on a ROCm GPU using the AITER FlashAttention backend.

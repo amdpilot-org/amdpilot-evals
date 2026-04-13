@@ -7,15 +7,14 @@ via attention_config crashes with:
   'flash_attn_varlen_func'
 
 The env var disables the aiter import at module level, but the backend code
-still tries to call aiter.flash_attn_varlen_func directly. Explicit backend
-selection should work regardless of the env var.
+still tries to call aiter functions directly. Explicit backend selection should
+work regardless of the env var.
 
 Tests (behavioral, subprocess-isolated):
-  1. is_aiter_found_and_supported() must NOT check VLLM_ROCM_USE_AITER env var
-  2. rocm_aiter_ops class must provide flash_attn_varlen_func and pa_fwd_asm
-     static methods (lazy-import wrappers)
-  3. rocm_aiter_fa.py backend must NOT call aiter.flash_attn_varlen_func directly;
-     it must route through rocm_aiter_ops.flash_attn_varlen_func
+  1. Platform capability detection is separated from user preference (env var).
+  2. Attention ops are accessible without requiring a module-level aiter import.
+  3. Backend does not call aiter functions directly at module scope -- it goes
+     through an indirection layer that defers the import.
 """
 import ast
 import os

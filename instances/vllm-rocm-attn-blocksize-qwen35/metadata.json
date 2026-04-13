@@ -5,9 +5,6 @@
   "repo": "vllm-project/vllm",
   "pr": 35923,
   "merge_commit": "a40ee486f273eaaa885dafd0526f42f3a5b960c9",
-  "affected_files": [
-    "vllm/v1/attention/backends/rocm_attn.py"
-  ],
   "tags": [
     "vllm",
     "rocm",

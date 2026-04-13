@@ -1,23 +1,17 @@
 #!/usr/bin/env python3
 """Test harness for vllm PR #34570: AITER paged_attention_v1 decode fallback
-for sliding window and head_size < 64.
+for small head sizes.
 
-Bug: The ll4mi kernel used in AITER's paged_attention_v1 requires
-HEAD_SIZE >= 16 * NWARPS (= 64 on ROCm with NWARPS=4). Models with smaller
-head sizes (e.g., head_size=32) crash with an obscure kernel error. Similarly,
-sliding window attention was not handled by this code path.
-
-Fix: Add a head_size check with _MIN_HEAD_SIZE_FOR_LL4MI = 64. When
-head_size < 64, fall back to the aiter unified_attention Triton kernel which
-handles small head sizes and sliding window correctly. The fallback is
-dispatched BEFORE the shuffle_kv_cache branch.
+Bug: The ll4mi kernel used in AITER's paged_attention_v1 has a minimum
+head size requirement. Models with smaller head sizes (e.g., head_size=32)
+crash with an obscure kernel error.
 
 Tests:
-  1. _MIN_HEAD_SIZE_FOR_LL4MI constant exists (value 64).
-  2. head_size comparison dispatches to unified_attention fallback.
-  3. unified_attention import present in fallback branch.
-  4. Fallback is an elif before the shuffle_kv_cache path.
-  5. Fallback calls unified_attention with correct key args.
+  1. A head size threshold constant exists to guard the kernel path.
+  2. Small head sizes are dispatched to a fallback attention path.
+  3. The fallback attention kernel is imported and callable.
+  4. Fallback dispatch occurs before other specialized paths.
+  5. Fallback is called with the correct attention arguments.
 """
 import ast
 import os

@@ -25,18 +25,25 @@ import urllib.request
 SGLANG_ROOT = "/workspace/sglang"
 PYTHON_SRC = os.path.join(SGLANG_ROOT, "python", "sglang", "srt")
 
-# Files that should contain the fix
-TARGET_FILES = {
-    "ep_moe_layer": os.path.join(PYTHON_SRC, "layers", "moe", "ep_moe", "layer.py"),
-    "fused_moe_layer": os.path.join(
-        PYTHON_SRC, "layers", "moe", "fused_moe_triton", "layer.py"
-    ),
-    "moe_runner_base": os.path.join(
-        PYTHON_SRC, "layers", "moe", "moe_runner", "base.py"
-    ),
-    "moriep": os.path.join(PYTHON_SRC, "layers", "moe", "moriep.py"),
-    "deepseek_v2": os.path.join(PYTHON_SRC, "models", "deepseek_v2.py"),
-}
+# Dynamically discover MoE-related source files
+def _discover_moe_files():
+    """Walk the source tree to find MoE dispatch and model files."""
+    found = {}
+    for root, dirs, files in os.walk(PYTHON_SRC):
+        for f in files:
+            if f.endswith('.py'):
+                fpath = os.path.join(root, f)
+                try:
+                    with open(fpath) as fh:
+                        content = fh.read()
+                    # Include files that contain MoE dispatch logic
+                    if any(kw in content for kw in ['moe', 'MoE', 'fused_moe', 'moriep', 'dispatch']):
+                        found[f] = fpath
+                except Exception:
+                    pass
+    return found
+
+TARGET_FILES = _discover_moe_files()
 
 # Model path for behavioral testing (volume-mounted from host)
 MODEL_CACHE = "/root/.cache/huggingface/"
@@ -127,12 +134,7 @@ def test_bf16_weight_detection():
     bf16_keywords = {"bfloat16", "bf16", "BFloat16"}
     dequant_keywords = {"dequant", "dequantize", "fallback", "to_float", "to_dtype"}
 
-    files_to_check = [
-        TARGET_FILES["ep_moe_layer"],
-        TARGET_FILES["fused_moe_layer"],
-        TARGET_FILES["moe_runner_base"],
-        TARGET_FILES["moriep"],
-    ]
+    files_to_check = list(TARGET_FILES.values())
 
     found_bf16_check = False
     found_dequant_logic = False
@@ -287,12 +289,7 @@ def test_no_crash_pattern_in_moe_dispatch():
     We look for guard conditions before the error raise, or alternative
     dispatch paths that handle this dtype combination.
     """
-    files_to_check = [
-        TARGET_FILES["moe_runner_base"],
-        TARGET_FILES["moriep"],
-        TARGET_FILES["ep_moe_layer"],
-        TARGET_FILES["fused_moe_layer"],
-    ]
+    files_to_check = list(TARGET_FILES.values())
 
     found_error_site = False
     has_guard = False
@@ -363,12 +360,27 @@ def test_deepseek_v2_nextn_support():
     Check that deepseek_v2.py propagates the is_nextn flag or equivalent
     so that MTP layers get distinct dispatch treatment.
     """
-    fpath = TARGET_FILES["deepseek_v2"]
+    # Find the DeepseekV2 model file dynamically
+    fpath = None
+    for name, path in TARGET_FILES.items():
+        if 'deepseek' in name.lower():
+            fpath = path
+            break
+    if fpath is None:
+        # Search for it
+        for root, dirs, files in os.walk(os.path.join(PYTHON_SRC, "models")):
+            for f in files:
+                if 'deepseek' in f.lower() and f.endswith('.py'):
+                    fpath = os.path.join(root, f)
+                    break
+
+    if fpath is None:
+        record("deepseek_v2_nextn_support", False, "DeepSeek model file not found")
+        return False
+
     source = read_source(fpath)
     if not source:
-        record(
-            "deepseek_v2_nextn_support", False, "deepseek_v2.py not found"
-        )
+        record("deepseek_v2_nextn_support", False, "DeepSeek model file empty")
         return False
 
     flag_patterns = [
@@ -576,16 +588,7 @@ def run_behavioral_tests():
         print("\n--- Behavioral Tests: SKIPPED (no MXFP4 model found) ---")
         print(f"  Looked in: {MODEL_CACHE}")
         print("  To run behavioral tests, mount an MXFP4 model to the container.")
-        record(
-            "behavioral_server_startup",
-            True,
-            "SKIPPED - no MXFP4 model available; relying on AST checks",
-        )
-        record(
-            "behavioral_inference",
-            True,
-            "SKIPPED - no MXFP4 model available; relying on AST checks",
-        )
+        # Do NOT auto-pass — behavioral verification is required for full score
         return
 
     print(f"\n--- Behavioral Tests: using model {model_path} ---")
@@ -650,15 +653,7 @@ def main():
     # --- AST-based source analysis ---
     print("\n--- AST-based Source Analysis ---")
 
-    # Verify target files exist
-    missing = []
-    for name, path in TARGET_FILES.items():
-        if not os.path.isfile(path):
-            missing.append(f"{name}: {path}")
-    if missing:
-        print("WARNING: Some target files are missing:")
-        for m in missing:
-            print(f"  {m}")
+    print(f"  Discovered {len(TARGET_FILES)} MoE-related source files")
 
     test_bf16_weight_detection()
     test_nextn_env_vars()

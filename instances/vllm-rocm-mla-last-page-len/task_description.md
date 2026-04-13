@@ -9,10 +9,6 @@ This mismatch causes:
 - Potential out-of-bounds memory access in the MLA decode kernel
 - Unpredictable behavior especially for sequences with prime-number lengths (e.g., 127, 131)
 
-## Affected file
-
-`vllm/v1/attention/backends/mla/rocm_aiter_mla.py`
-
 ## How to reproduce
 
 Run any MLA-architecture model (e.g., DeepSeek-V2) through the AITER MLA decode path on a ROCm GPU with sequences whose token count is a prime number. The incorrect `paged_kv_last_page_len` values will cause the kernel to read beyond valid page boundaries or compute attention with incorrect masking.

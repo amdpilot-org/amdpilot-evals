@@ -3,7 +3,7 @@
 ## Symptom
 
 When unquantized MoE (Mixture of Experts) weight shuffling is performed in
-`python/sglang/srt/layers/quantization/unquant.py`, custom attributes that were
+the unquantized linear layer module, custom attributes that were
 previously attached to `torch.nn.Parameter` objects (such as `weight_loader`)
 are silently dropped.
 

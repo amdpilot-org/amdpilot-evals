@@ -98,9 +98,9 @@ except Exception as e:
 """)
 
 if "IMPORT_SKIP" in stdout:
-    check("Routing module available", True, "(skipped — deps unavailable)")
-    check("No spurious expert assignments in routing", True, "(skipped)")
-    check("All selected experts present in routing", True, "(skipped)")
+    check("Routing module available", False, "ImportError — module not available (fix required)")
+    check("No spurious expert assignments in routing", False, "cannot test — import failed")
+    check("All selected experts present in routing", False, "cannot test — import failed")
 elif "ERROR:" in stdout:
     err = stdout.split("ERROR:")[1].strip()[:200]
     check("Routing module available", False, err)
@@ -172,7 +172,7 @@ except Exception as e:
 """)
 
 if "IMPORT_SKIP" in stdout2:
-    check("Multi-column routing correct (64 experts)", True, "(skipped)")
+    check("Multi-column routing correct (64 experts)", False, "ImportError — module not available (fix required)")
 elif "ERROR:" in stdout2:
     check("Multi-column routing correct (64 experts)", False,
           stdout2.split("ERROR:")[1].strip()[:200] if "ERROR:" in stdout2 else "unknown")

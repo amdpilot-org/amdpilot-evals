@@ -28,7 +28,7 @@ quality compared to TP=8 or non-MTP configurations.
 
 - At TP=4, the model has 128 / 4 = 32 attention heads per GPU.
 - At TP=8, the model has 128 / 8 = 16 attention heads per GPU.
-- The aiter attention backend in `aiter_backend.py` has code paths that
+- The aiter attention backend in the aiter attention backend has code paths that
   configure MLA decode kernel modes (persist kernel, fast mode,
   intra-batch mode) and metadata flags.
 - The kernel configuration and metadata generation may not correctly handle

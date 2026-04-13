@@ -1,4 +1,4 @@
-# Non-MLA models crash with AttributeError in aiter_backend.py
+# Non-MLA models crash with AttributeError in the aiter attention backend
 
 When running non-MLA models (e.g., Llama, Mistral) with the AITer attention backend on ROCm, the forward pass crashes with:
 

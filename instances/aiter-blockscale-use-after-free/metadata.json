@@ -15,7 +15,6 @@
   "gpu_count": 1,
   "base_image": "lmsysorg/sglang-rocm:v0.5.9-rocm720-mi35x-20260326",
   "version_pins": {
-    "rocm": "7.2",
-    "note": "Bug is in csrc/ck_gemm_a8w8_blockscale/include/gemm_a8w8_blockscale_cktile_common.cuh. May need to checkout pre-fix aiter commit if base image includes fix."
+    "rocm": "7.2"
   }
 }

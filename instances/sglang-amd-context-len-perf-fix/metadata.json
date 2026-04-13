@@ -10,9 +10,6 @@
   "description": "[AMD] fix performance regression issue when run gpt-oss with \"--context-length 13824\"",
   "expected_loc_changed": 1,
   "expected_files_changed": 1,
-  "affected_files": [
-    "python/sglang/srt/layers/attention/aiter_backend.py"
-  ],
   "requires_gpu": false,
   "requires_model_download": false,
   "tags": [
