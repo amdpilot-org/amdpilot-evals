@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Test harness for aiter-asm-pa-headsize-fix eval instance.
 
-Validates that paged attention kernel dispatch correctly handles
-different head sizes and does not route unsupported configurations
-to the ASM kernel.
+Validates that paged attention produces correct numerical output for
+different head sizes. The bug: an unsupported head_size is routed to a
+kernel that only handles head_size=128, producing silently incorrect
+attention values.
 """
-import ast
 import os
 import subprocess
 import sys
@@ -14,8 +14,6 @@ checks_passed = 0
 checks_total = 0
 
 VENV_PYTHON = "/opt/venv/bin/python3"
-AITER_PATH = "/workspace/aiter"
-ATTENTION_PATH = os.path.join(AITER_PATH, "aiter/ops/attention.py")
 
 
 def check(name, condition, detail=""):
@@ -31,184 +29,272 @@ def check(name, condition, detail=""):
     return condition
 
 
-def run_subprocess(script, timeout=120):
-    result = subprocess.run(
-        [VENV_PYTHON, "-c", script],
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-        cwd="/workspace",
-    )
-    return result.stdout or "", result.stderr or "", result.returncode
-
-
 print("=" * 60)
 print("aiter-asm-pa-headsize-fix test harness")
 print("=" * 60)
 
 # ---------------------------------------------------------------------------
-# Check 0: target file exists
+# Check 0: aiter importable
 # ---------------------------------------------------------------------------
-if not check("attention.py exists", os.path.isfile(ATTENTION_PATH)):
-    print(f"\nSCORE: 0.0")
-    sys.exit(1)
-
-# ---------------------------------------------------------------------------
-# Check 1: file is valid Python
-# ---------------------------------------------------------------------------
+import_script = """\
+import sys
+sys.path.insert(0, '/sgl-workspace/aiter')
 try:
-    with open(ATTENTION_PATH) as fh:
-        source_text = fh.read()
-    source_tree = ast.parse(source_text)
-    check("attention.py is valid Python", True)
-except SyntaxError as e:
-    check("attention.py is valid Python", False, str(e))
-    print(f"\nSCORE: 0.0")
-    sys.exit(1)
-
-# ---------------------------------------------------------------------------
-# Check 2: _should_use_asm_kernel signature includes head_size parameter.
-# ---------------------------------------------------------------------------
-print("\n--- Check 2: function signature ---")
-
-dispatch_fn = None
-for node in ast.walk(source_tree):
-    if isinstance(node, ast.FunctionDef) and node.name == "_should_use_asm_kernel":
-        dispatch_fn = node
-        break
-
-if not check(
-    "_should_use_asm_kernel function found",
-    dispatch_fn is not None,
-    "function not found — may have been renamed",
-):
-    print(f"\nSCORE: 0.0")
-    sys.exit(1)
-
-param_names = [arg.arg for arg in dispatch_fn.args.args]
-check(
-    "_should_use_asm_kernel has head_size parameter",
-    "head_size" in param_names,
-    f"params: {param_names} — head_size missing, ASM kernel will be used for all head sizes",
-)
-
-# ---------------------------------------------------------------------------
-# Checks 3-5: dispatch behavior verification.
-# ---------------------------------------------------------------------------
-print("\n--- Checks 3-5: dispatch behavior ---")
-
-fn_src_lines = source_text.splitlines()[dispatch_fn.lineno - 1:dispatch_fn.end_lineno]
-fn_src = "\n".join(fn_src_lines)
-
-# The function references torch.int8, torch.float16, etc.
-# We need torch in the namespace for the comparison.
-dispatch_test_script = f"""
-import sys, os
-sys.stdout = open(sys.stdout.fileno(), 'w', buffering=1)
-
-try:
-    import torch
-    print("TORCH:OK")
-except ImportError:
-    print("TORCH:FAIL")
-    sys.exit(0)
-
-# Compile and execute the extracted function
-fn_source = {fn_src!r}
-ns = {{"torch": torch, "__builtins__": __builtins__}}
-try:
-    exec(compile(fn_source, "attention.py", "exec"), ns)
-    fn = ns["_should_use_asm_kernel"]
-    print("COMPILE:OK")
+    from aiter.ops.attention import paged_attention_common
+    print("IMPORT:OK")
 except Exception as e:
-    print(f"COMPILE:FAIL:{{type(e).__name__}}:{{str(e)[:200]}}")
-    sys.exit(0)
-
-import inspect
-sig = inspect.signature(fn)
-num_params = len(sig.parameters)
-print(f"NUM_PARAMS:{{num_params}}")
-
-# Test with different head_sizes
-if num_params >= 5:
-    # head_size=64 + int8 cache → should return False
-    r64 = fn(1, 32, 64, torch.int8, 0)
-    print(f"HEAD64_INT8:{{r64}}")
-
-    # head_size=128 + int8 cache → should return True (supported)
-    r128 = fn(1, 32, 128, torch.int8, 0)
-    print(f"HEAD128_INT8:{{r128}}")
-
-    # head_size=256 + int8 cache → should return False
-    r256 = fn(1, 32, 256, torch.int8, 0)
-    print(f"HEAD256_INT8:{{r256}}")
-
-    # head_size=128 + fp16 cache + high_precision=2 → should return True
-    r128_hp = fn(1, 32, 128, torch.float16, 2)
-    print(f"HEAD128_HP2:{{r128_hp}}")
-
-    # head_size=64 + fp16 cache + high_precision=2 → should return False
-    r64_hp = fn(1, 32, 64, torch.float16, 2)
-    print(f"HEAD64_HP2:{{r64_hp}}")
-
-elif num_params == 3:
-    r_int8 = fn(1, 32, torch.int8)
-    print(f"OLD_INT8:{{r_int8}}")
-    # Flag that the function lacks head_size parameter
-    print("HEAD_SIZE_CHECK:MISSING")
-else:
-    print(f"UNEXPECTED_PARAMS:{{num_params}}")
+    print(f"IMPORT:FAIL:{type(e).__name__}:{str(e)[:300]}")
 """
 
 try:
-    stdout, stderr, rc = run_subprocess(dispatch_test_script, timeout=30)
+    result = subprocess.run(
+        [VENV_PYTHON, "-c", import_script],
+        capture_output=True, text=True, timeout=60, cwd="/workspace",
+    )
+    stdout = result.stdout
 except subprocess.TimeoutExpired:
-    stdout, rc = "TIMEOUT", -1
+    stdout = "IMPORT:FAIL:timeout"
 
-if "TORCH:FAIL" in stdout:
-    print("  [SKIP] torch not available")
-elif "COMPILE:FAIL" in stdout:
-    err = stdout.split("COMPILE:FAIL:")[1].split("\n")[0]
-    check("Dispatch function compiles", False, err)
-elif "COMPILE:OK" in stdout:
-    check("Dispatch function compiles", True)
+if "IMPORT:OK" not in stdout:
+    detail = stdout.split("IMPORT:FAIL:")[-1].strip() if "IMPORT:FAIL:" in stdout else "unknown"
+    check("aiter attention module importable", False, detail)
+    print(f"\nSCORE: 0.0")
+    sys.exit(1)
+check("aiter attention module importable", True)
 
-    if "HEAD_SIZE_CHECK:MISSING" in stdout:
-        check("head_size=64 → rejects ASM kernel", False,
-              "function has no head_size parameter — all head sizes route to ASM")
-        check("head_size=128 → accepts ASM kernel", False,
-              "function has no head_size parameter")
-        check("head_size=256 → rejects ASM kernel", False,
-              "function has no head_size parameter")
-    else:
-        # Check 3: head_size=64 must return False
-        check(
-            "head_size=64 + int8 cache → rejects ASM kernel",
-            "HEAD64_INT8:False" in stdout,
-            "ASM kernel incorrectly selected for unsupported head_size=64",
+# ---------------------------------------------------------------------------
+# Check 1-3: Paged attention correctness for different head sizes.
+#
+# Uses many sequences to ensure the high-throughput kernel path is
+# exercised (the path that only supports head_size=128).  A reference
+# computation gathers KV from the block cache and computes standard
+# scaled dot-product attention.
+# ---------------------------------------------------------------------------
+
+PA_TEST_SCRIPT = r"""
+import sys, math, json
+sys.path.insert(0, '/sgl-workspace/aiter')
+
+import torch
+torch.manual_seed(42)
+device = "cuda"
+
+from aiter.ops.attention import paged_attention_common
+
+def reference_paged_attention(query, k_cache, v_cache, block_tables,
+                              context_lens, scale, num_kv_heads):
+    """Compute paged attention output using plain PyTorch (reference)."""
+    num_seqs, num_heads, head_size = query.shape
+    block_size = v_cache.shape[3]
+    x = k_cache.shape[4]
+    outputs = torch.zeros_like(query, dtype=torch.float32)
+
+    num_queries_per_kv = num_heads // num_kv_heads
+
+    for s in range(num_seqs):
+        ctx_len = int(context_lens[s].item())
+        bt = block_tables[s].tolist()
+
+        # Gather keys and values from block cache
+        k_list, v_list = [], []
+        for t in range(ctx_len):
+            block_idx = int(bt[t // block_size])
+            offset = t % block_size
+            # k_cache: [num_blocks, num_kv_heads, head_size//x, block_size, x]
+            k_tok = k_cache[block_idx, :, :, offset, :].reshape(num_kv_heads, head_size)
+            # v_cache: [num_blocks, num_kv_heads, head_size, block_size]
+            v_tok = v_cache[block_idx, :, :, offset]  # [num_kv_heads, head_size]
+            k_list.append(k_tok)
+            v_list.append(v_tok)
+
+        keys = torch.stack(k_list, dim=0).float()    # [ctx_len, num_kv_heads, head_size]
+        values = torch.stack(v_list, dim=0).float()   # [ctx_len, num_kv_heads, head_size]
+        q = query[s].unsqueeze(0).float()             # [1, num_heads, head_size]
+
+        # GQA expansion
+        if num_queries_per_kv > 1:
+            keys = keys.unsqueeze(1).expand(-1, num_queries_per_kv, -1, -1)
+            keys = keys.reshape(ctx_len, num_heads, head_size)
+            values = values.unsqueeze(1).expand(-1, num_queries_per_kv, -1, -1)
+            values = values.reshape(ctx_len, num_heads, head_size)
+
+        # Attention: softmax(Q @ K^T / sqrt(d)) @ V
+        attn = scale * torch.einsum("qhd,khd->hqk", q, keys)
+        attn = torch.softmax(attn, dim=-1)
+        out = torch.einsum("hqk,khd->qhd", attn, values)
+        outputs[s] = out.squeeze(0)
+
+    return outputs.to(query.dtype)
+
+
+def test_head_size(head_size, num_seqs, num_heads=8, num_kv_heads=8,
+                   block_size=16, max_seq_len=64):
+    """Run paged attention and compare against reference.
+
+    Returns (max_error, mean_error).
+    """
+    scale = 1.0 / math.sqrt(head_size)
+    max_blocks_per_seq = max_seq_len // block_size
+    num_blocks = max_blocks_per_seq * num_seqs
+
+    x = 16 // torch.finfo(torch.float16).bits * 8  # = 8 for fp16
+
+    # Create KV cache
+    k_cache = torch.randn(num_blocks, num_kv_heads, head_size // x, block_size, x,
+                          dtype=torch.float16, device=device)
+    v_cache = torch.randn(num_blocks, num_kv_heads, head_size, block_size,
+                          dtype=torch.float16, device=device)
+
+    # Block tables -- each seq uses a contiguous range of blocks
+    block_tables = torch.zeros(num_seqs, max_blocks_per_seq, dtype=torch.int32, device=device)
+    for i in range(num_seqs):
+        for j in range(max_blocks_per_seq):
+            block_tables[i, j] = i * max_blocks_per_seq + j
+
+    context_lens = torch.full((num_seqs,), max_seq_len, dtype=torch.int32, device=device)
+    query = torch.randn(num_seqs, num_heads, head_size, dtype=torch.float16, device=device)
+
+    # Intermediate buffers for paged_attention_common
+    partition_size = 512
+    max_num_partitions = (max_seq_len + partition_size - 1) // partition_size
+    exp_sums = torch.empty(num_seqs, num_heads, max_num_partitions,
+                           dtype=torch.float32, device=device)
+    max_logits = torch.empty_like(exp_sums)
+    tmp_out = torch.empty(num_seqs, num_heads, max_num_partitions, head_size,
+                          dtype=torch.float32, device=device)
+
+    # Compute reference
+    ref = reference_paged_attention(query, k_cache, v_cache, block_tables,
+                                    context_lens, scale, num_kv_heads)
+
+    # Run paged_attention_common (exercises the kernel dispatch logic)
+    try:
+        result = paged_attention_common(
+            query, k_cache, v_cache,
+            exp_sums, max_logits, tmp_out,
+            block_tables, context_lens,
+            block_tables.stride(0),
+            scale,
+            max_qlen=1,
+            max_seq_len=max_seq_len,
+            kv_cache_dtype="auto",
         )
+    except Exception as e:
+        return -1.0, -1.0, str(e)
 
-        # Check 4: head_size=128 must return True
-        check(
-            "head_size=128 + int8 cache → accepts ASM kernel",
-            "HEAD128_INT8:True" in stdout,
-            "ASM kernel incorrectly rejected for supported head_size=128",
-        )
+    # Compute error
+    max_err = (result.float() - ref.float()).abs().max().item()
+    mean_err = (result.float() - ref.float()).abs().mean().item()
+    return max_err, mean_err, ""
 
-        # Check 5: head_size=256 must return False
-        check(
-            "head_size=256 + int8 cache → rejects ASM kernel",
-            "HEAD256_INT8:False" in stdout,
-            "ASM kernel incorrectly selected for unsupported head_size=256",
-        )
 
-        # Anti-hack: head_size=64 + high_precision=2 must still return False
-        if "HEAD64_HP2:" in stdout:
-            check(
-                "head_size=64 + high_precision=2 → still rejects (head_size check takes priority)",
-                "HEAD64_HP2:False" in stdout,
-                "high_precision=2 bypasses head_size check — incorrect ordering",
-            )
+results = {}
+
+# Test 1: head_size=64 with many seqs (triggers high-throughput dispatch path)
+# Pre-fix: wrong kernel selected for head_size=64 → large error
+# Post-fix: correct kernel selected → small error
+max_err, mean_err, err_msg = test_head_size(64, num_seqs=512)
+results["head64_many_seqs"] = {"max_err": max_err, "mean_err": mean_err, "error": err_msg}
+
+# Test 2: head_size=128 with many seqs (should always work correctly)
+max_err, mean_err, err_msg = test_head_size(128, num_seqs=512)
+results["head128_many_seqs"] = {"max_err": max_err, "mean_err": mean_err, "error": err_msg}
+
+# Test 3: head_size=64 with few seqs (standard dispatch path)
+max_err, mean_err, err_msg = test_head_size(64, num_seqs=4)
+results["head64_few_seqs"] = {"max_err": max_err, "mean_err": mean_err, "error": err_msg}
+
+# Test 4: head_size=256 with many seqs (another unsupported size)
+max_err, mean_err, err_msg = test_head_size(256, num_seqs=512)
+results["head256_many_seqs"] = {"max_err": max_err, "mean_err": mean_err, "error": err_msg}
+
+print(json.dumps(results))
+"""
+
+print("\n--- Checks 1-4: numerical correctness ---")
+
+try:
+    result = subprocess.run(
+        [VENV_PYTHON, "-c", PA_TEST_SCRIPT],
+        capture_output=True, text=True, timeout=300, cwd="/workspace",
+    )
+    stdout = result.stdout.strip()
+    stderr = result.stderr.strip()
+except subprocess.TimeoutExpired:
+    stdout = ""
+    stderr = "Test timed out after 300s"
+
+import json
+
+# Tolerance: fp16 attention with these sizes should match within ~0.01
+# If the wrong kernel is used, errors will be >> 1.0
+TOLERANCE = 0.05
+
+parsed = False
+try:
+    # Find the JSON line in stdout (last line)
+    for line in reversed(stdout.splitlines()):
+        line = line.strip()
+        if line.startswith("{"):
+            results = json.loads(line)
+            parsed = True
+            break
+except (json.JSONDecodeError, ValueError):
+    pass
+
+if not parsed:
+    check("GPU test execution", False,
+          f"Failed to parse results. stdout: {stdout[:200]}. stderr: {stderr[:200]}")
+    print(f"\nSCORE: 0.0")
+    sys.exit(1)
+
+check("GPU test execution", True)
+
+# Check 1: head_size=64 with many sequences (the buggy path)
+r = results.get("head64_many_seqs", {})
+if r.get("error"):
+    check("head_size=64, high throughput → correct output",
+          False, f"Kernel error: {r['error'][:200]}")
+else:
+    max_err = r.get("max_err", 999.0)
+    check("head_size=64, high throughput → correct output",
+          max_err < TOLERANCE and max_err >= 0,
+          f"max_err={max_err:.6f} (threshold={TOLERANCE}). "
+          "Likely dispatched to a kernel that only supports head_size=128")
+
+# Check 2: head_size=128 (should always work)
+r = results.get("head128_many_seqs", {})
+if r.get("error"):
+    check("head_size=128, high throughput → correct output",
+          False, f"Kernel error: {r['error'][:200]}")
+else:
+    max_err = r.get("max_err", 999.0)
+    check("head_size=128, high throughput → correct output",
+          max_err < TOLERANCE and max_err >= 0,
+          f"max_err={max_err:.6f}")
+
+# Check 3: head_size=64 with few sequences (standard path)
+r = results.get("head64_few_seqs", {})
+if r.get("error"):
+    check("head_size=64, standard path → correct output",
+          False, f"Kernel error: {r['error'][:200]}")
+else:
+    max_err = r.get("max_err", 999.0)
+    check("head_size=64, standard path → correct output",
+          max_err < TOLERANCE and max_err >= 0,
+          f"max_err={max_err:.6f}")
+
+# Check 4: head_size=256 with many sequences (another unsupported size)
+r = results.get("head256_many_seqs", {})
+if r.get("error"):
+    check("head_size=256, high throughput → correct output",
+          False, f"Kernel error: {r['error'][:200]}")
+else:
+    max_err = r.get("max_err", 999.0)
+    check("head_size=256, high throughput → correct output",
+          max_err < TOLERANCE and max_err >= 0,
+          f"max_err={max_err:.6f} (threshold={TOLERANCE}). "
+          "Likely dispatched to a kernel that only supports head_size=128")
 
 # ---------------------------------------------------------------------------
 # Summary

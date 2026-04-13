@@ -9,7 +9,7 @@
   },
   "description": "ck_moe_stage1 tmp_out buffer undersized when splitK>1 due to sorted_token_ids padding, causing OOB write",
   "expected_files_changed": 1,
-  "requires_gpu": false,
+  "requires_gpu": true,
   "requires_model_download": false,
   "tags": [
     "rocm",

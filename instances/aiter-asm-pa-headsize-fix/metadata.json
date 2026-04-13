@@ -9,7 +9,7 @@
   },
   "description": "ASM paged attention kernel dispatched for unsupported head_size!=128, producing incorrect results",
   "expected_files_changed": 1,
-  "requires_gpu": false,
+  "requires_gpu": true,
   "requires_model_download": false,
   "tags": [
     "rocm",

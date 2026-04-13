@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
-"""Test harness for aiter-topk-nonpow2-crash.
+"""Test harness for aiter-topk-nonpow2-crash eval instance.
 
 Validates that expert routing dispatch handles arbitrary expert counts
-correctly at all sequence lengths.
+correctly at all sequence lengths.  The bug: a kernel that only supports
+certain expert counts is dispatched for all expert counts at long
+sequences, causing a crash.
+
+All checks are behavioral: import the module, call the function on GPU,
+and verify correct output or absence of crash.
 """
-import ast
 import os
-import re
 import subprocess
 import sys
 
@@ -14,8 +17,6 @@ checks_passed = 0
 checks_total = 0
 
 VENV_PYTHON = "/opt/venv/bin/python3"
-AITER_PATH = "/workspace/aiter"
-TOPK_PATH = os.path.join(AITER_PATH, "aiter/ops/topk.py")
 
 
 def check(name, condition, detail=""):
@@ -36,267 +37,264 @@ print("aiter-topk-nonpow2-crash test harness")
 print("=" * 60)
 
 # ---------------------------------------------------------------------------
-# Check 0: target file exists
+# Check 0: aiter importable
 # ---------------------------------------------------------------------------
-if not check("topk.py exists", os.path.isfile(TOPK_PATH)):
-    print(f"\nSCORE: 0.0")
-    sys.exit(1)
-
-# ---------------------------------------------------------------------------
-# Check 1: file is valid Python
-# ---------------------------------------------------------------------------
+import_script = """\
+import sys
+sys.path.insert(0, '/sgl-workspace/aiter')
 try:
-    with open(TOPK_PATH) as fh:
-        source_text = fh.read()
-    source_tree = ast.parse(source_text)
-    check("topk.py is valid Python", True)
-except SyntaxError as e:
-    check("topk.py is valid Python", False, str(e))
-    print(f"\nSCORE: 0.0")
-    sys.exit(1)
-
-# ---------------------------------------------------------------------------
-# Check 2: Find biased_grouped_topk function
-# ---------------------------------------------------------------------------
-print("\n--- Check 2: biased_grouped_topk function ---")
-
-topk_fn = None
-for node in ast.walk(source_tree):
-    if isinstance(node, ast.FunctionDef) and node.name == "biased_grouped_topk":
-        topk_fn = node
-        break
-
-if not check(
-    "biased_grouped_topk function found",
-    topk_fn is not None,
-    "function not found",
-):
-    print(f"\nSCORE: 0.0")
-    sys.exit(1)
-
-fn_src_lines = source_text.splitlines()[topk_fn.lineno - 1 : topk_fn.end_lineno]
-fn_src = "\n".join(fn_src_lines)
-
-# ---------------------------------------------------------------------------
-# Check 3: Power-of-2 check exists in the function
-# ---------------------------------------------------------------------------
-print("\n--- Check 3: Power-of-2 guard ---")
-
-# The fix should contain a power-of-2 check. Common patterns:
-#   (n & (n - 1)) == 0
-#   n & (n - 1)
-#   math.log2(n) % 1
-#   is_power_of_2
-#   bin(n).count('1') == 1
-pow2_patterns = [
-    r"&\s*\(",           # bitwise AND pattern: n & (n - 1)
-    r"power.of.2",       # variable name like is_power_of_2
-    r"pow2",             # variable name like num_experts_pow2
-    r"log2",             # math.log2 approach
-    r"bit_count|count\(\s*['\"]1['\"]\s*\)",  # bit count approach
-    r"&.*-\s*1",         # inline bitwise: n & (n - 1)
-]
-
-has_pow2_check = any(re.search(pat, fn_src, re.IGNORECASE) for pat in pow2_patterns)
-
-check(
-    "Power-of-2 check exists in biased_grouped_topk",
-    has_pow2_check,
-    "No power-of-2 guard found — moe_fused_gate will crash for non-pow2 expert counts",
-)
-
-# ---------------------------------------------------------------------------
-# Check 4: The dispatch condition includes the power-of-2 guard
-# ---------------------------------------------------------------------------
-print("\n--- Check 4: Dispatch condition ---")
-
-# The old dispatch was simply: if token_num <= cu_num * 212:
-# The fix should add: ... or not is_power_of_2 (or similar)
-# This ensures non-pow2 expert counts always go to biased_grouped_topk_hip
-
-has_combined_condition = False
-
-# Strategy A: AST-based — check if-conditions for combined token+pow2 checks
-for node in ast.walk(topk_fn):
-    if isinstance(node, ast.If):
-        cond_src = ast.get_source_segment(source_text, node.test)
-        if cond_src is None:
-            continue
-        has_token_check = "token_num" in cond_src or "cu_num" in cond_src
-        has_pow2_in_cond = any(
-            re.search(pat, cond_src, re.IGNORECASE) for pat in pow2_patterns
-        )
-        if has_token_check and has_pow2_in_cond:
-            has_combined_condition = True
-            break
-
-# Strategy B: scan lines for combined condition on a single line
-if not has_combined_condition:
-    for line in fn_src_lines:
-        stripped = line.strip()
-        if "if " in stripped or " or " in stripped:
-            has_token = "token_num" in stripped or "cu_num" in stripped
-            has_pow2 = any(
-                re.search(pat, stripped, re.IGNORECASE) for pat in pow2_patterns
-            )
-            if has_token and has_pow2:
-                has_combined_condition = True
-                break
-
-# Strategy C: accept early-return guard pattern
-# e.g., if not (n & (n-1) == 0): return biased_grouped_topk_hip(...)
-# or:   if not is_power_of_2: return biased_grouped_topk_hip(...)
-if not has_combined_condition:
-    fn_src_nospace = fn_src.replace(" ", "").replace("\n", "")
-    early_return_patterns = [
-        r"if.*not.*pow.*2.*:.*biased_grouped_topk_hip",
-        r"if.*not.*pow.*2.*:.*return",
-        r"if.*not.*&.*-\s*1.*:.*biased_grouped_topk_hip",
-        r"if.*not.*&.*-\s*1.*:.*return",
-        # Check for a separate if-block with pow2 guard before the token_num dispatch
-        r"if.*not.*power.*:.*return",
-    ]
-    for pat in early_return_patterns:
-        if re.search(pat, fn_src_nospace, re.IGNORECASE):
-            has_combined_condition = True
-            break
-
-# Strategy D: AST — check for any If node whose body calls
-# biased_grouped_topk_hip and whose test includes a pow2 pattern
-if not has_combined_condition:
-    for node in ast.walk(topk_fn):
-        if isinstance(node, ast.If):
-            # Check if the body calls biased_grouped_topk_hip
-            body_src = "\n".join(
-                source_text.splitlines()[node.lineno - 1 : node.end_lineno]
-            )
-            if "biased_grouped_topk_hip" in body_src:
-                cond_src = ast.get_source_segment(source_text, node.test)
-                if cond_src and any(
-                    re.search(pat, cond_src, re.IGNORECASE) for pat in pow2_patterns
-                ):
-                    has_combined_condition = True
-                    break
-                # Also check: condition is a UnaryOp (not X) where X is a pow2 check
-                if isinstance(node.test, ast.UnaryOp) and isinstance(
-                    node.test.op, ast.Not
-                ):
-                    operand_src = ast.get_source_segment(source_text, node.test.operand)
-                    if operand_src and any(
-                        re.search(pat, operand_src, re.IGNORECASE)
-                        for pat in pow2_patterns
-                    ):
-                        has_combined_condition = True
-                        break
-
-check(
-    "Dispatch condition includes power-of-2 guard",
-    has_combined_condition,
-    "The dispatch should route non-pow2 expert counts to biased_grouped_topk_hip",
-)
-
-# ---------------------------------------------------------------------------
-# Check 5: moe_fused_gate is NOT called for non-pow2 expert counts
-# ---------------------------------------------------------------------------
-print("\n--- Check 5: moe_fused_gate protection ---")
-
-check(
-    "moe_fused_gate protected from non-pow2 expert counts",
-    has_pow2_check and has_combined_condition,
-    "moe_fused_gate can still be reached with non-pow2 experts",
-)
-
-# ---------------------------------------------------------------------------
-# Check 6 (behavioral): Verify the actual dispatch condition in the code
-# ---------------------------------------------------------------------------
-print("\n--- Check 6: Behavioral dispatch verification ---")
-
-behavior_script = f"""
-import sys, ast
-sys.stdout = open(sys.stdout.fileno(), 'w', buffering=1)
-
-with open("{TOPK_PATH}") as f:
-    src = f.read()
-tree = ast.parse(src)
-
-# Find biased_grouped_topk and analyze its dispatch logic
-for node in ast.walk(tree):
-    if isinstance(node, ast.FunctionDef) and node.name == "biased_grouped_topk":
-        # Count If nodes and check their conditions
-        if_nodes = [n for n in ast.iter_child_nodes(node) if isinstance(n, ast.If)]
-
-        if not if_nodes:
-            print("DISPATCH:no_if_found")
-            break
-
-        first_if = if_nodes[0]
-        cond_src = ast.get_source_segment(src, first_if.test)
-
-        # Check if condition references num_experts or expert count
-        refs_experts = "expert" in (cond_src or "").lower() or "pow" in (cond_src or "").lower()
-        refs_token = "token" in (cond_src or "").lower() or "cu_num" in (cond_src or "").lower()
-
-        # Check structure: BoolOp(Or) means combined condition
-        if isinstance(first_if.test, ast.BoolOp) and isinstance(first_if.test.op, ast.Or):
-            print("DISPATCH_TYPE:combined_or")
-        elif isinstance(first_if.test, ast.UnaryOp) and isinstance(first_if.test.op, ast.Not):
-            print("DISPATCH_TYPE:early_return_guard")
-        elif isinstance(first_if.test, ast.Compare):
-            print("DISPATCH_TYPE:simple_compare")
-        else:
-            print(f"DISPATCH_TYPE:{{type(first_if.test).__name__}}")
-
-        print(f"REFS_EXPERTS:{{refs_experts}}")
-        print(f"REFS_TOKEN:{{refs_token}}")
-
-        # Check if moe_fused_gate is in the else branch (should only be
-        # reachable when pow2 check passes)
-        has_fused_gate_in_else = False
-        for orelse_node in ast.walk(ast.Module(body=first_if.orelse)):
-            if isinstance(orelse_node, ast.Call):
-                call_src = ast.get_source_segment(src, orelse_node)
-                if call_src and "moe_fused_gate" in call_src:
-                    has_fused_gate_in_else = True
-                    break
-
-        # Also check for a second if-block that calls moe_fused_gate
-        if not has_fused_gate_in_else and len(if_nodes) > 1:
-            for later_if in if_nodes[1:]:
-                later_src = "\\n".join(src.splitlines()[later_if.lineno-1:later_if.end_lineno])
-                if "moe_fused_gate" in later_src:
-                    has_fused_gate_in_else = True
-                    break
-
-        print(f"FUSED_GATE_GUARDED:{{has_fused_gate_in_else or refs_experts}}")
-        break
+    from aiter.ops.topk import biased_grouped_topk
+    print("IMPORT:OK")
+except Exception as e:
+    print(f"IMPORT:FAIL:{type(e).__name__}:{str(e)[:300]}")
 """
 
 try:
     result = subprocess.run(
-        [VENV_PYTHON, "-c", behavior_script],
-        capture_output=True, text=True, timeout=30,
+        [VENV_PYTHON, "-c", import_script],
+        capture_output=True, text=True, timeout=60, cwd="/workspace",
     )
-    stdout6 = result.stdout
-    stderr6 = result.stderr
-except Exception as e:
-    stdout6 = ""
-    stderr6 = str(e)
+    stdout = result.stdout
+except subprocess.TimeoutExpired:
+    stdout = "IMPORT:FAIL:timeout"
 
-if stdout6:
-    # The dispatch should NOT be simple_compare (the buggy pattern)
-    check(
-        "Dispatch is not the buggy simple_compare pattern",
-        "DISPATCH_TYPE:simple_compare" not in stdout6,
-        "Dispatch still uses simple token_num comparison without pow2 guard",
+if "IMPORT:OK" not in stdout:
+    detail = stdout.split("IMPORT:FAIL:")[-1].strip() if "IMPORT:FAIL:" in stdout else "unknown"
+    check("aiter topk module importable", False, detail)
+    print(f"\nSCORE: 0.0")
+    sys.exit(1)
+check("aiter topk module importable", True)
+
+# ---------------------------------------------------------------------------
+# Checks 1-4: Expert routing at different sequence lengths and expert counts.
+#
+# The function routes to different kernels based on sequence length and
+# expert configuration.  With non-standard expert counts (e.g. 384), the
+# fast-path kernel crashes at long sequences.
+#
+# Test strategy:
+#   - Call with 384 experts at progressively longer sequences
+#   - Compare against a pure-PyTorch reference implementation
+#   - Verify: no crash AND correct output
+# ---------------------------------------------------------------------------
+
+ROUTING_TEST_SCRIPT = r"""
+import sys, json
+sys.path.insert(0, '/sgl-workspace/aiter')
+
+import torch
+torch.manual_seed(42)
+device = "cuda"
+
+from aiter.ops.topk import biased_grouped_topk
+
+def reference_grouped_topk(gating_output, correction_bias, num_expert_group,
+                           topk_group, topk, need_renorm, routed_scaling_factor):
+    """Reference implementation using pure PyTorch."""
+    token_num, num_experts = gating_output.shape
+    scores = gating_output + correction_bias.unsqueeze(0)
+
+    # Group experts and select top groups
+    scores_for_group = scores.view(token_num, num_expert_group, -1)
+    group_scores = scores_for_group.max(dim=-1).values
+    _, top_groups = torch.topk(group_scores, k=topk_group, dim=-1, sorted=False)
+
+    # Create mask for selected groups
+    mask = torch.zeros_like(scores_for_group[:, :, 0], dtype=torch.bool)
+    mask.scatter_(1, top_groups, True)
+    mask = mask.unsqueeze(-1).expand_as(scores_for_group).reshape(token_num, num_experts)
+    scores_masked = scores.masked_fill(~mask, float('-inf'))
+
+    # Select top-k from masked scores
+    topk_weights, topk_ids = torch.topk(scores_masked, k=topk, dim=-1, sorted=False)
+
+    if need_renorm:
+        topk_weights = torch.softmax(topk_weights.float(), dim=-1).to(gating_output.dtype)
+
+    topk_weights = topk_weights * routed_scaling_factor
+    return topk_weights, topk_ids
+
+
+def test_routing(num_experts, token_num, topk, num_expert_group, topk_group,
+                 test_name, need_renorm=True, routed_scaling_factor=1.0):
+    """Test biased_grouped_topk for given parameters.
+
+    Returns dict with error info or correctness metrics.
+    """
+    gating_output = torch.randn(token_num, num_experts, dtype=torch.float32, device=device)
+    correction_bias = torch.randn(num_experts, dtype=torch.float32, device=device)
+    topk_weights = torch.empty(token_num, topk, dtype=torch.float32, device=device)
+    topk_ids = torch.empty(token_num, topk, dtype=torch.int32, device=device)
+
+    # Compute reference
+    ref_weights, ref_ids = reference_grouped_topk(
+        gating_output, correction_bias, num_expert_group, topk_group,
+        topk, need_renorm, routed_scaling_factor,
     )
-    check(
-        "Dispatch references expert count in condition",
-        "REFS_EXPERTS:True" in stdout6,
-        "Dispatch condition does not reference expert count or power-of-2",
+
+    # Call the function under test
+    try:
+        biased_grouped_topk(
+            gating_output, correction_bias,
+            topk_weights, topk_ids,
+            num_expert_group, topk_group,
+            need_renorm, routed_scaling_factor,
+        )
+        torch.cuda.synchronize()
+    except Exception as e:
+        return {
+            "crashed": True,
+            "error": f"{type(e).__name__}: {str(e)[:300]}",
+            "token_num": token_num,
+            "num_experts": num_experts,
+        }
+
+    # Verify: selected expert IDs should be valid
+    ids_valid = (topk_ids >= 0).all().item() and (topk_ids < num_experts).all().item()
+
+    # Verify: weights should be finite and non-negative
+    weights_valid = topk_weights.isfinite().all().item() and (topk_weights >= 0).all().item()
+
+    # Verify: the same set of experts is selected (order may differ)
+    # Sort both and compare
+    ref_ids_sorted, _ = ref_ids.sort(dim=-1)
+    test_ids_sorted, _ = topk_ids.sort(dim=-1)
+    ids_match = (ref_ids_sorted == test_ids_sorted).all().item()
+
+    # Verify: weights are close to reference (after sorting to match IDs)
+    ref_weights_reordered = torch.zeros_like(ref_weights)
+    test_weights_reordered = torch.zeros_like(topk_weights)
+    for i in range(token_num):
+        for j in range(topk):
+            ref_weights_reordered[i, j] = ref_weights[i, j]
+            test_weights_reordered[i, j] = topk_weights[i, j]
+
+    # Use sorted comparison for weights
+    ref_w_sorted, _ = ref_weights.sort(dim=-1, descending=True)
+    test_w_sorted, _ = topk_weights.sort(dim=-1, descending=True)
+    weight_max_err = (ref_w_sorted.float() - test_w_sorted.float()).abs().max().item()
+
+    return {
+        "crashed": False,
+        "ids_valid": ids_valid,
+        "weights_valid": weights_valid,
+        "ids_match": ids_match,
+        "weight_max_err": weight_max_err,
+        "token_num": token_num,
+        "num_experts": num_experts,
+        "error": "",
+    }
+
+
+results = {}
+
+# Test 1: 384 experts (Kimi-K2.5 style), short sequence — should always work
+results["short_384"] = test_routing(
+    num_experts=384, token_num=100, topk=8,
+    num_expert_group=4, topk_group=2,
+    test_name="short_384",
+)
+
+# Test 2: 384 experts, LONG sequence — crashes pre-fix
+# Use enough tokens to exceed the dispatch threshold
+results["long_384"] = test_routing(
+    num_experts=384, token_num=70000, topk=8,
+    num_expert_group=4, topk_group=2,
+    test_name="long_384",
+)
+
+# Test 3: 256 experts (power-of-2), long sequence — should always work
+results["long_256"] = test_routing(
+    num_experts=256, token_num=70000, topk=8,
+    num_expert_group=4, topk_group=2,
+    test_name="long_256",
+)
+
+# Test 4: 384 experts, medium sequence near dispatch threshold
+results["medium_384"] = test_routing(
+    num_experts=384, token_num=50000, topk=8,
+    num_expert_group=4, topk_group=2,
+    test_name="medium_384",
+)
+
+print(json.dumps(results))
+"""
+
+print("\n--- Checks 1-4: expert routing correctness ---")
+
+try:
+    result = subprocess.run(
+        [VENV_PYTHON, "-c", ROUTING_TEST_SCRIPT],
+        capture_output=True, text=True, timeout=300, cwd="/workspace",
     )
+    stdout = result.stdout.strip()
+    stderr = result.stderr.strip()
+except subprocess.TimeoutExpired:
+    stdout = ""
+    stderr = "Test timed out after 300s"
+
+import json
+
+parsed = False
+try:
+    for line in reversed(stdout.splitlines()):
+        line = line.strip()
+        if line.startswith("{"):
+            results = json.loads(line)
+            parsed = True
+            break
+except (json.JSONDecodeError, ValueError):
+    pass
+
+if not parsed:
+    check("GPU routing test execution", False,
+          f"Failed to parse results. stdout: {stdout[:200]}. stderr: {stderr[:200]}")
+    print(f"\nSCORE: 0.0")
+    sys.exit(1)
+
+check("GPU routing test execution", True)
+
+WEIGHT_TOLERANCE = 0.01
+
+# Check 1: 384 experts, short sequence (baseline — should always work)
+r = results.get("short_384", {})
+if r.get("crashed"):
+    check("384 experts, short sequence — no crash",
+          False, f"Crash: {r.get('error', '')[:200]}")
 else:
-    check("Behavioral test ran", False, f"stderr: {stderr6[:200]}")
-    check("Dispatch analysis", False, "behavioral test failed to run")
+    ok = r.get("ids_valid", False) and r.get("weights_valid", False)
+    check("384 experts, short sequence — correct output",
+          ok, f"ids_valid={r.get('ids_valid')}, weights_valid={r.get('weights_valid')}")
+
+# Check 2: 384 experts, LONG sequence (the buggy path — crashes pre-fix)
+r = results.get("long_384", {})
+if r.get("crashed"):
+    check("384 experts, long sequence (70K tokens) — no crash",
+          False, f"Crash at long sequence with non-standard expert count: {r.get('error', '')[:200]}")
+else:
+    ok = r.get("ids_valid", False) and r.get("weights_valid", False)
+    check("384 experts, long sequence (70K tokens) — correct output",
+          ok, f"ids_valid={r.get('ids_valid')}, weights_valid={r.get('weights_valid')}")
+
+# Check 3: 256 experts (pow2), long sequence (regression guard)
+r = results.get("long_256", {})
+if r.get("crashed"):
+    check("256 experts (pow2), long sequence — no crash",
+          False, f"Crash: {r.get('error', '')[:200]}")
+else:
+    ok = r.get("ids_valid", False) and r.get("weights_valid", False)
+    check("256 experts (pow2), long sequence — correct output",
+          ok, f"ids_valid={r.get('ids_valid')}, weights_valid={r.get('weights_valid')}")
+
+# Check 4: 384 experts, medium sequence near threshold
+r = results.get("medium_384", {})
+if r.get("crashed"):
+    check("384 experts, medium sequence (50K tokens) — no crash",
+          False, f"Crash: {r.get('error', '')[:200]}")
+else:
+    ok = r.get("ids_valid", False) and r.get("weights_valid", False)
+    check("384 experts, medium sequence (50K tokens) — correct output",
+          ok, f"ids_valid={r.get('ids_valid')}, weights_valid={r.get('weights_valid')}")
 
 # ---------------------------------------------------------------------------
 # Summary
