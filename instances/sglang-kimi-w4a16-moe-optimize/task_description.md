@@ -24,50 +24,21 @@ The CK MoE 2-stage pipeline in aiter currently supports bf16, fp16, fp8,
 fp4, and int8 weight formats — but NOT int4/uint32 (W4A16). The Triton
 fallback works but does not leverage the optimized CK kernel pipeline.
 
-## What Has Already Been Done (in the checkpoint)
+## Checkpoint State
 
-Previous trials solved several integration steps. These are already in
-place in the container — do NOT redo them:
+Previous trials completed several integration steps that are already in
+the container. The W4A16 kernel infrastructure (codegen, scheme class,
+weight loading, imports, dtype detection) is in place. However, the MoE
+routing path on HIP does not yet use the CK backend for this weight format.
 
-1. **CK codegen** (aiter): W4A16 kernel templates and heuristic dispatch
-   entries have been added. The compiled `.so` modules contain A16W4
-   kernel symbols.
+## Known Constraints
 
-2. **SGLang routing class**: A W4A16-specific aiter MoE scheme class
-   has been created with an `apply_weights()` method.
-
-3. **Weight loading**: The W4A16 aiter MoE scheme has been added to the
-   transpose allowlists in the MoE layer configuration.
-
-4. **Import/export**: The W4A16 aiter MoE scheme is properly exported
-   from the schemes package.
-
-5. **Dtype detection**: int32/uint32 handling has been added to the
-   aiter fused MoE dispatch logic.
-
-**NOT done yet**: The routing logic on HIP still returns the Triton MoE
-scheme instead of the aiter one.
-
-## What Failed and Why
-
-- **bf16 dequant approach (OOM)**: Dequantizing all 384 expert weights
-  from int4 to bf16 before calling `aiter.fused_moe()` caused HIP OOM.
-  384 experts × 4x memory = ~240GB additional per GPU. This model uses
-  ~273GB VRAM on 8×288GB GPUs with no room for dequant copies.
-  **Do NOT attempt full-model dequant again.**
-
-- **QuantType.per_1x32**: Triggers FP4 activation quantization in the
-  fused_moe pipeline, wrong for W4A16 (bf16 activations + int4 weights).
-
-- **Generic CK path deadlock**: Routing `torch.int32` weights through
-  the generic CK 2-stage MoE pipeline causes a **DEADLOCK** during
-  CUDA graph capture (0% GPU utilization, workers hang indefinitely).
-  **Do NOT route W4A16 through the generic CK condition.**
-
-- **ASM path (wrong target)**: The ASM MoE path needs C++ JIT
-  recompilation and has an Int8 placeholder config. This is NOT the
-  correct target for W4A16.
-  **Do NOT attempt C++ changes to the ASM MoE kernel sources.**
+- This model uses ~273GB VRAM on 8×288GB GPUs. Any approach that
+  creates temporary full-precision copies of all expert weights will OOM.
+- CUDA graphs must remain enabled — approaches that deadlock during
+  graph capture are not viable.
+- Kimi-K2.5 uses `torch.int32` for packed int4 weights, NOT
+  `torch.uint32`. Code paths may only check one — handle both.
 
 ## Task: Add Native W4A16 Support to CK MoE Dispatch
 

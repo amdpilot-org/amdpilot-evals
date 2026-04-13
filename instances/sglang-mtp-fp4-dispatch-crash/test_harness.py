@@ -588,7 +588,17 @@ def run_behavioral_tests():
         print("\n--- Behavioral Tests: SKIPPED (no MXFP4 model found) ---")
         print(f"  Looked in: {MODEL_CACHE}")
         print("  To run behavioral tests, mount an MXFP4 model to the container.")
-        # Do NOT auto-pass — behavioral verification is required for full score
+        # Model absent — behavioral verification cannot proceed, record as FAIL
+        record(
+            "behavioral_server_startup",
+            False,
+            "No MXFP4 model available — behavioral verification required",
+        )
+        record(
+            "behavioral_inference",
+            False,
+            "No MXFP4 model available — cannot verify fix at runtime",
+        )
         return
 
     print(f"\n--- Behavioral Tests: using model {model_path} ---")
