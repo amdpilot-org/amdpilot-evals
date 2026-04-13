@@ -1,90 +1,91 @@
 #!/usr/bin/env python3
-"""Test harness for vllm-rocm-lru-cache-fix.
+"""Behavioral test: paged_mqa_logits_module caching behavior.
 
-Behavioral test: verifies that the paged MQA logits helper function
-is properly cached at module scope for ROCm sparse MLA.
+The helper must return the same module object on repeated calls (lru_cache),
+not re-import the module each time. Pre-fix code reloaded the Triton/aiter
+module on every call, adding per-call import overhead.
 """
-import sys
 import subprocess
+import sys
+import os
+import textwrap
 
-checks_passed = 0
-checks_total = 0
-
-
-def check(name, condition, detail=""):
-    global checks_passed, checks_total
-    checks_total += 1
-    if condition:
-        checks_passed += 1
-    status = "PASS" if condition else "FAIL"
-    msg = f"  [{status}] {name}"
-    if detail and not condition:
-        msg += f": {detail}"
-    print(msg)
+NUM_CHECKS = 3
+results = {}
 
 
-def run_test(script, timeout=60):
-    result = subprocess.run(
-        ["/opt/venv/bin/python3", "-c", script],
-        capture_output=True, text=True, timeout=timeout,
+def run_subprocess(test_code: str) -> tuple:
+    proc = subprocess.run(
+        [sys.executable, "-c", test_code],
+        capture_output=True, text=True, timeout=120, env=os.environ.copy()
     )
-    return result.stdout or "", result.stderr or "", result.returncode
+    return proc.returncode == 0, proc.stdout + proc.stderr
 
 
-print("=" * 60)
-print("vllm-rocm-lru-cache-fix test harness")
-print("=" * 60)
-
-# Test 1: Module imports
-stdout, stderr, rc = run_test("""
-import sys; sys.stdout = open(sys.stdout.fileno(), 'w', buffering=1)
+# CHECK 1: Import succeeds
+check1_code = textwrap.dedent("""
+import torch
+if not torch.cuda.is_available() or 'gfx9' not in torch.cuda.get_device_properties(0).gcnArchName:
+    print("IMPORT_SKIP")
+    exit(1)
 try:
-    from vllm.v1.attention.ops import rocm_aiter_mla_sparse as mla
-    print("IMPORT:OK")
+    from vllm.v1.attention.ops.rocm_aiter_mla_sparse import paged_mqa_logits_module
+    print("IMPORT_OK")
 except Exception as e:
-    print(f"IMPORT:FAIL:{e}")
+    print(f"IMPORT_FAIL: {e}")
+    exit(1)
 """)
-check("Import rocm_aiter_mla_sparse", "IMPORT:OK" in stdout,
-      stdout.strip() if "IMPORT:OK" not in stdout else "")
+ok, out = run_subprocess(check1_code)
+if "IMPORT_SKIP" in out:
+    print("SCORE: 0 (IMPORT_SKIP — not ROCm gfx9, auto-FAIL)")
+    sys.exit(0)
+results[1] = ok and "IMPORT_OK" in out
+print(f"CHECK 1: {'PASS' if results[1] else 'FAIL'} — paged_mqa_logits_module import")
 
-# Test 2: paged_mqa_logits_module at module scope
-stdout, stderr, rc = run_test("""
-import sys; sys.stdout = open(sys.stdout.fileno(), 'w', buffering=1)
-from vllm.v1.attention.ops import rocm_aiter_mla_sparse as mla
-# If the function is at module scope, it's accessible as a module attribute
-has_attr = hasattr(mla, "paged_mqa_logits_module")
-is_callable = callable(getattr(mla, "paged_mqa_logits_module", None))
-print(f"HAS_ATTR:{has_attr}")
-print(f"IS_CALLABLE:{is_callable}")
-""")
-has_attr = "HAS_ATTR:True" in stdout
-check("paged_mqa_logits_module is module-level attribute",
-      has_attr,
-      "function is nested inside another function (unfixed)")
+# CHECK 2: Repeated calls return same object (identity check)
+check2_code = textwrap.dedent("""
+from vllm.v1.attention.ops.rocm_aiter_mla_sparse import paged_mqa_logits_module
 
-is_callable = "IS_CALLABLE:True" in stdout
-check("paged_mqa_logits_module is callable",
-      is_callable,
-      "not callable or doesn't exist at module level")
+mod1 = paged_mqa_logits_module()
+mod2 = paged_mqa_logits_module()
+mod3 = paged_mqa_logits_module()
 
-# Test 3: The function has lru_cache
-stdout, stderr, rc = run_test("""
-import sys; sys.stdout = open(sys.stdout.fileno(), 'w', buffering=1)
-from vllm.v1.attention.ops import rocm_aiter_mla_sparse as mla
-fn = getattr(mla, "paged_mqa_logits_module", None)
-if fn is not None:
-    has_cache = hasattr(fn, "cache_info") or hasattr(fn, "__wrapped__")
-    print(f"HAS_CACHE:{has_cache}")
+if mod1 is None:
+    print("MODULE_NONE")  # aiter not installed — acceptable skip
+elif mod1 is mod2 and mod2 is mod3:
+    print("IDENTITY_OK")
 else:
-    print("NO_FUNC")
+    print(f"IDENTITY_FAIL: id1={id(mod1)}, id2={id(mod2)}, id3={id(mod3)}")
 """)
-has_cache = "HAS_CACHE:True" in stdout
-check("paged_mqa_logits_module has lru_cache",
-      has_cache,
-      "no cache_info attribute (not wrapped with lru_cache at module scope)")
+ok, out = run_subprocess(check2_code)
+results[2] = ok and ("IDENTITY_OK" in out or "MODULE_NONE" in out)
+print(f"CHECK 2: {'PASS' if results[2] else 'FAIL'} — module identity (same object on repeated calls)")
 
-print()
-score = (checks_passed / checks_total * 100.0) if checks_total > 0 else 0.0
-print(f"Results: {checks_passed}/{checks_total}")
-print(f"SCORE: {score:.1f}")
-sys.exit(0 if checks_passed == checks_total else 1)
+# CHECK 3: Caching reduces call overhead (timing check)
+check3_code = textwrap.dedent("""
+import time
+from vllm.v1.attention.ops.rocm_aiter_mla_sparse import paged_mqa_logits_module
+
+# Warm up
+paged_mqa_logits_module()
+
+# Time 1000 cached calls
+start = time.perf_counter()
+for _ in range(1000):
+    paged_mqa_logits_module()
+elapsed = time.perf_counter() - start
+
+# Cached calls should complete in < 10ms total (< 10us each)
+# Without caching, each call imports a module (~1-10ms), so 1000 calls would take 1-10s
+if elapsed < 0.1:  # 100ms generous threshold
+    print(f"TIMING_OK: {elapsed*1000:.2f}ms for 1000 calls")
+else:
+    print(f"TIMING_FAIL: {elapsed*1000:.2f}ms for 1000 calls (expected <100ms)")
+""")
+ok, out = run_subprocess(check3_code)
+results[3] = ok and "TIMING_OK" in out
+print(f"CHECK 3: {'PASS' if results[3] else 'FAIL'} — cached call overhead < 100ms/1000 calls")
+
+passed = sum(1 for v in results.values() if v)
+score = int(100 * passed / NUM_CHECKS)
+print(f"SCORE: {score}")

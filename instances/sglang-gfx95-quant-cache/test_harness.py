@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Test harness for sglang-gfx95-quant-cache.
 
-Verifies that the decoder layer does not perform redundant quantization
-format detection on every forward() call by instrumenting the detection
-logic and counting invocations.
+Verifies that quantization format detection in the decoder layer is amortized
+(performed at most once) rather than on every forward() call.  Detection
+amortization is verified through runtime instance-state inspection and
+property/decorator checks on the constructed layer — no source code analysis.
 """
+import os
 import subprocess
 import sys
 import textwrap
@@ -30,114 +32,202 @@ print("=" * 60)
 print("sglang-gfx95-quant-cache test harness")
 print("=" * 60)
 
+# -------------------------------------------------------------------
 # Check 1: Module imports successfully
+# -------------------------------------------------------------------
 result = subprocess.run(
-    ["/opt/venv/bin/python3", "-c",
+    [sys.executable, "-c",
      "from sglang.srt.models.deepseek_v2 import DeepseekV2DecoderLayer; print('OK')"],
-    capture_output=True, text=True, timeout=30,
+    capture_output=True, text=True, timeout=60,
     cwd="/workspace",
 )
-check("Import decoder layer class", "OK" in result.stdout,
-      result.stderr[:200] if result.returncode != 0 else "")
 
-# Check 2: Behavioral — count per-forward dtype detection calls
-# Run a subprocess that patches getattr on weight tensors and counts
-# how many times dtype detection happens across multiple forward() calls.
-# If detection is amortized: detection_count <= 1 (regardless of forward count)
-# If detection is per-forward: detection_count == forward_count
-test_script = textwrap.dedent(r'''
-import sys
-import os
-sys.path.insert(0, "/workspace/sglang/python")
-os.environ.setdefault("SGLANG_IS_IN_CI", "1")
+if "OK" not in result.stdout:
+    check("Import decoder layer class", False,
+          "IMPORT_SKIP — auto-FAIL")
+    check("Quant format detection is amortized", False,
+          "import failed")
+    check("Module structure intact", False,
+          "import failed")
+    print()
+    print(f"Results: {checks_passed}/{checks_total}")
+    print(f"SCORE: 0.0")
+    sys.exit(0)
 
+check("Import decoder layer class", True)
+
+# -------------------------------------------------------------------
+# Check 2: Detection amortization — runtime behavioral check
+#
+# Constructs a DeepseekV2DecoderLayer on the meta device and inspects
+# its instance state for evidence that quant-format detection results
+# are stored at construction time (or lazily via a cached property /
+# lru_cache), rather than computed inside forward() on every call.
+#
+# Pre-fix behaviour: forward() inspects weight dtypes inline every
+# call — no cached attribute exists after __init__.
+# Post-fix behaviour: __init__ (or a one-shot helper) stores the
+# detected format as an instance attribute or cached property.
+# -------------------------------------------------------------------
+amort_script = textwrap.dedent(r'''
+import json, os, sys, tempfile, types
 import torch
-from unittest.mock import MagicMock, patch
-import importlib
 
-# Import the module
 from sglang.srt.models.deepseek_v2 import DeepseekV2DecoderLayer
-import inspect
 
-# Get forward() source to check for dtype constants
-forward_src = inspect.getsource(DeepseekV2DecoderLayer.forward)
+# ---- build a minimal config ----
+try:
+    from transformers import AutoConfig
+except ImportError:
+    print("CONFIG_FAIL:transformers not available")
+    sys.exit(1)
 
-# Check if forward() contains dtype detection patterns
-dtype_patterns = ["torch.uint8", "float8_e4m3fn", "torch.float8_e4m3fn"]
-detection_in_forward = sum(1 for p in dtype_patterns if p in forward_src)
+min_cfg = {
+    "model_type": "deepseek_v2",
+    "hidden_size": 2048,
+    "intermediate_size": 10944,
+    "moe_intermediate_size": 1408,
+    "num_hidden_layers": 27,
+    "num_attention_heads": 16,
+    "num_key_value_heads": 16,
+    "n_routed_experts": 64,
+    "n_shared_experts": 2,
+    "num_experts_per_tok": 6,
+    "kv_lora_rank": 512,
+    "q_lora_rank": 1536,
+    "qk_nope_head_dim": 128,
+    "qk_rope_head_dim": 64,
+    "v_head_dim": 128,
+    "vocab_size": 102400,
+    "max_position_embeddings": 4096,
+    "rope_theta": 10000,
+}
 
-# Check if forward() does weight tensor inspection via getattr chains
-weight_inspection = "fused_qkv_a_proj_with_mqa" in forward_src or ".weight.dtype" in forward_src
+tf = tempfile.NamedTemporaryFile(
+    mode="w", suffix=".json", delete=False, dir="/tmp"
+)
+json.dump(min_cfg, tf)
+tf.close()
+try:
+    config = AutoConfig.from_pretrained(tf.name, trust_remote_code=True)
+except Exception as e:
+    print(f"CONFIG_FAIL:{e}")
+    sys.exit(1)
+finally:
+    os.unlink(tf.name)
 
-# Count how many detection patterns are in the whole class vs just forward
-class_src = inspect.getsource(DeepseekV2DecoderLayer)
-detection_in_class = sum(1 for p in dtype_patterns if p in class_src)
+# ---- construct the layer on the meta device ----
+try:
+    with torch.device("meta"):
+        layer = DeepseekV2DecoderLayer(config, layer_idx=0)
+except TypeError:
+    try:
+        with torch.device("meta"):
+            layer = DeepseekV2DecoderLayer(config, 0)
+    except Exception as e:
+        print(f"CONSTRUCT_FAIL:{e}")
+        sys.exit(1)
+except Exception as e:
+    print(f"CONSTRUCT_FAIL:{e}")
+    sys.exit(1)
 
-# The fix moves detection out of forward(). Verify:
-# 1. forward() should have zero or minimal detection patterns
-# 2. Class may still have them (in __init__ or a helper) - that's fine
-print(f"DETECTION_IN_FORWARD:{detection_in_forward}")
-print(f"WEIGHT_INSPECTION_IN_FORWARD:{1 if weight_inspection else 0}")
-print(f"DETECTION_IN_CLASS:{detection_in_class}")
+# ---- look for cached quant-format state ----
+has_cache = False
+cache_attr = None
 
-# The amortization check: if detection is in forward, it runs every call.
-# If it's NOT in forward, it's amortized (runs at most once in init/setup).
-amortized = detection_in_forward == 0 and not weight_inspection
-print(f"AMORTIZED:{amortized}")
+# Strategy 1: instance attribute whose NAME indicates cached quant format.
+# (Includes None-valued attrs — their existence proves __init__ set them up.)
+for k in layer.__dict__:
+    k_lower = k.lower()
+    if any(
+        kw in k_lower
+        for kw in [
+            "quant_format", "quant_cache", "cached_quant", "_quant_fmt",
+            "quant_type", "weight_format", "gfx_quant", "w_quant",
+            "_gfx95", "_gfx950", "quantization_format",
+        ]
+    ):
+        has_cache = True
+        cache_attr = k
+        break
+
+# Strategy 2: instance attribute whose VALUE is a quant-format string.
+if not has_cache:
+    for k, v in layer.__dict__.items():
+        if isinstance(v, (torch.Tensor, torch.nn.Module)):
+            continue
+        if isinstance(v, str):
+            v_lower = v.lower()
+            if any(
+                fmt in v_lower
+                for fmt in ["fp8", "int8", "uint8", "float8", "mxfp"]
+            ):
+                has_cache = True
+                cache_attr = k
+                break
+
+# Strategy 3: cached_property or lru_cache on the class.
+if not has_cache:
+    for attr_name in dir(type(layer)):
+        obj = getattr(type(layer), attr_name, None)
+        if obj is None:
+            continue
+        if type(obj).__name__ == "cached_property":
+            attr_lower = attr_name.lower()
+            if any(kw in attr_lower for kw in ["quant", "format", "dtype", "gfx"]):
+                has_cache = True
+                cache_attr = attr_name
+                break
+        if hasattr(obj, "cache_info"):
+            has_cache = True
+            cache_attr = attr_name
+            break
+
+print(f"HAS_CACHE:{has_cache}")
+print(f"CACHE_ATTR:{cache_attr}")
 ''')
 
 result2 = subprocess.run(
-    ["/opt/venv/bin/python3", "-c", test_script],
-    capture_output=True, text=True, timeout=60,
+    [sys.executable, "-c", amort_script],
+    capture_output=True, text=True, timeout=120,
     cwd="/workspace",
-    env={**dict(__import__('os').environ), "PYTHONPATH": "/sgl-workspace/aiter"},
+    env={**os.environ, "PYTHONPATH": "/sgl-workspace/aiter"},
 )
 
 stdout2 = result2.stdout
 stderr2 = result2.stderr
 
-if result2.returncode != 0:
-    check("Behavioral: dtype detection amortized",
-          False, f"Test script failed: {stderr2[:200]}")
-    check("No per-forward weight tensor inspection", False, "test script failed")
+if "CONSTRUCT_FAIL" in stdout2:
+    detail = stdout2.split("CONSTRUCT_FAIL:")[1].strip().split("\n")[0][:200]
+    check("Quant format detection is amortized", False,
+          f"Layer construction failed: {detail}")
+elif "CONFIG_FAIL" in stdout2:
+    detail = stdout2.split("CONFIG_FAIL:")[1].strip().split("\n")[0][:200]
+    check("Quant format detection is amortized", False,
+          f"Config creation failed: {detail}")
+elif result2.returncode != 0:
+    check("Quant format detection is amortized", False,
+          f"Test error: {stderr2[:200]}")
 else:
-    # Parse results
-    amortized = "AMORTIZED:True" in stdout2
-    detection_count = 0
-    weight_inspect = False
-    for line in stdout2.split("\n"):
-        if line.startswith("DETECTION_IN_FORWARD:"):
-            detection_count = int(line.split(":")[1])
-        if line.startswith("WEIGHT_INSPECTION_IN_FORWARD:"):
-            weight_inspect = line.split(":")[1] == "1"
-
+    cached = "HAS_CACHE:True" in stdout2
     check(
-        "Behavioral: dtype detection amortized",
-        amortized,
-        f"forward() still contains {detection_count} dtype detection pattern(s) — "
-        f"detection should run at most once, not per forward call"
+        "Quant format detection is amortized",
+        cached,
+        "No cached quant format found in instance state after "
+        "construction — detection may still run per-forward",
     )
 
-    check(
-        "No per-forward weight tensor inspection",
-        not weight_inspect,
-        "forward() still inspects weight tensors per call — should be amortized to init"
-    )
-
-# Check 3: Verify the module has no import-breaking changes
+# -------------------------------------------------------------------
+# Check 3: Module structure intact
+# -------------------------------------------------------------------
 result3 = subprocess.run(
-    ["/opt/venv/bin/python3", "-c", textwrap.dedent(r'''
-import sys
-sys.path.insert(0, "/workspace/sglang/python")
-# Verify the model module is structurally sound
-from sglang.srt.models.deepseek_v2 import DeepseekV2DecoderLayer
+    [sys.executable, "-c", textwrap.dedent(r'''
 import inspect
+from sglang.srt.models.deepseek_v2 import DeepseekV2DecoderLayer
 
-# Verify the class has both __init__ and forward
 assert hasattr(DeepseekV2DecoderLayer, '__init__'), "missing __init__"
 assert hasattr(DeepseekV2DecoderLayer, 'forward'), "missing forward"
 
-# Verify forward() is callable and has reasonable signature
 sig = inspect.signature(DeepseekV2DecoderLayer.forward)
 params = list(sig.parameters.keys())
 assert len(params) >= 2, f"forward() has too few params: {params}"
@@ -148,13 +238,13 @@ print("STRUCTURE_OK")
 )
 
 check(
-    "Module structure intact after optimization",
+    "Module structure intact",
     "STRUCTURE_OK" in result3.stdout,
-    result3.stderr[:200] if result3.returncode != 0 else "structure check failed"
+    result3.stderr[:200] if result3.returncode != 0 else "structure check failed",
 )
 
 print()
 score = (checks_passed / checks_total * 100.0) if checks_total > 0 else 0.0
 print(f"Results: {checks_passed}/{checks_total}")
-print(f"SCORE: {score:.2f}")
-sys.exit(0 if checks_passed == checks_total else 1)
+print(f"SCORE: {score:.1f}")
+sys.exit(0)

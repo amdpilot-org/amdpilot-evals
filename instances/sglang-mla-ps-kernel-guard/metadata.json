@@ -10,5 +10,5 @@
   "description": "Non-MLA models crash with AttributeError on max_split_per_batch in aiter_backend",
   "task_description_source": "Error trace (symptom only, no fix)",
   "test_harness_type": "runtime",
-  "requires_gpu": false
+  "requires_gpu": true
 }

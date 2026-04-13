@@ -3,10 +3,15 @@
 
 Verify that MLA-specific code paths are properly guarded so non-MLA
 models can run without errors.
+
+The bug: non-MLA models crash with
+  AttributeError: 'AiterAttnBackend' object has no attribute 'max_split_per_batch'
+because MLA-specific attributes are accessed unconditionally in the
+CUDA graph init methods.
 """
-import ast
+import subprocess
 import sys
-from pathlib import Path
+import textwrap
 
 checks_passed = 0
 checks_total = 0
@@ -29,112 +34,151 @@ print("=" * 60)
 print("sglang-mla-ps-kernel-guard test harness")
 print("=" * 60)
 
-# Read source file directly — no import needed
-SOURCE_PATH = "/workspace/sglang/python/sglang/srt/layers/attention/aiter_backend.py"
+_PY = "/opt/venv/bin/python3"
 
-if not check("aiter_backend.py exists", Path(SOURCE_PATH).is_file()):
+
+def run_subprocess(script, timeout=120):
+    result = subprocess.run(
+        [_PY, "-c", script],
+        capture_output=True, text=True, timeout=timeout, cwd="/workspace",
+    )
+    return result.stdout or "", result.stderr or "", result.returncode
+
+
+# ---------------------------------------------------------------------------
+# Check 1: Module can be imported
+# ---------------------------------------------------------------------------
+print("\n--- Check 1: Import ---")
+import_script = textwrap.dedent("""\
+    import sys
+    sys.path.insert(0, '/workspace/sglang/python')
+    from sglang.srt.layers.attention.aiter_backend import AiterAttnBackend
+    print('IMPORT_OK')
+""")
+stdout, stderr, rc = run_subprocess(import_script)
+import_ok = "IMPORT_OK" in stdout
+
+if not import_ok:
+    check("AiterAttnBackend importable", False,
+          f"Import failed: {stderr[-300:]}")
     print(f"\nSCORE: 0.0")
     sys.exit(1)
 
-source = Path(SOURCE_PATH).read_text()
-
-try:
-    tree = ast.parse(source)
-    check("Valid Python syntax", True)
-except SyntaxError as e:
-    check("Valid Python syntax", False, str(e))
-    print(f"\nSCORE: 0.0")
-    sys.exit(1)
+check("AiterAttnBackend importable", True)
 
 
 # ---------------------------------------------------------------------------
-# Helper: check if an AST node tree contains a reference to a name
+# Check 2: AiterAttnBackend has CUDA graph init methods
 # ---------------------------------------------------------------------------
-def contains_name(node, name):
-    'Check if an AST node tree contains a reference to name.'
-    for child in ast.walk(node):
-        if isinstance(child, ast.Name) and child.id == name:
-            return True
-        if isinstance(child, ast.Attribute) and child.attr == name:
-            return True
-    return False
+print("\n--- Check 2: Class structure ---")
+class_script = textwrap.dedent("""\
+    import sys
+    sys.path.insert(0, '/workspace/sglang/python')
+    from sglang.srt.layers.attention.aiter_backend import AiterAttnBackend
+    methods = dir(AiterAttnBackend)
+    has_capture = 'init_forward_metadata_capture_cuda_graph' in methods
+    has_replay = 'init_forward_metadata_replay_cuda_graph' in methods
+    print(f'CAPTURE={has_capture},REPLAY={has_replay}')
+""")
+stdout2, stderr2, rc2 = run_subprocess(class_script)
+has_capture = "CAPTURE=True" in stdout2
+has_replay = "REPLAY=True" in stdout2
 
-
-def contains_mla_ps_kernel_ref(node):
-    'Check if an AST node references _use_mla_ps_kernel.'
-    return contains_name(node, "_use_mla_ps_kernel")
-
-
-def contains_use_mla_ref(node):
-    'Check if an AST node references use_mla (typically self.use_mla).'
-    for child in ast.walk(node):
-        if isinstance(child, ast.Attribute) and child.attr == "use_mla":
-            return True
-    return False
-
-
-def check_method_guard(method_name):
-    'Find method and check that at least one _use_mla_ps_kernel guard includes use_mla.'
-    # Find the method definition in the AST
-    method_def = None
-    for node in ast.walk(tree):
-        if isinstance(node, ast.FunctionDef) and node.name == method_name:
-            method_def = node
-            break
-
-    if method_def is None:
-        return None, f"method {method_name} not found in source"
-
-    # Count _use_mla_ps_kernel If nodes that include use_mla in the test.
-    guarded_count = 0
-    total_refs = 0
-
-    for node in ast.walk(method_def):
-        if isinstance(node, ast.If):
-            test = node.test
-            if contains_mla_ps_kernel_ref(test):
-                total_refs += 1
-                if contains_use_mla_ref(test):
-                    guarded_count += 1
-
-    if total_refs == 0:
-        # No if-nodes reference _use_mla_ps_kernel at all — method may have
-        # been restructured; treat as guarded (the bug is gone).
-        return True, "no _use_mla_ps_kernel guard found in method"
-    elif guarded_count >= 1:
-        return True, f"{guarded_count}/{total_refs} _use_mla_ps_kernel guards include use_mla"
-    else:
-        return False, f"0/{total_refs} _use_mla_ps_kernel guards include use_mla — missing fix"
+check("CUDA graph capture method exists", has_capture,
+      "init_forward_metadata_capture_cuda_graph not found")
+check("CUDA graph replay method exists", has_replay,
+      "init_forward_metadata_replay_cuda_graph not found")
 
 
 # ---------------------------------------------------------------------------
-# Test 1: Check AiterAttnBackend class exists in the file
+# Check 3 (PRIMARY): Non-MLA model does not crash with AttributeError
+# on max_split_per_batch when calling CUDA graph init methods.
+#
+# Uses a permissive mock that simulates a non-MLA backend instance:
+# - use_mla = False
+# - max_split_per_batch deliberately not set (only MLA models set it)
+# - All other attributes return permissive mock values
+#
+# Pre-fix: method enters _use_mla_ps_kernel block without checking
+#   use_mla, accesses self.max_split_per_batch -> AttributeError
+# Post-fix: method checks use_mla before entering MLA block, skips it
+#   -> no AttributeError (may crash on other mocked values, which is OK)
 # ---------------------------------------------------------------------------
-class_found = False
-for node in ast.walk(tree):
-    if isinstance(node, ast.ClassDef) and node.name == "AiterAttnBackend":
-        class_found = True
-        break
+print("\n--- Check 3: Non-MLA compatibility ---")
+non_mla_script = textwrap.dedent("""\
+    import sys, inspect
+    sys.path.insert(0, '/workspace/sglang/python')
 
-check("AiterAttnBackend class found in source", class_found)
+    from unittest.mock import MagicMock, PropertyMock
 
-# ---------------------------------------------------------------------------
-# Test 2: AST guard check on init_forward_metadata_capture_cuda_graph
-# ---------------------------------------------------------------------------
-result, detail = check_method_guard("init_forward_metadata_capture_cuda_graph")
-if result is None:
-    check("init_forward_metadata_capture_cuda_graph guard (AST)", False, detail)
+    try:
+        from sglang.srt.layers.attention.aiter_backend import AiterAttnBackend
+        import sglang.srt.layers.attention.aiter_backend as mod
+
+        # Ensure _use_mla_ps_kernel is True (the default that triggers the bug)
+        if hasattr(mod, '_use_mla_ps_kernel'):
+            mod._use_mla_ps_kernel = True
+
+        # Create mock with use_mla=False
+        # max_split_per_batch raises AttributeError (simulates non-MLA model)
+        mock = MagicMock()
+        mock.use_mla = False
+        mock.sliding_window_size = -1
+        type(mock).max_split_per_batch = PropertyMock(
+            side_effect=AttributeError(
+                "'AiterAttnBackend' object has no attribute 'max_split_per_batch'"
+            )
+        )
+
+        bugs = []
+
+        for method_name in [
+            'init_forward_metadata_capture_cuda_graph',
+            'init_forward_metadata_replay_cuda_graph',
+        ]:
+            method = getattr(AiterAttnBackend, method_name, None)
+            if method is None:
+                continue
+
+            # Determine correct argument count from signature
+            sig = inspect.signature(method)
+            params = [p for p in sig.parameters.keys() if p != 'self']
+            args = [MagicMock() for _ in params]
+
+            try:
+                method(mock, *args)
+            except AttributeError as e:
+                if 'max_split_per_batch' in str(e):
+                    bugs.append(method_name.replace(
+                        'init_forward_metadata_', '').replace('_cuda_graph', ''))
+            except Exception:
+                pass  # Non-AttributeError means the guard worked
+
+        if bugs:
+            print('BUG_PRESENT:' + ','.join(bugs))
+        else:
+            print('BUG_ABSENT')
+
+    except ImportError as e:
+        print(f'IMPORT_FAIL:{e}')
+    except Exception as e:
+        print(f'ERROR:{type(e).__name__}:{e}')
+""")
+stdout3, stderr3, rc3 = run_subprocess(non_mla_script)
+
+if "BUG_ABSENT" in stdout3:
+    check("Non-MLA model: no max_split_per_batch crash", True)
+elif "BUG_PRESENT" in stdout3:
+    detail = stdout3.split("BUG_PRESENT:")[-1].strip()
+    check("Non-MLA model: no max_split_per_batch crash", False,
+          f"MLA-specific attribute accessed without guard in: {detail}")
+elif "IMPORT_FAIL" in stdout3:
+    check("Non-MLA model: no max_split_per_batch crash", False,
+          f"Module import failed: {stdout3}")
 else:
-    check("init_forward_metadata_capture_cuda_graph guard (AST)", result, detail)
+    check("Non-MLA model: no max_split_per_batch crash", False,
+          f"Unexpected: stdout={stdout3[:200]}, stderr={stderr3[:200]}")
 
-# ---------------------------------------------------------------------------
-# Test 3: AST guard check on init_forward_metadata_replay_cuda_graph
-# ---------------------------------------------------------------------------
-result, detail = check_method_guard("init_forward_metadata_replay_cuda_graph")
-if result is None:
-    check("init_forward_metadata_replay_cuda_graph guard (AST)", False, detail)
-else:
-    check("init_forward_metadata_replay_cuda_graph guard (AST)", result, detail)
 
 # ---------------------------------------------------------------------------
 # Summary

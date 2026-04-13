@@ -4,7 +4,6 @@
   "difficulty": "medium",
   "source": {
     "repo": "sgl-project/sglang",
-    "pr": 22143,
     "merge_commit": "e835601fb72ef2cbb53b2c6e2b00fe3370d3020e"
   },
   "description": "Cache gfx95 quant format detection in DeepseekV2DecoderLayer",

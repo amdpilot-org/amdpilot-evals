@@ -26,6 +26,9 @@ benchmark:
 task:
   description_file: evals/instances/sglang-gfx95-quant-cache/task_description.md
 
+immutable_files:
+  - /workspace/test_harness.py
+
 stages: auto
 
 kimi_cli:
