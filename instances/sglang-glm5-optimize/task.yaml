@@ -45,6 +45,12 @@ benchmark:
 
 task:
   description_file: evals/instances/sglang-glm5-optimize/task_description.md
+  dependency_graph:
+    sglang:
+      - /sgl-workspace/aiter
+      - /sgl-workspace/composable_kernel
+    aiter:
+      - /sgl-workspace/composable_kernel
 
 stages: auto
 
