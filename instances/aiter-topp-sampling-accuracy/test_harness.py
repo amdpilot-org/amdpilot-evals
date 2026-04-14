@@ -72,6 +72,7 @@ if "NO_GPU" in stdout:
     check("Nucleus concentration (single GPU)", False, "No GPU")
     check("Sampling diversity", False, "No GPU")
     check("RNG variation across trials", False, "No GPU")
+    check("Distribution fidelity (frequency ratio)", False, "No GPU")
     check("TP=2 rank consistency", False, "No GPU")
 elif "IMPORT:FAIL" in stdout:
     err = stdout.split("IMPORT:FAIL:")[1].strip()[:200]
@@ -79,6 +80,7 @@ elif "IMPORT:FAIL" in stdout:
     check("Nucleus concentration (single GPU)", False, "import failed")
     check("Sampling diversity", False, "import failed")
     check("RNG variation across trials", False, "import failed")
+    check("Distribution fidelity (frequency ratio)", False, "import failed")
     check("TP=2 rank consistency", False, "import failed")
 else:
     check("Import top_p_sampling_from_probs",
@@ -136,6 +138,13 @@ first_trial = all_samples[:batch_size]
 second_trial = all_samples[batch_size:2*batch_size]
 identical_frac = (first_trial == second_trial).float().mean().item()
 print(f"IDENTICAL_FRAC:{identical_frac:.4f}")
+
+# Check: frequency ratio — token 0 (~33% mass) should be sampled much
+# more than token 4 (~7% mass). A torch.randint(0,5,...) stub gives ~20%
+# each → ratio ~1.0 → FAIL. Real top-p sampling respects the distribution.
+freq_0 = (all_samples == 0).float().mean().item()
+freq_4 = (all_samples == 4).float().mean().item()
+print(f"FREQ_RATIO:{freq_0 / max(freq_4, 1e-6):.2f}")
 """)
 
     if rc2 != 0 and not stdout2.strip():
@@ -143,11 +152,14 @@ print(f"IDENTICAL_FRAC:{identical_frac:.4f}")
               f"subprocess crashed: {stderr2.strip()[:200]}")
         check("Sampling diversity", False, "subprocess crashed")
         check("RNG variation across trials", False, "subprocess crashed")
+        check("Distribution fidelity (frequency ratio)", False,
+              "subprocess crashed")
     else:
         # Parse results
         in_nucleus = None
         unique_tokens = None
         identical_frac = None
+        freq_ratio = None
         for line in stdout2.strip().split("\n"):
             if line.startswith("IN_NUCLEUS:"):
                 try: in_nucleus = float(line.split(":")[1])
@@ -157,6 +169,9 @@ print(f"IDENTICAL_FRAC:{identical_frac:.4f}")
                 except: pass
             elif line.startswith("IDENTICAL_FRAC:"):
                 try: identical_frac = float(line.split(":")[1])
+                except: pass
+            elif line.startswith("FREQ_RATIO:"):
+                try: freq_ratio = float(line.split(":")[1])
                 except: pass
 
         check("Nucleus concentration (single GPU)",
@@ -170,6 +185,11 @@ print(f"IDENTICAL_FRAC:{identical_frac:.4f}")
         check("RNG variation across trials",
               identical_frac is not None and identical_frac < 0.95,
               f"identical_frac={identical_frac} (expect < 0.95)")
+
+        check("Distribution fidelity (frequency ratio)",
+              freq_ratio is not None and freq_ratio > 2.0,
+              f"freq_ratio={freq_ratio} (expect > 2.0 — token 0 should "
+              f"be sampled much more than token 4)")
 
     # -------------------------------------------------------------------
     # Check 5: Multi-GPU TP=2 rank consistency (subprocess-isolated)
