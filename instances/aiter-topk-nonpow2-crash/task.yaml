@@ -1,19 +1,20 @@
-name: vllm-rocm-cache-blocksize-backend
+name: aiter-topk-nonpow2-crash
 type: bugfix
-repo: https://github.com/vllm-project/vllm.git
-base_image: amdpilot-eval-vllm-rocm-cache-blocksize-backend
+repo: https://github.com/ROCm/aiter.git
+base_image: amdpilot-eval-aiter-topk-nonpow2-crash
 
 model_endpoint:
   base_url: "http://localhost:30000/v1"
   api_key: "sk-dummy"
 
 container:
-  name: amdpilot_eval_vllm_rocm_cache_blocksize_backend
+  name: amdpilot_eval_aiter_topk_nonpow2_crash
+  gpu: "0"
   shm_size: 16g
   devices: [/dev/kfd, /dev/dri]
 
 workload:
-  description: "AITER unified attention block_size hardcoded in platform instead of backend-reported"
+  description: "Fix MoE topk dispatch crash for non-power-of-2 expert counts"
   framework: PyTorch
 
 benchmark:
@@ -23,7 +24,7 @@ benchmark:
   metric_direction: higher
 
 task:
-  description_file: evals/instances/vllm-rocm-cache-blocksize-backend/task_description.md
+  description_file: evals/instances/aiter-topk-nonpow2-crash/task_description.md
 
 immutable_files:
   - /workspace/test_harness.py

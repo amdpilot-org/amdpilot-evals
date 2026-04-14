@@ -32,6 +32,8 @@ task:
     aiter:
       - /sgl-workspace/composable_kernel
 
+immutable_files:
+  - /workspace/test_harness.py
 stages: auto
 
 kimi_cli:
