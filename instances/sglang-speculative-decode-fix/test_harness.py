@@ -1,13 +1,5 @@
 #!/usr/bin/env python3
-"""Test harness for sglang speculative decode fix.
-
-Tests:
-  1. Start SGLang server with EAGLE speculative decoding + aiter backend
-  2. Send multiple inference requests
-  3. Check for crash or garbled output
-  4. Pre-fix: server produces garbage text or crashes
-  5. Post-fix: all responses are coherent
-"""
+"""Output quality test for SGLang speculative decoding."""
 
 import json
 import os
@@ -24,8 +16,8 @@ _URL = f"http://localhost:{_PORT}"
 
 _MODEL_DIR = "/root/.cache/huggingface/hub/models--Qwen--Qwen3.5-397B-A17B-FP8"
 
-_TIMEOUT_STARTUP = 2400
-_TIMEOUT_REQUEST = 300
+_TIMEOUT_STARTUP = 2400  # 40 min max for model loading
+_TIMEOUT_REQUEST = 300   # 5 min per request (first request may be slow)
 
 
 def _find_snapshot(model_dir):
@@ -44,31 +36,49 @@ _MODEL = _find_snapshot(_MODEL_DIR)
 _SERVER_CMD = [
     _PY, "-m", "sglang.launch_server",
     "--model-path", _MODEL,
-    "--attention-backend", "aiter",
-    "--mem-fraction-static", "0.80",
     "--tp", "2",
+    "--speculative-algorithm", "EAGLE",
+    "--speculative-num-steps", "3",
+    "--speculative-eagle-topk", "1",
+    "--speculative-num-draft-tokens", "4",
+    "--enable-aiter-allreduce-fusion",
+    "--attention-backend", "triton",
+    "--disable-radix-cache",
+    "--mem-fraction-static", "0.8",
+    "--reasoning-parser", "qwen3",
     "--port", str(_PORT),
 ]
 
+_GARBAGE_RE = re.compile(r'(ERER|spER|\b[A-Z]{8,}\b|[\\\"=]{5,}|!{20,})')
+
 _PROMPTS = [
-    "What is 2 + 2?",
-    "Name three colors.",
-    "What is the capital of Japan?",
-    "How many days in a week?",
-    "What is water made of?",
-    "Name a planet in our solar system.",
-    "What language is spoken in France?",
-    "What is 10 times 5?",
-    "Name a fruit that is red.",
-    "What season comes after summer?",
+    "Explain the theory of relativity in simple terms.",
+    "Write a short poem about the ocean.",
+    "What are the main differences between Python and C++?",
+    "Describe how a CPU works to a 10 year old.",
+    "What is the capital of France and why is it important?",
+    "Explain photosynthesis step by step.",
+    "Write a brief history of the internet.",
+    "What are three benefits of regular exercise?",
+    "What causes rainbows to appear in the sky?",
+    "Describe how a car engine works.",
+    "What are the planets in our solar system in order?",
+    "Explain how email works from sender to receiver.",
+    "What is the difference between weather and climate?",
+    "Describe the water cycle in detail.",
+    "How does WiFi technology work?",
+    "What were the main causes of World War I?",
+    "Explain how vaccines work to protect against disease.",
+    "What is machine learning and how does it differ from traditional programming?",
+    "Describe the process of making chocolate from cacao beans.",
+    "What are the main types of renewable energy sources?",
 ]
+
+_NUM_ROUNDS = 2  # Both rounds must pass for score 100.0
 
 
 def _kill_existing():
-    subprocess.run(
-        ["pkill", "-f", "sglang.launch_server"],
-        capture_output=True,
-    )
+    subprocess.run(["pkill", "-f", "sglang.launch_server"], capture_output=True)
     time.sleep(2)
 
 
@@ -91,7 +101,7 @@ def _send_request(prompt):
         "model": "default",
         "messages": [{"role": "user", "content": prompt}],
         "temperature": 0,
-        "max_tokens": 64,
+        "max_tokens": 512,
     }
     data = json.dumps(payload).encode()
     req = urllib.request.Request(
@@ -102,97 +112,121 @@ def _send_request(prompt):
     try:
         resp = urllib.request.urlopen(req, timeout=_TIMEOUT_REQUEST)
         result = json.loads(resp.read())
-        content = result["choices"][0]["message"]["content"]
-        return content
+        return result["choices"][0]["message"]["content"]
     except Exception:
         return None
 
 
-def _is_garbled(text):
-    """Check if text shows signs of garbled or corrupted output."""
-    if text is None:
+def _is_garbage(text):
+    if not text or len(text.strip()) < 10:
         return True
-    if len(text.strip()) < 3:
+    if _GARBAGE_RE.search(text):
         return True
-    # Check for garbage byte patterns
-    if re.search(r'[^\x20-\x7E\n\t]{5,}', text):
-        return True
-    # Check for excessive repetition (common garbled pattern)
-    if re.search(r'(.{3,})\1{5,}', text):
-        return True
+    words = text.split()
+    if len(words) > 20:
+        unique = len(set(w.lower() for w in words))
+        if unique / len(words) < 0.1:
+            return True
     return False
 
 
-def main():
-    print("=" * 60)
-    print("SGLang Speculative Decode Fix Test")
-    print(f"  Model: {_MODEL}")
-    print(f"  {len(_PROMPTS)} prompts")
-    print("=" * 60)
-
-    if not os.path.isdir(_MODEL):
-        print(f"[FAIL] Model not found: {_MODEL}")
-        print("SCORE: 0.0")
-        return
-
+def _start_server():
+    """Start the SGLang server and return (process, log_file)."""
     _kill_existing()
-
     env = os.environ.copy()
     env["SGLANG_ENABLE_SPEC_V2"] = "1"
     env["PYTHONPATH"] = "/sgl-workspace/aiter"
 
-    log_path = "/tmp/sglang_spec_decode_test.log"
-    log_file = open(log_path, "w")
+    log_file = open("/tmp/sglang_harness_server.log", "w")
     server = subprocess.Popen(
         _SERVER_CMD,
         env=env,
         stdout=log_file,
         stderr=subprocess.STDOUT,
     )
+    return server, log_file
+
+
+def _stop_server(server, log_file):
+    """Stop the SGLang server cleanly."""
+    server.terminate()
+    try:
+        server.wait(timeout=30)
+    except subprocess.TimeoutExpired:
+        server.kill()
+        server.wait(timeout=10)
+    log_file.close()
+    _kill_existing()
+
+
+def _run_one_round(rnd, total_rounds):
+    """Start server, send all prompts, stop server. Returns round score %."""
+    print(f"\n--- Round {rnd}/{total_rounds}: Independent server launch ---")
+    server, log_file = _start_server()
 
     try:
-        print("Waiting for server startup (model loading ~15-30 min)...")
+        print("  Waiting for server (model loading may take 15-30 minutes)...")
         if not _wait_for_server():
-            print("[FAIL] Server did not become ready")
-            print("SCORE: 0.0")
-            return
+            print("  [FAIL] Server did not become ready within timeout")
+            return 0.0
 
-        print("Server ready. Sending requests...\n")
+        print("  Server is ready.\n")
+        print(f"  Sending {len(_PROMPTS)} inference requests...")
 
         total = len(_PROMPTS)
         good = 0
-        consecutive_fails = 0
+        consecutive_failures = 0
 
         for i, prompt in enumerate(_PROMPTS):
-            print(f"  [{i+1}/{total}] {prompt}")
+            print(f"\n  [{rnd}] Request {i + 1}/{total}: {prompt[:50]}...")
             response = _send_request(prompt)
 
-            if _is_garbled(response):
-                print(f"    FAIL: {repr(response)[:100]}")
-                consecutive_fails += 1
+            if response is None:
+                print("    ERROR: no response received (timeout or server crash)")
+                consecutive_failures += 1
+            elif _is_garbage(response):
+                print(f"    GARBAGE: {response[:120]}...")
+                consecutive_failures += 1
             else:
-                print(f"    OK: {response[:80]}")
+                print(f"    OK: {response[:120]}...")
                 good += 1
-                consecutive_fails = 0
+                consecutive_failures = 0
 
-            if consecutive_fails >= 3:
-                print(f"\n  Short-circuit: {consecutive_fails} consecutive failures")
+            if consecutive_failures >= 2:
+                print(f"\n  Short-circuiting: {consecutive_failures} consecutive failures")
                 break
 
-        score = good / total * 100.0
-        print(f"\n--- Results ---")
-        print(f"  {good}/{total} valid responses ({score:.1f}%)")
-        print(f"SCORE: {score:.1f}")
+        round_pct = good / total * 100.0
+        print(f"\n  Round {rnd}: {good}/{total} coherent ({round_pct:.1f}%)")
+        return round_pct
 
     finally:
-        server.terminate()
-        try:
-            server.wait(timeout=30)
-        except subprocess.TimeoutExpired:
-            server.kill()
-            server.wait(timeout=10)
-        log_file.close()
-        _kill_existing()
+        print(f"  Shutting down server (round {rnd})...")
+        _stop_server(server, log_file)
+
+
+def main():
+    print("=" * 60)
+    print("SGLang Speculative Decoding Output Quality Test")
+    print(f"  {len(_PROMPTS)} prompts x {_NUM_ROUNDS} independent rounds")
+    print("=" * 60)
+
+    round_scores = []
+    for rnd in range(1, _NUM_ROUNDS + 1):
+        pct = _run_one_round(rnd, _NUM_ROUNDS)
+        round_scores.append(pct)
+
+        if pct < 100.0:
+            print(f"\n  Round {rnd} failed -- skipping remaining rounds")
+            break
+
+    print(f"\n--- Results ---")
+    for rnd, pct in enumerate(round_scores, 1):
+        print(f"  Round {rnd}: {pct:.1f}%")
+
+    # Score is 100.0 only if ALL rounds pass at 100%
+    score = 100.0 if all(s == 100.0 for s in round_scores) and len(round_scores) == _NUM_ROUNDS else min(round_scores)
+    print(f"\nSCORE: {score:.1f}")
 
 
 if __name__ == "__main__":
