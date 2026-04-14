@@ -47,6 +47,12 @@ benchmark:
 
 task:
   description_file: evals/instances/sglang-kimi-k25-optimize/task_description.md
+  dependency_graph:
+    sglang:
+      - /sgl-workspace/aiter
+      - /sgl-workspace/composable_kernel
+    aiter:
+      - /sgl-workspace/composable_kernel
 
 immutable_files:
   - /workspace/bench_kimi_k25.sh

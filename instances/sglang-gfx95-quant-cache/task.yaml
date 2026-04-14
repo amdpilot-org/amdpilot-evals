@@ -25,6 +25,12 @@ benchmark:
 
 task:
   description_file: evals/instances/sglang-gfx95-quant-cache/task_description.md
+  dependency_graph:
+    sglang:
+      - /sgl-workspace/aiter
+      - /sgl-workspace/composable_kernel
+    aiter:
+      - /sgl-workspace/composable_kernel
 
 immutable_files:
   - /workspace/test_harness.py

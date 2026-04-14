@@ -1,3 +1,11 @@
 type: bugfix
 num_gpus: 2
 max_time_hours: 6
+
+task:
+  dependency_graph:
+    sglang:
+      - /sgl-workspace/aiter
+      - /sgl-workspace/composable_kernel
+    aiter:
+      - /sgl-workspace/composable_kernel
