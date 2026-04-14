@@ -8,11 +8,6 @@ Serving Qwen 3.5 MoE on AMD ROCm fails at startup with two separate errors:
 
 Both errors prevent Qwen3.5 from running on AMD GPUs.
 
-## Affected Files
-
-- `python/sglang/srt/configs/qwen3_5.py`
-- `python/sglang/srt/layers/attention/hybrid_linear_attn_backend.py`
-
 ## Environment
 
 - SGLang at `/workspace/sglang`

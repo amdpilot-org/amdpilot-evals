@@ -1,0 +1,20 @@
+{
+  "name": "vllm-moe-kernel-gfx950",
+  "category": "bugfix",
+  "difficulty": "hard",
+  "source": {
+    "repo": "vllm-project/vllm",
+    "pr": 37833,
+    "merge_commit": "7d6917bef552d6aff70142ab9fb8af648081d4db",
+    "parent_commit": ""
+  },
+  "description": "6 distinct MoE kernel bugs on gfx950: FP8 ULP precision, ROCm-gated C++ kernel, false-positive tests, API type mismatches",
+  "task_description_source": "PR description (symptom only, no fix details)",
+  "test_harness_type": "behavioral",
+  "requires_gpu": true,
+  "gpu_count": 1,
+  "base_image": "rocm/vllm-dev:rocm7.2.1_v0.18.0_20260330",
+  "version_pins": {
+    "rocm": "7.2"
+  }
+}

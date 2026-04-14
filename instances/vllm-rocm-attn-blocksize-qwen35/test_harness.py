@@ -1,11 +1,8 @@
 #!/usr/bin/env python3
-"""Test harness for vllm-rocm-attn-blocksize-qwen35 (PR #35923).
+"""Test harness for vllm-rocm-attn-blocksize-qwen35.
 
-Bug: ROCm attention backend only routes power-of-2 block sizes to the HIP
-cache write path. Qwen3.5 uses block_size=1056 (multiple of 16, not pow2),
-which gets misrouted causing nonsensical output.
-Test: Verify the backend routes non-pow2-but-16-aligned block sizes correctly
-by checking the do_kv_cache_update logic.
+Verify that the ROCm attention backend supports non-power-of-two block sizes
+that are multiples of 16.
 """
 import sys
 import subprocess
@@ -39,9 +36,7 @@ print("=" * 60)
 print("vllm-rocm-attn-blocksize-qwen35 test harness")
 print("=" * 60)
 
-# Behavioral test 1: Call supports_block_size with Qwen3.5 block sizes.
-# Before fix: returns [16, 32, 544] → block_size 1056 is NOT supported.
-# After fix: returns [MultipleOf(16)] → any multiple of 16 is supported.
+# Test 1: Check that non-power-of-2 block sizes (multiples of 16) are supported.
 stdout, stderr, rc = run_test("""
 import sys; sys.stdout = open(sys.stdout.fileno(), 'w', buffering=1)
 from vllm.v1.attention.backends.rocm_attn import RocmAttentionBackend
@@ -69,19 +64,6 @@ else:
     check("Supports Qwen3.5 block_size 784",
           "SUPPORTS_784:True" in stdout,
           "block_size 784 rejected — Qwen3.5 variant will fail")
-
-# Supplementary check: do_kv_cache_update routes non-native sizes to Triton
-stdout, stderr, rc = run_test("""
-import sys; sys.stdout = open(sys.stdout.fileno(), 'w', buffering=1)
-import inspect
-from vllm.v1.attention.backends.rocm_attn import RocmAttentionImpl
-src = inspect.getsource(RocmAttentionImpl)
-has_triton_fallback = "triton_reshape_and_cache_flash" in src
-print(f"HAS_TRITON_CACHE_FALLBACK:{has_triton_fallback}")
-""")
-check("Triton cache fallback path exists for non-native block sizes",
-      "HAS_TRITON_CACHE_FALLBACK:True" in stdout,
-      "no triton_reshape_and_cache_flash fallback — non-standard sizes will fail")
 
 print()
 score = (checks_passed / checks_total * 100.0) if checks_total > 0 else 0.0

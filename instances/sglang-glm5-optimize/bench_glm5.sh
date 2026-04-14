@@ -1,5 +1,5 @@
 #!/bin/bash
-# GLM-5-FP8 decode latency benchmark for AMD MI355X with TP=8.
+# GLM-5.1-FP8 decode latency benchmark for AMD MI355X with TP=8.
 # Immutable parameters — do NOT change model, tp, batch, input/output lengths.
 #
 # The agent may write /workspace/bench_config.env to set environment variables
@@ -13,7 +13,7 @@ if [ -f /workspace/bench_config.env ]; then
 fi
 
 OUTPUT=$(/opt/venv/bin/python3 -m sglang.bench_one_batch \
-    --model-path zai-org/GLM-5-FP8 \
+    --model-path zai-org/GLM-5.1-FP8 \
     --tensor-parallel-size 8 \
     --batch-size 1 \
     --input-len 1024 \

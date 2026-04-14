@@ -1,14 +1,17 @@
-FROM rocm/sgl-dev:v0.5.9-rocm720-mi35x-20260317
+FROM lmsysorg/sglang-rocm:v0.5.9-rocm720-mi35x-20260326
 WORKDIR /workspace
+
+# The base image's aiter already has the bug (kernels launch on stream 0
+# instead of current PyTorch stream). No git checkout needed.
+# Clean up git to prevent the executor from finding the fix via history.
 RUN cd /sgl-workspace/aiter && \
-    git checkout -f HEAD && \
-    git fetch --depth 100 origin 357e60096b08291886b89c354a97f8fb20a64728 && \
-    git checkout -f 357e60096b08291886b89c354a97f8fb20a64728~1 && \
-    rm -f .git/FETCH_HEAD && \
     git remote remove origin 2>/dev/null; \
     git reflog expire --expire=now --all && \
     git gc --prune=now -q
+
 COPY test_harness.py /workspace/test_harness.py
 COPY task_description.md /workspace/task_description.md
+
 RUN ln -sf /sgl-workspace/aiter /workspace/aiter
+
 CMD ["sleep", "infinity"]

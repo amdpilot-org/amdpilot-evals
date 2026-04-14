@@ -1,0 +1,39 @@
+{
+  "name": "sglang-eagle3-aiter-garbled",
+  "category": "bugfix",
+  "difficulty": "hard",
+  "source": {
+    "repo": "sgl-project/sglang",
+    "pr": 19362,
+    "issue": null,
+    "merge_commit": "441045a7bf2496cef0130b03ac88c74eb1cb8e8a"
+  },
+  "description": "EAGLE3 speculative decoding crashes or produces garbled output on aiter backend for non-MLA models (e.g. Llama) due to unguarded MLA-specific code paths and duplicated tensor allocation in CUDA graph capture/replay.",
+  "bug_type": "regression",
+  "bug_source": "sglang",
+  "runtime_family": "sgl-dev",
+  "commit_window": {
+    "fix_pr": 19362,
+    "fix_commit": "441045a7bf2496cef0130b03ac88c74eb1cb8e8a",
+    "fix_date": "2026-03-04",
+    "pin_commit": "441045a7bf2496cef0130b03ac88c74eb1cb8e8a~1",
+    "note": "Checkout to merge_commit~1 to get the pre-fix state."
+  },
+  "aiter_dependency": true,
+  "model_required": false,
+  "gpu_required": 2,
+  "harness_type": "behavioral",
+  "expected_files_changed": 2,
+  "requires_gpu": true,
+  "requires_model_download": false,
+  "tags": [
+    "sglang",
+    "bugfix",
+    "eagle3",
+    "speculative-decoding",
+    "aiter-backend",
+    "rocm",
+    "cuda-graph",
+    "non-mla"
+  ]
+}

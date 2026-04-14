@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
-"""Test harness for vllm-encoder-rocm (PR #35334). Behavioral tests only.
+"""Test harness for vllm-encoder-rocm.
 
-Bug: ROCm attention backends raise NotImplementedError for encoder self-attention,
-blocking encoder-decoder models (Whisper, BART) on AMD GPUs.
-Test: Verify backends correctly support encoder attention types by calling
-supports_attn_type() and attempting instantiation with ENCODER type.
+Tests that ROCm attention backends handle all required attention types
+for encoder-decoder model support.
 """
 import sys
 import subprocess
@@ -102,22 +100,8 @@ else:
           "AITER_ENCODER_ONLY:True" in stdout2,
           "ENCODER_ONLY not supported or method missing")
 
-# Test 3: RocmAttentionImpl has _forward_encoder_attention method
-stdout3, stderr3, rc3 = run_test("""
-import sys; sys.stdout = open(sys.stdout.fileno(), 'w', buffering=1)
-from vllm.v1.attention.backends.rocm_attn import RocmAttentionImpl
-has_method = hasattr(RocmAttentionImpl, '_forward_encoder_attention')
-is_callable = callable(getattr(RocmAttentionImpl, '_forward_encoder_attention', None))
-print(f"HAS_FWD_ENCODER:{has_method}")
-print(f"IS_CALLABLE:{is_callable}")
-""")
-
-check("RocmAttentionImpl has _forward_encoder_attention",
-      "HAS_FWD_ENCODER:True" in stdout3 and "IS_CALLABLE:True" in stdout3,
-      "encoder attention forward method missing or not callable")
-
-# Test 4: Instantiating RocmAttentionImpl with ENCODER type does NOT raise
-# NotImplementedError (the specific bug). Other errors (missing GPU, etc.) are OK.
+# Test 3: Instantiating RocmAttentionImpl with ENCODER type does NOT raise
+# NotImplementedError. Other errors (missing GPU, etc.) are OK.
 stdout4, stderr4, rc4 = run_test("""
 import sys, math
 sys.stdout = open(sys.stdout.fileno(), 'w', buffering=1)

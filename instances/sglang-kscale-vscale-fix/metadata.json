@@ -10,5 +10,5 @@
   "description": "extend_attention_fwd() call missing k_scale and v_scale arguments",
   "task_description_source": "Error trace (symptom only, no fix)",
   "test_harness_type": "runtime",
-  "requires_gpu": false
+  "requires_gpu": true
 }

@@ -13,7 +13,7 @@ container:
   devices: [/dev/kfd, /dev/dri]
 
 workload:
-  description: "AiterMLADecodeMetadata uses raw num_heads, breaks when num_heads < 16"
+  description: "MLA decode backend crashes with certain model configurations on ROCm"
   framework: PyTorch
 
 benchmark:

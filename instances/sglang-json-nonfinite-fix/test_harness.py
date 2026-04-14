@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 """Test harness for sglang-json-nonfinite-fix. Behavioral tests only.
 
-Bug: /generate endpoint crashes with ORJSON serialization error when
-response contains non-finite float values (NaN, -inf, inf) in top_logprobs.
-Test: Verify JSON serialization handles non-finite floats gracefully.
+Bug: /generate endpoint crashes with a serialization error when the response
+     contains non-finite float values (NaN, -Inf, Inf) in top_logprobs.
+     ORJSON's default mode rejects non-finite floats.
+
+Expected behavior after fix: Non-finite floats are serialized as JSON null
+     without raising an exception. Finite floats are preserved exactly.
 """
 import sys
+import json
 import subprocess
 
 checks_passed = 0
@@ -25,7 +29,7 @@ def check(name, condition, detail=""):
     return condition
 
 
-def run_test(script, timeout=60):
+def run_test(script, timeout=90):
     result = subprocess.run(
         ["/opt/venv/bin/python3", "-c", script],
         capture_output=True, text=True, timeout=timeout,
@@ -37,66 +41,115 @@ print("=" * 60)
 print("sglang-json-nonfinite-fix test harness")
 print("=" * 60)
 
-# Test 1: Check json_response utility module exists
+# Test 1: Baseline — verify that raw orjson.dumps raises on NaN without options.
+# This confirms the bug scenario is present in the test environment.
 stdout, stderr, rc = run_test("""
-import sys; sys.stdout = open(sys.stdout.fileno(), 'w', buffering=1)
+import sys
+sys.path.insert(0, '/sgl-workspace/sglang/python')
 try:
-    from sglang.srt.utils.json_response import dumps_json, orjson_response
-    print("IMPORT:OK")
+    import orjson
+    data = {"logprobs": [float("nan"), float("-inf"), float("inf")]}
+    try:
+        orjson.dumps(data)
+        print("BASELINE:NO_ERROR")
+    except orjson.JSONEncodeError:
+        print("BASELINE:RAISES_AS_EXPECTED")
+    except Exception as e:
+        print(f"BASELINE:OTHER:{type(e).__name__}")
 except ImportError as e:
-    print(f"IMPORT:FAIL:{e}")
+    print(f"IMPORT_FAIL:{e}")
 """)
-has_module = "IMPORT:OK" in stdout
-check("json_response utility module exists (dumps_json, orjson_response)",
-      has_module, stdout.strip() if not has_module else "")
+baseline_raises = "BASELINE:RAISES_AS_EXPECTED" in stdout
+check(
+    "Raw orjson.dumps raises on non-finite floats (bug scenario confirmed)",
+    baseline_raises,
+    f"Unexpected: {stdout.strip()[:120]}",
+)
 
-# Test 2: Check dumps_json handles non-finite floats
+# Test 2: BEHAVIORAL — sglang provides a JSON serialization mechanism that
+# handles NaN/Inf → null without crashing.
+#
+# Strategy: import http_server (loading all serialization dependencies), then
+# scan sglang.srt.utils for any callable that converts a dict with NaN/Inf
+# to valid JSON bytes, with null for non-finite and preserved finite values.
+# Does NOT prescribe any specific module or function name.
+# IMPORT_SKIP (if sglang unavailable) → explicit FAIL.
 stdout, stderr, rc = run_test("""
-import sys; sys.stdout = open(sys.stdout.fileno(), 'w', buffering=1)
-import json, math
-try:
-    from sglang.srt.utils.json_response import dumps_json
-    data = {"logprobs": [float("nan"), float("-inf"), float("inf"), 0.5]}
-    result = dumps_json(data)
-    decoded = json.loads(result)
-    print(f"SERIALIZE:OK")
-    logprobs = decoded.get("logprobs", [])
-    # NaN/Inf should be serialized to null in JSON
-    non_finite_ok = all(v is None for v in logprobs[:3])
-    print(f"NULL_CONVERT:{non_finite_ok}")
-    finite_ok = logprobs[3] == 0.5
-    print(f"FINITE_OK:{finite_ok}")
-except ImportError:
-    print("SERIALIZE:NO_MODULE")
-except Exception as e:
-    print(f"SERIALIZE:ERROR:{type(e).__name__}:{str(e)[:200]}")
-""")
+import sys
+sys.path.insert(0, '/sgl-workspace/sglang/python')
+import json, importlib, pkgutil
 
-if "SERIALIZE:NO_MODULE" in stdout:
-    check("dumps_json serializes non-finite floats", False, "Module not found")
-elif "SERIALIZE:ERROR" in stdout:
-    err = stdout.split("SERIALIZE:ERROR:")[1].split("\n")[0]
-    check("dumps_json serializes non-finite floats", False, err)
-elif "SERIALIZE:OK" in stdout:
-    check("dumps_json serializes non-finite floats", True)
+test_data = {"logprobs": [float("nan"), float("-inf"), float("inf"), 0.5]}
+
+try:
+    import sglang.srt.entrypoints.http_server as _hs
+except ImportError as e:
+    print(f"IMPORT_SKIP:{e}")
+    sys.exit(0)
+
+import sglang.srt.utils
+found_name = None
+null_ok = False
+finite_ok = False
+
+for finder, modname, ispkg in pkgutil.iter_modules(sglang.srt.utils.__path__):
+    try:
+        mod = importlib.import_module(f"sglang.srt.utils.{modname}")
+    except Exception:
+        continue
+    for attr_name in dir(mod):
+        fn = getattr(mod, attr_name, None)
+        if not callable(fn) or attr_name.startswith("_"):
+            continue
+        try:
+            result = fn(test_data)
+            if not isinstance(result, (bytes, bytearray)) or len(result) < 5:
+                continue
+            parsed = json.loads(result)
+            logprobs = parsed.get("logprobs", [])
+            if (
+                len(logprobs) >= 4
+                and all(v is None for v in logprobs[:3])
+                and logprobs[3] == 0.5
+            ):
+                found_name = f"{modname}.{attr_name}"
+                null_ok = True
+                finite_ok = True
+                break
+        except Exception:
+            pass
+    if found_name:
+        break
+
+if found_name:
+    print(f"SERIALIZER_FOUND:{found_name}")
 else:
-    check("dumps_json serializes non-finite floats", False, f"Unexpected: {stdout[:200]}")
-
-# Test 3: Check http_server uses the utility
-stdout, stderr, rc = run_test("""
-import sys; sys.stdout = open(sys.stdout.fileno(), 'w', buffering=1)
-import inspect
-try:
-    from sglang.srt.entrypoints import http_server
-    source = inspect.getsource(http_server)
-    uses_util = "json_response" in source or "orjson_response" in source or "dumps_json" in source
-    print(f"USES_UTIL:{uses_util}")
-except Exception as e:
-    print(f"CHECK_ERROR:{e}")
+    print("SERIALIZER_NOT_FOUND")
+print(f"NULL_OK:{null_ok}")
+print(f"FINITE_OK:{finite_ok}")
 """)
-uses_util = "USES_UTIL:True" in stdout
-check("http_server uses json_response utility",
-      uses_util, "http_server does not import from json_response")
+
+if "IMPORT_SKIP" in stdout:
+    err = stdout.split("IMPORT_SKIP:")[1].split("\n")[0]
+    check("sglang JSON utility serializes NaN/Inf to null", False,
+          f"sglang import failed: {err}")
+    check("Serialized output: null for NaN/Inf, value preserved for finite", False,
+          "Import failed")
+elif "SERIALIZER_NOT_FOUND" in stdout:
+    check("sglang JSON utility serializes NaN/Inf to null", False,
+          "No utility in sglang.srt.utils handles NaN/Inf → null — fix not applied")
+    check("Serialized output: null for NaN/Inf, value preserved for finite", False,
+          "No serializer found")
+else:
+    found = "SERIALIZER_FOUND:" in stdout
+    null_ok = "NULL_OK:True" in stdout
+    finite_ok = "FINITE_OK:True" in stdout
+    check("sglang JSON utility serializes NaN/Inf to null", found and null_ok,
+          stdout.strip()[:200] if not (found and null_ok) else "")
+    check("Serialized output: null for NaN/Inf, value preserved for finite",
+          null_ok and finite_ok,
+          f"null_ok={null_ok}, finite_ok={finite_ok}")
+
 
 print()
 score = (checks_passed / checks_total * 100.0) if checks_total > 0 else 0.0

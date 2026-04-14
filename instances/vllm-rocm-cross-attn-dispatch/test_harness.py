@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
-"""Test harness for vllm-rocm-cross-attn-dispatch (PR #38450).
+"""Test harness for vllm-rocm-cross-attn-dispatch.
 
-Bug: ROCM_ATTN and ROCM_AITER_FA advertise ENCODER_DECODER support but compute
-cross-attention incorrectly when max_query_len > 1, producing wrong beam search
-results for encoder-decoder models (Whisper, BART).
-Test: Verify the backends' supports_attn_type returns the correct values.
+Behavioral test: verifies that ROCm attention backends correctly report
+their supported attention types for encoder-decoder model compatibility.
 """
 import sys
 import subprocess

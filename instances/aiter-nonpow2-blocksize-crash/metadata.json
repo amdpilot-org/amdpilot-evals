@@ -9,10 +9,13 @@
   },
   "description": "Unified attention TILE_SIZE set directly to non-pow2 block_size, crashing Triton kernel compilation",
   "expected_files_changed": 1,
-  "affected_files": [
-    "aiter/ops/triton/attention/unified_attention.py"
-  ],
   "requires_gpu": false,
   "requires_model_download": false,
-  "tags": ["rocm", "bugfix", "triton", "attention", "block_size"]
+  "tags": [
+    "rocm",
+    "bugfix",
+    "triton",
+    "attention",
+    "block_size"
+  ]
 }

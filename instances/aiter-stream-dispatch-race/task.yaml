@@ -1,0 +1,28 @@
+name: aiter-stream-dispatch-race
+type: bugfix
+repo: https://github.com/ROCm/aiter.git
+base_image: amdpilot-eval-aiter-stream-dispatch-race
+
+container:
+  name: amdpilot_eval_aiter_stream_dispatch
+  gpu: "0"
+  shm_size: 64g
+  devices: [/dev/kfd, /dev/dri]
+
+workload:
+  description: "Multiple aiter kernel launches use default HIP stream instead of current PyTorch stream, causing race conditions"
+  framework: aiter
+
+benchmark:
+  command: "/opt/venv/bin/python3 /workspace/test_harness.py"
+  metric_name: score
+  metric_pattern: 'SCORE:\s+([\d.]+)'
+  metric_direction: higher
+  metric_max: 100.0
+
+task:
+  description_file: evals/instances/aiter-stream-dispatch-race/task_description.md
+
+stages: auto
+max_retries_per_stage: 3
+max_total_hours: 4

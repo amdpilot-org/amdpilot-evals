@@ -2,22 +2,17 @@
 """Test harness for vllm PR #36042: CUDA graph decode capture crash in AITER FA.
 
 Bug: The decode path in AITER FlashAttention dispatches to unified_attention
-when `self.sliding_window[0] != -1 or decode_max_query_len > 1`. The
-sliding_window condition forces sliding window models onto the unified_attention
-Triton kernel path even during normal single-token decode. The unified_attention
-path is incompatible with CUDA graph capture, causing a crash when the engine
-tries to capture the decode graph.
-
-Fix: Remove the sliding_window condition from the dispatch. Only route to
-unified_attention for speculative decoding (decode_max_query_len > 1). Sliding
-window models now use the standard paged_attention path, which is CUDA graph
-compatible.
+for sliding window models even during normal single-token decode. The
+unified_attention Triton kernel path is incompatible with CUDA graph capture,
+causing a crash when the engine tries to capture the decode graph. The dispatch
+condition should only trigger for multi-token decode scenarios (e.g.,
+speculative decoding), not for sliding window attention.
 
 Tests:
-  1. Dispatch condition references max_query_len but NOT sliding_window.
-  2. Assert message mentions speculative decoding only, not sliding window.
-  3. No sliding_window reference in the unified_attention dispatch block.
-  4. decode_max_query_len > 1 is the sole dispatch condition.
+  1. Dispatch condition for unified_attention does not reference sliding_window.
+  2. Assert message references the correct reason for the dispatch.
+  3. No sliding_window in the unified_attention dispatch condition.
+  4. Dispatch condition is not a compound condition with unrelated checks.
 """
 import ast
 import os

@@ -1,0 +1,20 @@
+{
+  "name": "aiter-allreduce-1stage-accuracy",
+  "category": "bugfix",
+  "difficulty": "hard",
+  "source": {
+    "repo": "ROCm/aiter",
+    "pr": 2586,
+    "merge_commit": "43b7379b895ffc7545952d5835dd573b20f22d67",
+    "parent_commit": ""
+  },
+  "description": "Fused 1-stage allreduce+RMSNorm kernel skips intermediate bf16 round-trip causing compound numerical divergence across transformer layers",
+  "task_description_source": "PR description (symptom only, no fix details)",
+  "test_harness_type": "behavioral",
+  "requires_gpu": true,
+  "gpu_count": 2,
+  "base_image": "lmsysorg/sglang-rocm:v0.5.9-rocm720-mi35x-20260326",
+  "version_pins": {
+    "rocm": "7.2"
+  }
+}

@@ -6,15 +6,7 @@ When running non-MLA speculative decoding (target_verify / draft_extend paths) o
 TypeError: extend_attention_fwd() missing 2 required positional arguments: 'k_scale' and 'v_scale'
 ```
 
-The error occurs in the `forward_extend` method of the aiter attention backend:
-
-- `python/sglang/srt/layers/attention/aiter_backend.py`
-
-The function `extend_attention_fwd` (defined in `triton_ops/extend_attention.py`) expects `k_scale` and `v_scale` as required positional parameters, but the call site in `aiter_backend.py` does not pass them.
-
-## Affected File
-
-- `python/sglang/srt/layers/attention/aiter_backend.py`
+The error occurs during the attention forward pass in the aiter backend on ROCm.
 
 ## Environment
 

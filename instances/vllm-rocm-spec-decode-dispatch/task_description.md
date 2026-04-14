@@ -1,6 +1,6 @@
 # AITER FA decode produces incorrect results during speculative decoding
 
-The ROCM_AITER_FA attention backend (`vllm/v1/attention/backends/rocm_aiter_fa.py`) produces incorrect attention output when speculative decoding is enabled (e.g., ngram speculation with `num_speculative_tokens > 0`).
+The ROCM_AITER_FA attention backend (the ROCm aiter flash attention backend) produces incorrect attention output when speculative decoding is enabled (e.g., ngram speculation with `num_speculative_tokens > 0`).
 
 ## Symptom
 
@@ -20,10 +20,6 @@ print(out[0].outputs[0].text)
 ```
 
 The output will be incorrect or garbled when using the AITER FA backend with speculative decoding.
-
-## Affected file
-
-- `vllm/v1/attention/backends/rocm_aiter_fa.py` -- the `forward` method of `AiterFlashAttentionImpl`
 
 ## Environment
 

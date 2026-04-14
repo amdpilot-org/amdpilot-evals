@@ -1,17 +1,16 @@
 #!/usr/bin/env python3
 """Test harness for sglang-shuffle-weight-attrs (PR #21825).
 
-Bug: In unquant.py, MoE weight shuffling uses direct Parameter() reassignment
-like `layer.w13_weight = torch.nn.Parameter(shuffle_weight(...))`, which loses
-custom attributes (like weight_loader) on the original parameter.
-Fix: Use copy_or_rebind_param() which preserves custom attributes.
+Bug: In the MoE weight loading module, weight shuffling uses direct
+     torch.nn.Parameter() reassignment, which silently drops any custom
+     attributes (e.g., weight_loader) that were set on the original parameter.
 
-Tests verify the fix via AST analysis of the correct file (unquant.py).
+Expected behavior after fix: Custom parameter attributes survive through the
+     weight shuffling step. The parameter data is updated, but the attributes
+     are preserved on the parameter object.
 """
-import ast
 import sys
 import subprocess
-from pathlib import Path
 
 checks_passed = 0
 checks_total = 0
@@ -30,10 +29,10 @@ def check(name, condition, detail=""):
     return condition
 
 
-def run_test(script, timeout=60):
+def run_test(script, timeout=90):
     result = subprocess.run(
         ["/opt/venv/bin/python3", "-c", script],
-        capture_output=True, text=True, timeout=timeout, cwd="/workspace",
+        capture_output=True, text=True, timeout=timeout,
     )
     return result.stdout or "", result.stderr or "", result.returncode
 
@@ -42,154 +41,105 @@ print("=" * 60)
 print("sglang-shuffle-weight-attrs test harness")
 print("=" * 60)
 
-# The PR modifies unquant.py, NOT ep_moe/layer.py
-TARGET = "/workspace/sglang/python/sglang/srt/layers/quantization/unquant.py"
-
-if not check("Target file exists", Path(TARGET).is_file()):
-    print(f"\nSCORE: 0.0")
-    sys.exit(1)
-
-source = Path(TARGET).read_text()
-
-try:
-    tree = ast.parse(source)
-    check("Valid Python syntax", True)
-except SyntaxError as e:
-    check("Valid Python syntax", False, str(e))
-    print(f"\nSCORE: 0.0")
-    sys.exit(1)
-
-
-# ---------------------------------------------------------------------------
-# Helper: check if an AST node tree contains a reference to a name
-# ---------------------------------------------------------------------------
-def _contains_name(node, name):
-    'Return True if name appears anywhere inside node.'
-    for child in ast.walk(node):
-        if isinstance(child, ast.Name) and child.id == name:
-            return True
-        if isinstance(child, ast.Attribute) and child.attr == name:
-            return True
-    return False
-
-
-# ---------------------------------------------------------------------------
-# Check 1: copy_or_rebind_param is imported in unquant.py
-# ---------------------------------------------------------------------------
-has_import = False
-for node in ast.iter_child_nodes(tree):
-    if isinstance(node, ast.ImportFrom) and node.names:
-        for alias in node.names:
-            if alias.name == "copy_or_rebind_param":
-                has_import = True
-                break
-
-check("copy_or_rebind_param is imported in unquant.py",
-      has_import,
-      "copy_or_rebind_param not found in imports")
-
-
-# ---------------------------------------------------------------------------
-# Check 2: AST — copy_or_rebind_param calls exist with shuffle_weight
-# The fix replaces direct Parameter() assignments with copy_or_rebind_param()
-# calls wrapping shuffle_weight.
-# ---------------------------------------------------------------------------
-good_copy_or_rebind = 0
-for node in ast.walk(tree):
-    if isinstance(node, ast.Call):
-        func = node.func
-        is_copy_call = False
-        if isinstance(func, ast.Name) and func.id == "copy_or_rebind_param":
-            is_copy_call = True
-        if isinstance(func, ast.Attribute) and func.attr == "copy_or_rebind_param":
-            is_copy_call = True
-        if is_copy_call:
-            # Check if any argument references shuffle_weight
-            for arg in list(node.args) + [kw.value for kw in node.keywords]:
-                if _contains_name(arg, "shuffle_weight"):
-                    good_copy_or_rebind += 1
-
-check("copy_or_rebind_param calls wrap shuffle_weight (>= 2 expected)",
-      good_copy_or_rebind >= 2,
-      f"found {good_copy_or_rebind} calls (expected >= 2 for w13_weight and w2_weight)")
-
-
-# ---------------------------------------------------------------------------
-# Check 3: No direct Parameter() assignment with shuffle_weight
-# The old buggy pattern: layer.w13_weight = torch.nn.Parameter(shuffle_weight(...))
-# ---------------------------------------------------------------------------
-bad_direct_assignments = 0
-for node in ast.walk(tree):
-    if isinstance(node, ast.Assign):
-        for target_node in node.targets:
-            if isinstance(target_node, ast.Attribute):
-                if _contains_name(node.value, "shuffle_weight"):
-                    # Check if wrapped in Parameter() — that's the bug
-                    if isinstance(node.value, ast.Call):
-                        vfunc = node.value.func
-                        if isinstance(vfunc, ast.Attribute) and vfunc.attr == "Parameter":
-                            bad_direct_assignments += 1
-                        elif isinstance(vfunc, ast.Name) and vfunc.id == "Parameter":
-                            bad_direct_assignments += 1
-
-check("No direct Parameter(shuffle_weight(...)) assignments remain",
-      bad_direct_assignments == 0,
-      f"found {bad_direct_assignments} direct Parameter() assignments with shuffle_weight")
-
-
-# ---------------------------------------------------------------------------
-# Check 4: Behavioral — copy_or_rebind_param preserves custom attributes
-# Import from sglang.srt.layers.utils (the actual module location)
-# ---------------------------------------------------------------------------
-behavioral_script = """
+# Test: BEHAVIORAL — after MoE weight shuffling, custom parameter attributes
+# (such as weight_loader) must be preserved on w13_weight and w2_weight.
+#
+# Strategy:
+# 1. Import the MoE weight loading module and the relevant class.
+# 2. Inject a CPU-compatible mock for shuffle_weight (no GPU required).
+# 3. Patch the module to force the aiter shuffle code path.
+# 4. Create a fake MoE layer with w13_weight and w2_weight, each carrying
+#    a sentinel custom attribute.
+# 5. Call process_weights_after_loading and verify the attribute survives.
+#
+# Pre-fix: torch.nn.Parameter() reassignment drops custom attributes → FAIL.
+# Post-fix: attribute-preserving rebind keeps custom attributes → PASS.
+# IMPORT_SKIP → explicit FAIL (fix must be importable).
+stdout, stderr, rc = run_test("""
 import sys
 sys.path.insert(0, '/workspace/sglang/python')
+import torch
+import torch.nn as nn
+
 try:
-    from sglang.srt.layers.utils import copy_or_rebind_param
-    import torch
-    import torch.nn as nn
-
-    module = nn.Module()
-    original = torch.nn.Parameter(torch.randn(4, 4))
-    original.custom_attr = "test_value"
-    original.weight_loader = lambda *a: None
-    module.register_parameter("my_param", original)
-
-    new_data = torch.randn(4, 4)
-    copy_or_rebind_param(module, "my_param", new_data)
-
-    param_after = module.my_param
-    survived = getattr(param_after, "custom_attr", None) == "test_value"
-    data_ok = torch.equal(param_after.data, new_data)
-    print(f"SURVIVED:{survived}")
-    print(f"DATA_OK:{data_ok}")
+    import sglang.srt.layers.quantization.unquant as unquant_mod
+    from sglang.srt.layers.quantization.unquant import UnquantizedFusedMoELinearMethod
 except ImportError as e:
-    # Function may not be importable due to env deps — not a test failure
     print(f"IMPORT_SKIP:{e}")
+    sys.exit(0)
 except Exception as e:
-    print(f"ERROR:{type(e).__name__}:{e}")
-"""
+    print(f"IMPORT_SKIP:{type(e).__name__}:{e}")
+    sys.exit(0)
 
-stdout, stderr, rc = run_test(behavioral_script)
+# Inject a CPU-compatible mock shuffle — identity transform, no GPU needed.
+def _mock_shuffle(weight, config):
+    return weight.clone()
+
+# Force the aiter shuffle code path regardless of env vars.
+unquant_mod._use_aiter = True
+unquant_mod.shuffle_weight = _mock_shuffle
+
+class _MockMoEBackend:
+    def is_auto(self):
+        return True
+
+unquant_mod.get_moe_runner_backend = lambda: _MockMoEBackend()
+
+# Create a fake MoE layer with custom attributes on both weight parameters.
+class _FakeMoELayer(nn.Module):
+    def __init__(self):
+        super().__init__()
+        w13 = nn.Parameter(torch.zeros(8, 4), requires_grad=False)
+        w13.weight_loader = "sentinel_w13"
+        self.w13_weight = w13
+
+        w2 = nn.Parameter(torch.zeros(4, 8), requires_grad=False)
+        w2.weight_loader = "sentinel_w2"
+        self.w2_weight = w2
+
+layer = _FakeMoELayer()
+
+# Run the actual weight loading / shuffle code path.
+try:
+    method = UnquantizedFusedMoELinearMethod()
+    method.process_weights_after_loading(layer)
+    print("SHUFFLE_OK")
+except Exception as e:
+    print(f"SHUFFLE_ERROR:{type(e).__name__}:{e}")
+    sys.exit(0)
+
+# Behavioral check: custom attributes must survive on both parameters.
+w13_attr = getattr(layer.w13_weight, "weight_loader", None)
+w2_attr  = getattr(layer.w2_weight,  "weight_loader", None)
+
+print(f"W13_ATTR:{w13_attr}")
+print(f"W2_ATTR:{w2_attr}")
+""")
 
 if "IMPORT_SKIP" in stdout:
-    # Can't import — treat as pass (AST checks above are the primary gate)
-    check("copy_or_rebind_param preserves attributes (skipped, import unavailable)", True)
-elif "SURVIVED:True" in stdout and "DATA_OK:True" in stdout:
-    check("copy_or_rebind_param preserves attributes and updates data", True)
-elif "ERROR:" in stdout:
-    check("copy_or_rebind_param preserves attributes", False,
-          stdout.split("ERROR:")[1].strip()[:200])
+    err = stdout.split("IMPORT_SKIP:")[1].split("\\n")[0].strip()
+    check("MoE weight shuffling preserves w13_weight custom attributes", False,
+          f"Import failed: {err}")
+    check("MoE weight shuffling preserves w2_weight custom attributes", False,
+          "Import failed")
+elif "SHUFFLE_ERROR" in stdout:
+    err = stdout.split("SHUFFLE_ERROR:")[1].split("\n")[0].strip()
+    check("MoE weight shuffling preserves w13_weight custom attributes", False,
+          f"process_weights_after_loading raised: {err}")
+    check("MoE weight shuffling preserves w2_weight custom attributes", False,
+          f"process_weights_after_loading raised: {err}")
 else:
-    check("copy_or_rebind_param preserves attributes", False,
-          f"unexpected output: {stdout.strip()[:200]}")
+    w13_ok = "W13_ATTR:sentinel_w13" in stdout
+    w2_ok  = "W2_ATTR:sentinel_w2"  in stdout
+
+    check("MoE weight shuffling preserves w13_weight custom attributes", w13_ok,
+          f"w13_weight.weight_loader lost after shuffle: {stdout.strip()[:200]}")
+    check("MoE weight shuffling preserves w2_weight custom attributes", w2_ok,
+          f"w2_weight.weight_loader lost after shuffle: {stdout.strip()[:200]}")
 
 
-# ---------------------------------------------------------------------------
-# Final score
-# ---------------------------------------------------------------------------
 print()
 score = (checks_passed / checks_total * 100.0) if checks_total > 0 else 0.0
-print(f"Results: {checks_passed}/{checks_total}")
+print(f"Results: {checks_passed}/{checks_total} checks passed")
 print(f"SCORE: {score:.1f}")
 sys.exit(0 if checks_passed == checks_total else 1)

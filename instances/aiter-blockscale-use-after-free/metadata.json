@@ -1,0 +1,20 @@
+{
+  "name": "aiter-blockscale-use-after-free",
+  "category": "bugfix",
+  "difficulty": "hard",
+  "source": {
+    "repo": "ROCm/aiter",
+    "pr": 2358,
+    "merge_commit": "3e4552bcc005911ad438de8b09ec5ecc84c03dc7",
+    "parent_commit": ""
+  },
+  "description": "Use-after-free in CK-tile blockscale GEMM x_scale handling causes incorrect output under memory pressure",
+  "task_description_source": "PR description (symptom only, no fix details)",
+  "test_harness_type": "behavioral",
+  "requires_gpu": true,
+  "gpu_count": 1,
+  "base_image": "lmsysorg/sglang-rocm:v0.5.9-rocm720-mi35x-20260326",
+  "version_pins": {
+    "rocm": "7.2"
+  }
+}

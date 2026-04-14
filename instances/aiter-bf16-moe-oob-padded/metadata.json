@@ -1,0 +1,8 @@
+{
+  "type": "bugfix",
+  "difficulty": "hard",
+  "gpu_count": 8,
+  "requires_gpu": true,
+  "estimated_time_minutes": 120,
+  "tags": ["aiter", "composable-kernel", "moe", "oob", "rocm", "bf16"]
+}

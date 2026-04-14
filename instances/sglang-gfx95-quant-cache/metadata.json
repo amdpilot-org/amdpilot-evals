@@ -1,0 +1,21 @@
+{
+  "name": "sglang-gfx95-quant-cache",
+  "category": "optimize",
+  "difficulty": "medium",
+  "source": {
+    "repo": "sgl-project/sglang",
+    "merge_commit": "e835601fb72ef2cbb53b2c6e2b00fe3370d3020e"
+  },
+  "description": "Cache gfx95 quant format detection in DeepseekV2DecoderLayer",
+  "expected_loc_changed": 17,
+  "expected_files_changed": 1,
+  "requires_gpu": false,
+  "requires_model_download": false,
+  "tags": [
+    "rocm",
+    "optimize",
+    "sgl-project",
+    "deepseek",
+    "gfx950"
+  ]
+}

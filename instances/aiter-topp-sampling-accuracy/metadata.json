@@ -1,0 +1,18 @@
+{
+  "instance_id": "aiter-topp-sampling-accuracy",
+  "repo": "ROCm/aiter",
+  "pr_number": null,
+  "pr_title": "Fix accuracy issues in top-p sampling kernels",
+  "merge_commit": "d831d658d05d1e718d53e696a561b91122426594",
+  "merged_at": "2026-02-12",
+  "difficulty": "hard",
+  "files_changed": 4,
+  "lines_added": 35,
+  "lines_removed": 10,
+  "categories": [
+    "sampling",
+    "rng",
+    "gpu-kernel",
+    "tensor-parallelism"
+  ]
+}

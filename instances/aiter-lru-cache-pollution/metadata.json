@@ -9,11 +9,13 @@
   },
   "description": "LRU-cached GEMM config dict mutated in-place by callers, polluting cache and causing KeyError on subsequent calls",
   "expected_files_changed": 2,
-  "affected_files": [
-    "aiter/ops/triton/utils/gemm_config_utils.py",
-    "aiter/ops/triton/gemm/fused/fused_gemm_afp4wfp4_split_cat.py"
-  ],
   "requires_gpu": false,
   "requires_model_download": false,
-  "tags": ["rocm", "bugfix", "cache", "gemm", "config"]
+  "tags": [
+    "rocm",
+    "bugfix",
+    "cache",
+    "gemm",
+    "config"
+  ]
 }

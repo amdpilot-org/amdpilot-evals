@@ -2,13 +2,9 @@
 
 ## Context
 
-The `gemm_afp4wfp4` fused kernel crashes with a `KeyError` on its second invocation during sglang inference with `quark_w4a4_mxfp4` quantization. The first call to the kernel succeeds, but the second call fails because the GEMM configuration dictionary returned by `get_gemm_config()` has been corrupted between calls.
+The `gemm_afp4wfp4` fused kernel crashes with a `KeyError` on its second invocation during sglang inference with `quark_w4a4_mxfp4` quantization. The first call to the kernel succeeds, but the second call fails because the GEMM configuration dictionary returned by the GEMM config lookup function has been corrupted between calls.
 
-The function `get_gemm_config()` in `aiter/ops/triton/utils/gemm_config_utils.py` uses an LRU cache to store configuration dictionaries. The fused kernel receives this cached dict reference and mutates it in-place during execution. When `get_gemm_config()` is called again with the same arguments, the LRU cache returns the previously mutated (corrupted) dictionary, which is now missing or has altered keys that the kernel expects.
-
-## Affected Files
-
-- `aiter/ops/triton/utils/gemm_config_utils.py`
+The function the GEMM config lookup function in the GEMM configuration utility uses an LRU cache to store configuration dictionaries. The fused kernel receives this cached dict reference and mutates it in-place during execution. When the GEMM config lookup function is called again with the same arguments, the LRU cache returns the previously mutated (corrupted) dictionary, which is now missing or has altered keys that the kernel expects.
 
 ## Environment
 

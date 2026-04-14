@@ -36,7 +36,17 @@ DECODE_SEC=$(echo "$OUTPUT" | grep -oP 'Decode\.\s+median latency:\s+\K[\d.]+' |
 
 if [ -n "$DECODE_SEC" ]; then
     DECODE_MS=$(/opt/venv/bin/python3 -c "print(f'{float(\"$DECODE_SEC\") * 1000:.1f}')")
-    echo "Decode median (ms): $DECODE_MS | tp=8 batch=1 in=8192 out=2048 decode=$DECODE_ATTENTION_BACKEND"
+    # Backend telemetry: check if CK MoE was used (non-blocking)
+    CK_USED=$(echo "$OUTPUT" | grep -c "ck_moe_stage1" || true)
+    TRITON_USED=$(echo "$OUTPUT" | grep -c "CompressedTensorsWNA16TritonMoE" || true)
+    if [ "$CK_USED" -gt 0 ]; then
+        MOE_BACKEND="ck_moe"
+    elif [ "$TRITON_USED" -gt 0 ]; then
+        MOE_BACKEND="triton_fallback"
+    else
+        MOE_BACKEND="unknown"
+    fi
+    echo "Decode median (ms): $DECODE_MS | tp=8 batch=1 in=8192 out=2048 decode=$DECODE_ATTENTION_BACKEND moe=$MOE_BACKEND"
 else
     echo "ERROR: Could not extract decode median from benchmark output" >&2
     exit 1

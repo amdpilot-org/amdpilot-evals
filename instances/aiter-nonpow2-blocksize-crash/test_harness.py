@@ -1,20 +1,9 @@
 #!/usr/bin/env python3
-"""Test harness for aiter PR #2393: TILE_SIZE crash for non-pow2 block_size.
+"""Test harness for aiter-nonpow2-blocksize-crash eval instance.
 
-Bug: In unified_attention.py's select_2d_config() and select_3d_config(),
-TILE_SIZE is set directly to block_size. When block_size is not a power of 2
-(e.g., 48 for Qwen3-Next), Triton kernel compilation fails because TILE_SIZE
-must be a power of 2 for tl.arange() and memory coalescing.
-
-Fix: TILE_SIZE = min(64, triton.next_power_of_2(block_size))
-
-Tests (behavioral, not source-pattern matching):
-  1. Call select_2d_config with block_size=48, verify TILE_SIZE is pow2.
-  2. Call select_3d_config with block_size=48, verify TILE_SIZE is pow2.
-  3. Verify pow2 block sizes (16, 64) still work correctly.
-  4. Anti-hack: verify TILE_SIZE ≤ 64 (the min clamp).
+Validates that attention config generation handles non-power-of-2 block sizes
+without crashing Triton kernel compilation.
 """
-import ast
 import os
 import subprocess
 import sys
@@ -58,7 +47,7 @@ def is_power_of_2(n):
 
 
 print("=" * 60)
-print("aiter-nonpow2-blocksize-crash test harness (PR #2393)")
+print("aiter-nonpow2-blocksize-crash test harness")
 print("=" * 60)
 
 # ---------------------------------------------------------------------------
@@ -74,7 +63,7 @@ if not check("unified_attention.py exists", os.path.isfile(UNIFIED_ATTN_PATH)):
 try:
     with open(UNIFIED_ATTN_PATH) as fh:
         source_text = fh.read()
-    source_tree = ast.parse(source_text)
+    compile(source_text, UNIFIED_ATTN_PATH, "exec")
     check("unified_attention.py is valid Python", True)
 except SyntaxError as e:
     check("unified_attention.py is valid Python", False, str(e))
@@ -83,12 +72,6 @@ except SyntaxError as e:
 
 # ---------------------------------------------------------------------------
 # Checks 2-6: behavioral test via subprocess.
-#
-# Import select_2d_config and select_3d_config, call with non-pow2 block_size,
-# verify TILE_SIZE in the returned config is a power of 2.
-#
-# Before fix: TILE_SIZE = block_size = 48 (not pow2) → Triton crash.
-# After fix: TILE_SIZE = min(64, next_power_of_2(48)) = 64 → works.
 # ---------------------------------------------------------------------------
 print("\n--- Checks 2-6: config generation behavior ---")
 
@@ -184,7 +167,7 @@ elif "IMPORT:OK" in stdout:
             "TILE_SIZE is not power-of-2 — Triton kernel will crash",
         )
 
-        # Check 4: TILE_SIZE ≤ 64 (the min clamp)
+        # Check 4: TILE_SIZE ≤ 64
         check(
             "select_2d_config(block_size=48) TILE_SIZE ≤ 64",
             "SELECT_2D_48_LE64:True" in stdout,
@@ -223,45 +206,6 @@ elif "IMPORT:OK" in stdout:
         )
 else:
     check("Subprocess ran successfully", False, f"stderr: {stderr[:200]}")
-
-# ---------------------------------------------------------------------------
-# Check 8: AST structural verification — TILE_SIZE assignment uses
-# next_power_of_2 or equivalent.
-#
-# Before fix: TILE_SIZE = block_size (direct assignment)
-# After fix: TILE_SIZE = min(64, triton.next_power_of_2(block_size))
-# ---------------------------------------------------------------------------
-print("\n--- Check 8: TILE_SIZE assignment structure ---")
-
-# Check BOTH select_2d_config and select_3d_config independently
-funcs_with_safe_tile = set()
-funcs_with_buggy_tile = set()
-
-for node in ast.walk(source_tree):
-    if isinstance(node, ast.FunctionDef) and node.name in (
-        "select_2d_config", "select_3d_config"
-    ):
-        for child in ast.walk(node):
-            if isinstance(child, ast.Assign):
-                for target in child.targets:
-                    if isinstance(target, ast.Name) and target.id == "TILE_SIZE":
-                        rhs = child.value
-                        if isinstance(rhs, ast.Name) and rhs.id == "block_size":
-                            funcs_with_buggy_tile.add(node.name)
-                        else:
-                            funcs_with_safe_tile.add(node.name)
-
-both_safe = (
-    "select_2d_config" in funcs_with_safe_tile
-    and "select_3d_config" in funcs_with_safe_tile
-    and not funcs_with_buggy_tile
-)
-
-check(
-    "TILE_SIZE uses transformation in BOTH select_2d_config and select_3d_config",
-    both_safe,
-    f"safe={funcs_with_safe_tile}, buggy={funcs_with_buggy_tile}",
-)
 
 # ---------------------------------------------------------------------------
 # Summary

@@ -1,11 +1,8 @@
 #!/usr/bin/env python3
 """Test harness for vllm-rocm-fused-moe-fix.
 
-1) Import fused_moe stack modules.
-2) _rocm_aiter_fused_moe_fake signature must match _rocm_aiter_fused_moe_impl
-   (same parameter names and order) — fails on unfixed tree.
-3) rocm_aiter_grouped_topk must accept routed_scaling_factor and forward it
-   to rocm_aiter_ops grouped top-k calls.
+Verify that the ROCm fused MoE custom op and grouped top-k path
+handle all required parameters correctly.
 """
 from __future__ import annotations
 
@@ -82,25 +79,13 @@ try:
 
     sig = inspect.signature(rocm_aiter_grouped_topk)
     has_param = "routed_scaling_factor" in sig.parameters
-    src = inspect.getsource(rocm_aiter_grouped_topk)
-    forwards = "routed_scaling_factor=routed_scaling_factor" in src
     check(
         "rocm_aiter_grouped_topk accepts routed_scaling_factor",
         has_param,
         "missing parameter" if not has_param else "",
     )
-    check(
-        "rocm_aiter_grouped_topk forwards routed_scaling_factor into aiter ops",
-        forwards,
-        "keyword forward not found in source",
-    )
 except Exception as e:
     check("rocm_aiter_grouped_topk accepts routed_scaling_factor", False, str(e)[:200])
-    check(
-        "rocm_aiter_grouped_topk forwards routed_scaling_factor into aiter ops",
-        False,
-        str(e)[:200],
-    )
 
 print()
 score = (checks_passed / checks_total * 100.0) if checks_total > 0 else 0.0

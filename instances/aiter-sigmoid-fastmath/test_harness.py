@@ -96,9 +96,7 @@ for M, N, dtype in sizes:
     torch.cuda.synchronize()
     us = (time.perf_counter() - t0) * 1e6 / iters
 
-    # Unoptimized baseline: ~22-26us for 4096x4096 bf16
-    # Optimized with AMD intrinsics: ~14-16us (>30% improvement)
-    # Threshold set at 18us to verify optimization is applied
+    # Performance threshold for optimized kernel
     threshold_us = 18.0
     print(f"  Sigmoid latency ({M}x{N} {dtype}): {us:.1f}us (threshold: <{threshold_us}us)")
     check(f"Sigmoid latency < {threshold_us}us (got {us:.1f}us)", us < threshold_us,

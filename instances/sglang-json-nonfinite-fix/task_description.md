@@ -6,10 +6,6 @@ The `/generate` endpoint fails with a JSON serialization error when the model pr
 
 The OpenAI-compatible endpoints (`/v1/chat/completions`, etc.) are unaffected because they use a different serialization path. Only the native `/generate` endpoint is broken.
 
-## Affected Files
-
-- `python/sglang/srt/entrypoints/http_server.py`
-
 ## Environment
 
 - SGLang at `/sgl-workspace/sglang`

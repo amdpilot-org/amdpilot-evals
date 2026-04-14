@@ -1,0 +1,25 @@
+{
+  "name": "sglang-tp4-accuracy-cross-repo",
+  "category": "bugfix",
+  "difficulty": "hard",
+  "source": {
+    "repo": "sgl-project/sglang",
+    "pr": 18607,
+    "merge_commit": "e20e6c28b9bf56f632c64fdfeb5b8871237e8d88"
+  },
+  "description": "TP=4 accuracy degradation on AMD GPUs with aiter attention backend and MTP enabled",
+  "bug_type": "cross-repo",
+  "requires_gpu": true,
+  "gpu_count": 4,
+  "base_image": "lmsysorg/sglang-rocm:v0.5.9-rocm720-mi35x-20260326",
+  "expected_files_changed": 2,
+  "tags": [
+    "sglang",
+    "cross-repo",
+    "aiter",
+    "tp4",
+    "mla",
+    "attention",
+    "accuracy"
+  ]
+}

@@ -10,10 +10,13 @@
   "description": "MXFP4 quantization produces incorrect rounding in fp4_utils.py",
   "expected_loc_changed": 53,
   "expected_files_changed": 1,
-  "affected_files": [
-    "aiter/utility/fp4_utils.py"
-  ],
   "requires_gpu": true,
   "requires_model_download": false,
-  "tags": ["rocm", "bugfix", "ROCm", "quantization", "mxfp4"]
+  "tags": [
+    "rocm",
+    "bugfix",
+    "ROCm",
+    "quantization",
+    "mxfp4"
+  ]
 }

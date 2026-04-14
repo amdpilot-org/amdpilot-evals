@@ -9,10 +9,13 @@
   },
   "description": "AiterMLADecodeMetadata uses raw num_heads for persistent buffer, causing mismatch when num_heads<16",
   "expected_files_changed": 1,
-  "affected_files": [
-    "vllm/v1/attention/backends/mla/rocm_aiter_mla.py"
-  ],
   "requires_gpu": true,
   "requires_model_download": false,
-  "tags": ["rocm", "bugfix", "mla", "attention", "aiter"]
+  "tags": [
+    "rocm",
+    "bugfix",
+    "mla",
+    "attention",
+    "aiter"
+  ]
 }
