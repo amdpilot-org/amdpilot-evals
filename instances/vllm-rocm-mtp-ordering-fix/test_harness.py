@@ -72,7 +72,7 @@ except Exception as e:
     # DeepseekV32IndexerMetadata is not in the allowlist
     print("\n[Check 2] Validation with DeepseekV32IndexerMetadata last in dict...")
     script2 = """
-import sys, json
+import sys, json, inspect
 sys.path.insert(0, "/workspace/vllm")
 
 try:
@@ -88,86 +88,22 @@ try:
     if ProposerClass is None and hasattr(eagle, 'EagleProposer'):
         ProposerClass = eagle.EagleProposer
 
-    # Try to find the allowed_attn_types or equivalent
-    # Import the metadata types we need
-    try:
-        from vllm.v1.attention.backends.rocm_aiter_mla_sparse import ROCMAiterMLASparseMetadata
-    except ImportError:
-        ROCMAiterMLASparseMetadata = type('ROCMAiterMLASparseMetadata', (), {})
+    # Get proposer source to check if DeepseekV32IndexerMetadata is recognized
+    proposer_src = ""
+    if ProposerClass:
+        for cls in ProposerClass.__mro__:
+            if cls != object:
+                try:
+                    proposer_src = inspect.getsource(cls)
+                    break
+                except (TypeError, OSError):
+                    continue
 
-    try:
-        from vllm.v1.attention.backends.rocm_aiter_mla_sparse import DeepseekV32IndexerMetadata
-    except ImportError:
-        try:
-            from vllm.v1.worker.gpu_model_runner import DeepseekV32IndexerMetadata
-        except ImportError:
-            DeepseekV32IndexerMetadata = type('DeepseekV32IndexerMetadata', (), {})
+    # The type must appear in the proposer's allowed types or type-check code
+    recognizes_indexer = 'DeepseekV32IndexerMetadata' in proposer_src or 'IndexerMetadata' in proposer_src
 
-    # Create mock metadata objects
-    sparse_meta = ROCMAiterMLASparseMetadata.__new__(ROCMAiterMLASparseMetadata)
-    indexer_meta = DeepseekV32IndexerMetadata.__new__(DeepseekV32IndexerMetadata)
-
-    # Build dict: sparse FIRST, indexer LAST (this is the order that triggers the bug)
-    attn_metadata_order_a = {
-        "group_0": sparse_meta,
-        "group_1": indexer_meta,  # last → pre-fix checks only this type
-    }
-
-    # Extract the validation logic from the proposer
-    # Look for allowed_attn_types or the type-checking code
-    allowed_found = False
-    check_result = False
-
-    # Try calling the check directly if it's a method
-    for attr_name in dir(ProposerClass):
-        if 'allowed' in attr_name.lower() or 'check_attn' in attr_name.lower():
-            allowed_found = True
-            break
-
-    if not allowed_found:
-        # The check is inline in propose(). We need to extract and test it.
-        # Create a minimal mock proposer to reach the type-check code path
-        class _Sentinel:
-            pass
-
-        class MockProposer:
-            def check_types(self, metadata_dict):
-                # Replicate the validation logic pattern
-                # Pre-fix: for meta in metadata_dict.values(): attn_type = type(meta)
-                # Then checks if attn_type is in allowed set
-                attn_types = set()
-                for meta in metadata_dict.values():
-                    attn_types.add(type(meta))
-                return attn_types
-
-        # Test: get types from order A
-        types_a = set()
-        for meta in attn_metadata_order_a.values():
-            types_a.add(type(meta).__name__)
-
-        has_both = len(types_a) >= 2
-        has_indexer = any('Indexer' in t or 'DeepseekV32' in t for t in types_a)
-        has_sparse = any('Sparse' in t or 'Aiter' in t for t in types_a)
-
-        # The key test: both types must be recognized by the proposer
-        # Import the actual allowed types list if it exists
-        import inspect
-        proposer_src = ""
-        if ProposerClass:
-            for cls in ProposerClass.__mro__:
-                if cls != object:
-                    try:
-                        proposer_src = inspect.getsource(cls)
-                        break
-                    except (TypeError, OSError):
-                        continue
-
-        # Check if DeepseekV32IndexerMetadata appears in the proposer code
-        recognizes_indexer = 'DeepseekV32IndexerMetadata' in proposer_src or 'IndexerMetadata' in proposer_src
-        check_result = recognizes_indexer
-
-    detail = f"types_found={types_a if 'types_a' in dir() else 'N/A'}, recognizes_indexer={check_result}"
-    print(json.dumps({"pass": check_result, "detail": detail}))
+    detail = f"recognizes_indexer={recognizes_indexer}"
+    print(json.dumps({"pass": recognizes_indexer, "detail": detail}))
 
 except Exception as e:
     print(json.dumps({"pass": False, "detail": f"Error: {e}"}))

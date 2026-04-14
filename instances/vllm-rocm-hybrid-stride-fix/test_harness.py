@@ -2,12 +2,13 @@
 """Test harness for vLLM hybrid model KV cache stride corruption on ROCm.
 
 Tests (behavioral):
-  1. Import the rocm_aiter_fa backend and verify key components exist.
-  2. Construct KV cache with interleaved layout, run gather kernel,
-     verify output is non-NaN and non-garbage.
-  3. Control test: contiguous layout must still work correctly.
-  4. Cross-validate: interleaved output should match reference computed
-     with correct strides.
+  1. Import the rocm_aiter_fa backend and verify cp_mha_gather_cache exists.
+  2. Call cp_mha_gather_cache with non-contiguous (interleaved) KV cache —
+     output must match values from the correct block (not the adjacent one).
+  3. Call cp_mha_gather_cache with contiguous KV cache (control) —
+     output must be correct (both pre-fix and post-fix should pass).
+  4. Source verification: kernel receives actual tensor strides, not hardcoded
+     pointer arithmetic.
 """
 
 import os
@@ -48,16 +49,18 @@ def main():
 
     checks = []
 
-    # Check 1: Import backend
+    # Check 1: Import backend and verify cp_mha_gather_cache exists
     print("\n[Check 1] Import rocm_aiter_fa backend...")
     script1 = """
 import sys, json
 sys.path.insert(0, "/workspace/vllm")
 try:
-    from vllm.v1.attention.backends import rocm_aiter_fa
-    attrs = [a for a in dir(rocm_aiter_fa) if 'gather' in a.lower() or 'cache' in a.lower() or 'kernel' in a.lower()]
-    print(json.dumps({"pass": True, "detail": f"Import OK, relevant attrs: {attrs[:5]}"}))
-except Exception as e:
+    from vllm.v1.attention.backends.rocm_aiter_fa import cp_mha_gather_cache
+    import inspect
+    sig = inspect.signature(cp_mha_gather_cache)
+    params = list(sig.parameters.keys())
+    print(json.dumps({"pass": True, "detail": f"cp_mha_gather_cache OK, params: {params[:6]}..."}))
+except ImportError as e:
     print(json.dumps({"pass": False, "detail": f"Import failed: {e}"}))
     sys.exit(1)
 """
@@ -65,8 +68,14 @@ except Exception as e:
     checks.append({"name": "import_backend", "pass": passed, "detail": detail})
     print(f"  {'PASS' if passed else 'FAIL'}: {detail}")
 
-    # Check 2: Interleaved KV layout — gather must produce valid output
-    print("\n[Check 2] Interleaved KV gather produces valid output...")
+    # Check 2: Interleaved (non-contiguous) KV cache gather
+    # Core test: with pre-fix hardcoded strides, the kernel reads from wrong
+    # blocks. Post-fix uses actual tensor strides and reads correctly.
+    #
+    # Setup: interleaved buffer [K0, V0, K1, V1, ...] with distinct values.
+    # key_cache = interleaved[0::2] (non-contiguous, stride0 doubled).
+    # block_tables points to block 1. Pre-fix reads V0 instead of K1.
+    print("\n[Check 2] Interleaved KV gather correctness...")
     script2 = """
 import torch, sys, json
 sys.path.insert(0, "/workspace/vllm")
@@ -74,55 +83,86 @@ torch.cuda.set_device(0)
 device = "cuda:0"
 
 try:
-    # Create KV cache tensors in interleaved layout [K_0][V_0][K_1][V_1]
-    num_blocks = 8
-    block_size = 16
-    num_heads = 8
-    head_dim = 128
+    from vllm.v1.attention.backends.rocm_aiter_fa import cp_mha_gather_cache
 
-    # Interleaved: alternating K and V blocks
-    kv_cache = torch.randn(
-        num_blocks * 2, block_size, num_heads, head_dim,
+    num_blocks = 4
+    page_size = 8
+    num_heads = 2
+    head_dim = 64
+    num_tokens = 4
+
+    # Build interleaved buffer: [K0, V0, K1, V1, K2, V2, K3, V3]
+    interleaved = torch.zeros(
+        num_blocks * 2, page_size, num_heads, head_dim,
         dtype=torch.bfloat16, device=device
     )
-
-    # Fill with known patterns: K blocks get positive values, V blocks get negative
     for i in range(num_blocks):
-        kv_cache[i*2] = torch.abs(torch.randn(block_size, num_heads, head_dim,
-                                               dtype=torch.bfloat16, device=device)) + 1.0   # K
-        kv_cache[i*2+1] = -torch.abs(torch.randn(block_size, num_heads, head_dim,
-                                                   dtype=torch.bfloat16, device=device)) - 1.0  # V
+        interleaved[i * 2].fill_(float(i + 1))        # K_i = i+1
+        interleaved[i * 2 + 1].fill_(float(-(i + 1))) # V_i = -(i+1)
 
-    # Try to import and call the gather kernel
-    from vllm.v1.attention.backends.rocm_aiter_fa import (
-        ROCmAiterFABackend,
+    # Non-contiguous views (stride0 is 2x the contiguous stride)
+    key_cache = interleaved[0::2]    # [4, 8, 2, 64]
+    value_cache = interleaved[1::2]  # [4, 8, 2, 64]
+
+    # Sanity: confirm non-contiguity
+    expected_contig_stride0 = page_size * num_heads * head_dim
+    actual_stride0 = key_cache.stride(0)
+    assert actual_stride0 == 2 * expected_contig_stride0, (
+        f"Expected doubled stride, got {actual_stride0} vs 2*{expected_contig_stride0}"
     )
 
-    # Check if output from interleaved layout has the right signs
-    # K values should be positive, V values should be negative
-    k_blocks = kv_cache[0::2]  # Even indices = K
-    v_blocks = kv_cache[1::2]  # Odd indices = V
+    # 1 batch, 4 tokens, reading from block 1
+    block_tables = torch.tensor([[1]], dtype=torch.int32, device=device)
+    cu_seqlens_kv = torch.tensor([0, num_tokens], dtype=torch.int32, device=device)
+    token_to_batch = torch.zeros(num_tokens, dtype=torch.int32, device=device)
+    seq_starts = torch.tensor([0], dtype=torch.int32, device=device)
 
-    k_mean = k_blocks.float().mean().item()
-    v_mean = v_blocks.float().mean().item()
+    key_out = torch.zeros(num_tokens, num_heads, head_dim,
+                          dtype=torch.bfloat16, device=device)
+    value_out = torch.zeros(num_tokens, num_heads, head_dim,
+                            dtype=torch.bfloat16, device=device)
 
-    has_nan = torch.isnan(kv_cache).any().item()
-    has_inf = torch.isinf(kv_cache).any().item()
+    k_scales = torch.ones(1, dtype=torch.float32, device=device)
+    v_scales = torch.ones(1, dtype=torch.float32, device=device)
 
-    ok = (k_mean > 0.5) and (v_mean < -0.5) and not has_nan and not has_inf
-    detail = f"k_mean={k_mean:.3f}, v_mean={v_mean:.3f}, nan={has_nan}, inf={has_inf}"
+    cp_mha_gather_cache(
+        key_cache, value_cache,
+        key_out, value_out,
+        block_tables,
+        k_scales, v_scales,
+        cu_seqlens_kv, token_to_batch, seq_starts,
+        dequant=False,
+        kv_cache_layout="NHD",
+        total_tokens=num_tokens,
+    )
+
+    # Expected: K1=2.0, V1=-2.0
+    # Pre-fix (wrong stride): K reads V0=-1.0, V reads K1=2.0
+    # Post-fix (correct stride): K reads K1=2.0, V reads V1=-2.0
+    k_mean = key_out.float().mean().item()
+    v_mean = value_out.float().mean().item()
+
+    k_correct = abs(k_mean - 2.0) < 0.1
+    v_correct = abs(v_mean - (-2.0)) < 0.1
+
+    ok = k_correct and v_correct
+    detail = f"k_mean={k_mean:.3f} (expect 2.0), v_mean={v_mean:.3f} (expect -2.0)"
     print(json.dumps({"pass": ok, "detail": detail}))
 
 except Exception as e:
-    print(json.dumps({"pass": False, "detail": f"Error: {e}"}))
+    import traceback
+    tb = traceback.format_exc()
+    print(json.dumps({"pass": False, "detail": f"Error: {e} | {tb[-300:]}"}))
     sys.exit(1)
 """
     passed, detail = run_check("interleaved", script2)
-    checks.append({"name": "interleaved_kv_valid", "pass": passed, "detail": detail})
+    checks.append({"name": "interleaved_kv_gather", "pass": passed, "detail": detail})
     print(f"  {'PASS' if passed else 'FAIL'}: {detail}")
 
-    # Check 3: Contiguous layout control — must still work
-    print("\n[Check 3] Contiguous KV layout (control test)...")
+    # Check 3: Contiguous KV cache gather (control test)
+    # Both pre-fix and post-fix should produce correct results with contiguous
+    # layout, since the hardcoded arithmetic happens to be correct for that case.
+    print("\n[Check 3] Contiguous KV gather (control)...")
     script3 = """
 import torch, sys, json
 sys.path.insert(0, "/workspace/vllm")
@@ -130,89 +170,96 @@ torch.cuda.set_device(0)
 device = "cuda:0"
 
 try:
-    # Standard contiguous layout [K_all][V_all]
-    num_blocks = 8
-    block_size = 16
-    num_heads = 8
-    head_dim = 128
+    from vllm.v1.attention.backends.rocm_aiter_fa import cp_mha_gather_cache
 
-    k_cache = torch.randn(num_blocks, block_size, num_heads, head_dim,
-                           dtype=torch.bfloat16, device=device)
-    v_cache = torch.randn(num_blocks, block_size, num_heads, head_dim,
-                           dtype=torch.bfloat16, device=device)
+    num_blocks = 4
+    page_size = 8
+    num_heads = 2
+    head_dim = 64
+    num_tokens = 4
 
-    # Basic validity
-    k_valid = not torch.isnan(k_cache).any().item() and not torch.isinf(k_cache).any().item()
-    v_valid = not torch.isnan(v_cache).any().item() and not torch.isinf(v_cache).any().item()
+    # Contiguous KV cache (standard layout)
+    key_cache = torch.zeros(num_blocks, page_size, num_heads, head_dim,
+                            dtype=torch.bfloat16, device=device)
+    value_cache = torch.zeros(num_blocks, page_size, num_heads, head_dim,
+                              dtype=torch.bfloat16, device=device)
+    for i in range(num_blocks):
+        key_cache[i].fill_(float(i + 1))
+        value_cache[i].fill_(float(-(i + 1)))
 
-    # Verify strides are contiguous
-    k_contig = k_cache.is_contiguous()
-    v_contig = v_cache.is_contiguous()
+    # Same setup: read from block 1
+    block_tables = torch.tensor([[1]], dtype=torch.int32, device=device)
+    cu_seqlens_kv = torch.tensor([0, num_tokens], dtype=torch.int32, device=device)
+    token_to_batch = torch.zeros(num_tokens, dtype=torch.int32, device=device)
+    seq_starts = torch.tensor([0], dtype=torch.int32, device=device)
 
-    ok = k_valid and v_valid and k_contig and v_contig
-    detail = f"k_valid={k_valid}, v_valid={v_valid}, k_contig={k_contig}, v_contig={v_contig}"
+    key_out = torch.zeros(num_tokens, num_heads, head_dim,
+                          dtype=torch.bfloat16, device=device)
+    value_out = torch.zeros(num_tokens, num_heads, head_dim,
+                            dtype=torch.bfloat16, device=device)
+
+    k_scales = torch.ones(1, dtype=torch.float32, device=device)
+    v_scales = torch.ones(1, dtype=torch.float32, device=device)
+
+    cp_mha_gather_cache(
+        key_cache, value_cache,
+        key_out, value_out,
+        block_tables,
+        k_scales, v_scales,
+        cu_seqlens_kv, token_to_batch, seq_starts,
+        dequant=False,
+        kv_cache_layout="NHD",
+        total_tokens=num_tokens,
+    )
+
+    # Expected: K=2.0 (block 1 key), V=-2.0 (block 1 value)
+    k_mean = key_out.float().mean().item()
+    v_mean = value_out.float().mean().item()
+
+    k_correct = abs(k_mean - 2.0) < 0.1
+    v_correct = abs(v_mean - (-2.0)) < 0.1
+
+    ok = k_correct and v_correct
+    detail = f"k_mean={k_mean:.3f} (expect 2.0), v_mean={v_mean:.3f} (expect -2.0)"
     print(json.dumps({"pass": ok, "detail": detail}))
 
 except Exception as e:
-    print(json.dumps({"pass": False, "detail": f"Error: {e}"}))
+    import traceback
+    tb = traceback.format_exc()
+    print(json.dumps({"pass": False, "detail": f"Error: {e} | {tb[-300:]}"}))
     sys.exit(1)
 """
     passed, detail = run_check("contiguous", script3)
     checks.append({"name": "contiguous_kv_control", "pass": passed, "detail": detail})
     print(f"  {'PASS' if passed else 'FAIL'}: {detail}")
 
-    # Check 4: Stride correctness — as_strided layout vs contiguous must give same gather result
-    print("\n[Check 4] Stride-aware gather correctness...")
+    # Check 4: Source verification — strides passed to kernel
+    print("\n[Check 4] Kernel receives actual tensor strides...")
     script4 = """
-import torch, sys, json
+import sys, json, inspect
 sys.path.insert(0, "/workspace/vllm")
-torch.cuda.set_device(0)
-device = "cuda:0"
 
 try:
-    num_blocks = 4
-    block_size = 16
-    num_heads = 4
-    head_dim = 64
+    from vllm.v1.attention.backends import rocm_aiter_fa
 
-    # Create reference data
-    torch.manual_seed(42)
-    k_ref = torch.randn(num_blocks, block_size, num_heads, head_dim,
-                         dtype=torch.bfloat16, device=device)
-    v_ref = torch.randn(num_blocks, block_size, num_heads, head_dim,
-                         dtype=torch.bfloat16, device=device)
+    src = inspect.getsource(rocm_aiter_fa)
 
-    # Create interleaved buffer from the same data
-    interleaved = torch.empty(num_blocks * 2, block_size, num_heads, head_dim,
-                              dtype=torch.bfloat16, device=device)
-    for i in range(num_blocks):
-        interleaved[i*2].copy_(k_ref[i])
-        interleaved[i*2+1].copy_(v_ref[i])
+    # The fix adds stride parameters to the kernel call and computes
+    # them from the actual tensor via .stride()
+    has_k_stride = "k_cache_stride" in src or "k_strides" in src
+    has_v_stride = "v_cache_stride" in src or "v_strides" in src
+    computes_strides = ".stride()" in src
 
-    # Extract K and V from interleaved layout
-    k_from_interleaved = interleaved[0::2]
-    v_from_interleaved = interleaved[1::2]
-
-    # They should match the reference exactly
-    k_match = torch.allclose(k_from_interleaved, k_ref)
-    v_match = torch.allclose(v_from_interleaved, v_ref)
-
-    # Check that the strides are different (interleaved has double stride in dim 0)
-    k_ref_stride = k_ref.stride()
-    k_int_stride = k_from_interleaved.stride()
-    strides_differ = k_ref_stride[0] != k_int_stride[0]
-
-    ok = k_match and v_match and strides_differ
-    detail = (f"k_match={k_match}, v_match={v_match}, "
-              f"ref_stride0={k_ref_stride[0]}, int_stride0={k_int_stride[0]}")
+    ok = has_k_stride and has_v_stride and computes_strides
+    detail = f"k_stride={has_k_stride}, v_stride={has_v_stride}, computes_stride={computes_strides}"
     print(json.dumps({"pass": ok, "detail": detail}))
 
 except Exception as e:
     print(json.dumps({"pass": False, "detail": f"Error: {e}"}))
     sys.exit(1)
 """
-    passed, detail = run_check("stride_check", script4)
-    checks.append({"name": "stride_correctness", "pass": passed, "detail": detail})
+    passed, detail = run_check("stride_source", script4)
+    checks.append({"name": "stride_params_in_kernel", "pass": passed, "detail": detail})
     print(f"  {'PASS' if passed else 'FAIL'}: {detail}")
 
     # Score
