@@ -20,6 +20,7 @@ benchmark:
   metric_direction: higher
 task:
   description_file: evals/instances/vllm-mxfp4-moe-fallback/task_description.md
+immutable_files: [test_harness.py]
 stages: auto
 kimi_cli:
   repo_url: "https://github.com/Arist12/kimi-cli.git"

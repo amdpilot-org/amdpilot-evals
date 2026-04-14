@@ -2,7 +2,7 @@
 
 The TopK/TopP sampling kernel in AITER has excessive latency. Profiling shows the kernel spends significant time in synchronization barriers within the sampling loop.
 
-For batch_size=1 and vocab_size=128256, the kernel takes ~0.75ms which is too slow for interactive serving. The target is to reduce this to under 0.5ms.
+For batch_size=1 and vocab_size=128256, the kernel takes ~0.75ms which is too slow for interactive serving. The target is to reduce this below 0.5ms.
 
 Locate the sampling kernel source in the AITER codebase and the
 corresponding sampling test suite.

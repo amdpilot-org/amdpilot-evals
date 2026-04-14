@@ -21,6 +21,6 @@
   },
   "description": "CK MXFP4 MoE GEMM rejects some TP splits; workers crash instead of using a safe backend",
   "task_description_source": "GitHub issue #35637 / PR #35893 (symptom only, no fix)",
-  "test_harness_type": "static_and_import",
+  "test_harness_type": "behavioral",
   "requires_gpu": false
 }
