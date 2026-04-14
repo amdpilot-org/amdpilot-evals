@@ -25,9 +25,6 @@ benchmark:
 task:
   description_file: evals/instances/vllm-rocm-fused-moe-fix/task_description.md
 
-immutable_files:
-  - /workspace/test_harness.py
-
 stages: auto
 
 max_retries_per_stage: 3

@@ -26,8 +26,6 @@ benchmark:
 task:
   description_file: evals/instances/aiter-mxfp4-rounding-fix/task_description.md
 
-immutable_files:
-  - /workspace/test_harness.py
 stages: auto
 
 kimi_cli:
