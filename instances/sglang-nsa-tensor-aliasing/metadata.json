@@ -1,0 +1,21 @@
+{
+  "name": "sglang-nsa-tensor-aliasing",
+  "category": "bugfix",
+  "difficulty": "medium-hard",
+  "source": {
+    "repo": "sgl-project/sglang",
+    "pr": 19928,
+    "merge_commit": "17721b00fddfb85e21af80e0b23ef249d1bfe46a",
+    "parent_commit": ""
+  },
+  "description": "NSA attention forward_cuda returns in-place-modified tensors causing self-aliased write crashes on ROCm",
+  "task_description_source": "PR description (symptom only, no fix details)",
+  "test_harness_type": "behavioral",
+  "requires_gpu": true,
+  "gpu_count": 1,
+  "base_image": "lmsysorg/sglang-rocm:v0.5.9-rocm720-mi35x-20260326",
+  "expected_files_changed": 2,
+  "version_pins": {
+    "rocm": "7.2"
+  }
+}

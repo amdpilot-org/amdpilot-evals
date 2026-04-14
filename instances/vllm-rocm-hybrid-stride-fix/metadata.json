@@ -1,0 +1,20 @@
+{
+  "name": "vllm-rocm-hybrid-stride-fix",
+  "category": "bugfix",
+  "difficulty": "hard",
+  "source": {
+    "repo": "vllm-project/vllm",
+    "pr": 37228,
+    "merge_commit": "a4cf9b22ba8f08df8d7977c2b0753fe20231cffc",
+    "parent_commit": ""
+  },
+  "description": "Triton KV cache gather kernel uses wrong stride for hybrid model interleaved memory layout, producing garbage attention outputs",
+  "task_description_source": "PR description (symptom only, no fix details)",
+  "test_harness_type": "behavioral",
+  "requires_gpu": true,
+  "gpu_count": 1,
+  "expected_files_changed": 1,
+  "version_pins": {
+    "rocm": "7.2"
+  }
+}

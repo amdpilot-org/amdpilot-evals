@@ -1,0 +1,20 @@
+{
+  "name": "vllm-rocm-mtp-ordering-fix",
+  "category": "bugfix",
+  "difficulty": "medium-hard",
+  "source": {
+    "repo": "vllm-project/vllm",
+    "pr": 37887,
+    "merge_commit": "31a719bcd37a195107711dc8b498288e49ef8576",
+    "parent_commit": ""
+  },
+  "description": "Speculative decode proposer validates attention metadata types using dict iteration order, causing DeepseekV32IndexerMetadata to fail validation with ROCM_AITER_MLA_SPARSE",
+  "task_description_source": "PR description (symptom only, no fix details)",
+  "test_harness_type": "behavioral",
+  "requires_gpu": true,
+  "gpu_count": 1,
+  "expected_files_changed": 2,
+  "version_pins": {
+    "rocm": "7.2"
+  }
+}
