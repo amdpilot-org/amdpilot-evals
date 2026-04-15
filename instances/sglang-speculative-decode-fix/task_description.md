@@ -34,6 +34,28 @@ may crash.
 The model produces coherent, correct responses to standard prompts. For
 example, asking "What is 2 + 2?" should return a response containing "4".
 
+## Debugging Clues
+
+The crash manifests as `HSA_STATUS_ERROR_EXCEPTION: code 0x1016` (hardware
+exception) in the scheduler process. The Python stack trace shows:
+
+```
+scheduler.py event_loop_overlap
+  → eagle_worker_v2.py forward_batch_generation
+    → sampler.py top_k_top_p_min_p_sampling_from_probs_torch (torch.multinomial)
+```
+
+The `torch.multinomial` call is where the async GPU exception is **detected**,
+but the actual crash originates from an earlier GPU kernel launched during the
+model forward pass (the last operations logged before the crash are aiter
+fused_moe kernel configurations).
+
+**Key isolation test**: EAGLE speculative decoding works correctly **without**
+`SGLANG_ENABLE_SPEC_V2=1`. The V2 flag enables `eagle_worker_v2.py` and
+overlap scheduling (`event_loop_overlap`), which runs GPU batches concurrently.
+Try `--disable-overlap-schedule` to confirm. Check `server_args.py` around line
+2955 for how SPEC_V2 enables overlap scheduling.
+
 ## Evaluation Criteria
 
 The test harness starts the server and sends multiple prompts. All responses

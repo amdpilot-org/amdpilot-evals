@@ -37,6 +37,29 @@ task:
     aiter:
       - /sgl-workspace/composable_kernel
 
-stages: auto
+stages:
+  - name: stage1_reproduce_and_fix_spec_decode_bug
+    target: 100.0
+    timeout_s: 5400
+    hints: |
+      1. Reproduce the issue using the test harness at /workspace/test_harness.py.
+      2. The test harness sets SGLANG_ENABLE_SPEC_V2=1 which enables eagle_worker_v2.py
+         and overlap scheduling (event_loop_overlap). This is critical — verify that
+         EAGLE speculative decoding works WITHOUT SGLANG_ENABLE_SPEC_V2=1 first to
+         isolate the problem to the V2/overlap code path.
+      3. Check server_args.py around line 2955 for how SPEC_V2 enables overlap
+         scheduling. Try adding --disable-overlap-schedule to confirm the crash is
+         caused by overlap scheduling, not the EAGLE algorithm itself.
+      4. If --disable-overlap-schedule fixes the crash, the fix should detect ROCm
+         (torch.version.hip) and automatically disable overlap scheduling for
+         speculative decoding in server_args.py.
+      5. Investigate the root cause in the overlap scheduling path if possible —
+         look at stream synchronization, kernel launch streams, and buffer sharing
+         between target and draft model forward passes.
+      6. Check ROCm/aiter-specific kernel implementations in /sgl-workspace/aiter/
+         for stream handling issues (search for stream_config, hipStream, getCurrentHIPStream).
+      7. Fix the root cause and verify with test_harness.py that all prompts receive
+         valid responses.
+
 max_retries_per_stage: 3
 max_total_hours: 8
