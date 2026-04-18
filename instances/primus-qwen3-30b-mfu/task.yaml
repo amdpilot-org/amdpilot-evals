@@ -63,7 +63,7 @@ benchmark:
     --disable_wandb True
     --disable_tensorboard True
   metric_name: tflops_per_gpu
-  metric_pattern: 'throughput per GPU.*?:\s+([\d.]+)\s*TFLOP'
+  metric_pattern: 'throughput per GPU.*?:\s+([\d.]+)'
   metric_direction: higher
   preflight_timeout: 600
 
