@@ -2,7 +2,7 @@ name: primus-qwen3-30b-mfu
 type: optimize
 repo: https://github.com/amdpilot-org/Primus.git
 repo_branch: mfu-optimization
-base_image: rlsys/miles:MI350-355-latest
+base_image: primus-mi355x-ready:v1
 frontier_model: true
 
 container:
@@ -14,6 +14,8 @@ container:
     CUDA_DEVICE_MAX_CONNECTIONS: "1"
     TOKENIZERS_PARALLELISM: "false"
     GPU_COREDUMP_ENABLE: "0"
+    NCCL_SOCKET_IFNAME: "lo"
+    GLOO_SOCKET_IFNAME: "lo"
 
 workload:
   description: >
@@ -26,6 +28,7 @@ workload:
 
 benchmark:
   command: >
+    export NCCL_SOCKET_IFNAME=lo GLOO_SOCKET_IFNAME=lo &&
     cd /workspace/primus_train/Primus &&
     ./primus-cli direct
     -- train pretrain --config examples/megatron/configs/MI355X/qwen3_30B_A3B-BF16-pretrain.yaml
