@@ -1,0 +1,86 @@
+name: primus-qwen3-30b-mfu
+type: optimize
+repo: https://github.com/amdpilot-org/Primus.git
+repo_branch: mfu-optimization
+base_image: rlsys/miles:MI350-355-latest
+frontier_model: true
+
+container:
+  name: amdpilot_primus_qwen3_mfu
+  gpu: "0,1,2,3,4,5,6,7"
+  shm_size: 128g
+  devices: [/dev/kfd, /dev/dri]
+  env:
+    CUDA_DEVICE_MAX_CONNECTIONS: "1"
+    TOKENIZERS_PARALLELISM: "false"
+    GPU_COREDUMP_ENABLE: "0"
+
+workload:
+  description: >
+    Optimize Qwen3-30B-A3B (MoE, 128 experts, top-8 routing, 48 layers)
+    pretraining throughput on 8x MI355X GPUs. Framework: Primus + Primus-Turbo
+    + Megatron-LM. Target: maximize TFLOP/s/GPU beyond ~300 baseline.
+    Config: TP=1, EP=8, PP=1, mbs=1, gbs=8, seq=8192, BF16.
+    Source-code-level optimizations only (not config tuning).
+  framework: PyTorch
+
+benchmark:
+  command: >
+    cd /workspace/primus_train/Primus &&
+    ./primus-cli direct
+    -- train pretrain --config examples/megatron/configs/MI355X/qwen3_30B_A3B-BF16-pretrain.yaml
+    --train_iters 10
+    --micro_batch_size 1
+    --global_batch_size 8
+    --seq_length 8192
+    --max_position_embeddings 8192
+    --expert_model_parallel_size 8
+    --mock_data True
+    --disable_last_saving True
+    --moe_use_legacy_grouped_gemm True
+    --use_turbo_grouped_mlp True
+    --use_turbo_attention True
+    --enable_primus_turbo True
+    --use_turbo_deepep True
+    --turbo_deepep_num_cu 80
+    --turbo_sync_free_moe_stage 1
+    --enable_experimental True
+    --apply_rope_fusion True
+    --cross_entropy_fusion_impl te
+    --cross_entropy_loss_fusion True
+    --use_precision_aware_optimizer True
+    --main_grads_dtype bf16
+    --exp_avg_dtype bf16
+    --exp_avg_sq_dtype bf16
+    --recompute_num_layers 5
+    --recompute_granularity full
+    --recompute_method block
+    --disable_wandb True
+    --disable_tensorboard True
+  metric_name: tflops_per_gpu
+  metric_pattern: 'throughput per GPU.*?:\s+([\d.]+)\s*TFLOP'
+  metric_direction: higher
+  preflight_timeout: 600
+
+task:
+  description_file: evals/instances/primus-qwen3-30b-mfu/task_description.md
+  dependency_graph:
+    primus:
+      - /workspace/primus_train/Primus-Turbo
+      - /workspace/primus_train/Primus/megatron
+    primus-turbo:
+      - /workspace/primus_train/Primus-Turbo/csrc
+
+stages: auto
+
+kimi_cli:
+  repo_url: "https://github.com/Arist12/kimi-cli.git"
+  branch: amd-dev
+  install_dir: "/workspace/kimi-cli"
+  thinking: true
+  yolo: true
+  ralph_iterations: -1
+
+gpu_required: 8
+max_retries_per_stage: 5
+max_total_hours: 12
