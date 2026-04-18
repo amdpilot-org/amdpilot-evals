@@ -34,6 +34,8 @@ benchmark:
     --global_batch_size 8
     --seq_length 8192
     --max_position_embeddings 8192
+    --tensor_model_parallel_size 1
+    --pipeline_model_parallel_size 1
     --expert_model_parallel_size 8
     --mock_data True
     --disable_last_saving True
