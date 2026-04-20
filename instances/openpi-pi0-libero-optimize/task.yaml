@@ -1,0 +1,123 @@
+# openpi pi0 LIBERO inference latency optimization on AMD MI300X.
+# Source: https://github.com/prasad-nair-amd/openpi/issues/1
+#
+# Runs as a 4-way recursive tree:
+#   root   — TP=1, 1 GPU, full benchmark (honest 30 runs)
+#   level1 — 4 parallel children, 1 GPU each, different optimization strategies
+# Since bench TP=1 and we give amdpilot 4 GPUs, _run_parallel_proxy auto-selects
+# the RecursiveNode path (n_gpus > bench_tp).
+#
+# Launch:
+#   bash /shared/amdgpu/home/xiao_sun_qle/run_experiment.sh \
+#       evals/instances/openpi-pi0-libero-optimize/task.yaml
+name: openpi-pi0-libero-optimize
+type: optimize
+# No repo/repo_branch — the image already has the full openpi codebase + benchmark
+# scripts baked in. Specifying a repo causes build_base_image to git-fetch and
+# checkout FETCH_HEAD, which wipes our overlaid benchmark scripts.
+repo_path: /workspace/openpi
+base_image: amdpilot-eval-openpi-pi0-libero-optimize:latest
+
+model_endpoint:
+  model: "Qwen3.5-397B-A17B"
+  base_url: "http://localhost:31000/v1"
+  api_key: "EMPTY"
+
+container:
+  name: amdpilot_openpi_pi0
+  # GPU override via `--gpu 4,5,6,7` on the CLI; 4 GPUs → recursive tree (TP=1 bench).
+  shm_size: 32g
+  devices: [/dev/kfd, /dev/dri]
+  env:
+    TOKENIZERS_PARALLELISM: "false"
+    GPU_COREDUMP_ENABLE: "0"
+    GPU_CORE_DUMP_ENABLE_FLAG: "0"
+    HSA_DISABLE_COREDUMP: "1"
+    HF_HUB_OFFLINE: "1"
+    OPENPI_DIR: "/workspace/openpi"
+    OPENPI_CHECKPOINT_DIR: "/root/.cache/openpi/openpi-assets/checkpoints/pi0_libero_pytorch"
+    OPENPI_CONFIG_NAME: "pi0_libero"
+    OPENPI_NUM_WARMUP: "3"
+    OPENPI_NUM_RUNS: "30"
+    OPENPI_DEVICE: "cuda:0"
+  volumes:
+    # Shared pre-downloaded + converted pi0_libero checkpoint. Read-only so
+    # no child can corrupt it. Populated once by scripts/prepare_openpi_cache.sh.
+    - "/media/NVME/enroot/xiao_sun_qle/openpi_cache:/root/.cache/openpi:ro"
+
+workload:
+  description: "Reduce mean inference latency of pi0 on LIBERO config on MI300X, single GPU."
+  function: "benchmark_pi0_libero_rocm.py --config pi0_libero"
+  framework: PyTorch
+
+benchmark:
+  script: /workspace/run_benchmark.sh
+  command: "/opt/venv/bin/python3 /workspace/test_harness.py"
+  metric_name: mean_latency_ms
+  metric_pattern: 'MEAN_LATENCY_MS:\s+([\d.]+)'
+  metric_direction: lower
+  fixed_params:
+    tp: 1              # single-GPU bench — recursive tree kicks in when GPUs > 1
+    config: pi0_libero
+    num_warmup: 3
+    num_runs: 30
+    image_size: "224x224"
+    device: cuda:0
+  valid_context_pattern: 'MEAN_LATENCY_MS'
+  output_format: "MEAN_LATENCY_MS: <ms>  (also prints MEDIAN_LATENCY_MS, THROUGHPUT_FPS, SCORE)"
+
+task:
+  description_file: evals/instances/openpi-pi0-libero-optimize/task_description.md
+
+# Manual staged plan aligned with the issue's three improvement buckets.
+# Supervisor (agent mode) will adapt targets as baselines come in.
+stages:
+  - name: stage1_baseline_and_profile
+    target_ms: 120.0
+    timeout_s: 3600
+    start_image: "amdpilot-eval-openpi-pi0-libero-optimize:latest"
+    hints: |
+      Run `bash /workspace/run_benchmark.sh` once to confirm the baseline
+      (~143 ms mean on MI300X).
+      Then profile with torch.profiler (no rocprofv2 needed yet) to identify
+      the top latency contributors over the 30 timed runs — especially the
+      spread of early runs vs. steady-state.
+      Deliverable: baseline number recorded, top-5 hotspots noted.
+
+  - name: stage2_compile_cache_and_autotune
+    target_ms: 80.0
+    timeout_s: 3600
+    start_image: "auto"
+    hints: |
+      Focus on torch.compile warmup: persist the Inductor cache
+      (TORCHINDUCTOR_CACHE_DIR), try `mode="reduce-overhead"`, disable
+      max-autotune on small GEMMs, and tune hipBLASLt
+      (HIPBLASLT_TUNING_FILE, TORCH_BLAS_PREFER_HIPBLASLT=1).
+      The goal is to squeeze the mean closer to the median (46.8 ms).
+
+  - name: stage3_push_further
+    target_ms: 50.0
+    timeout_s: 3600
+    start_image: "auto"
+    hints: |
+      Kernel-level optimizations — Triton configs for the vision backbone
+      GEMMs, graph capture, SDPA backend tuning, or quantization if it
+      preserves the output shape. Memory delta on ROCm is ~3.6 GB vs 80 MB
+      on H100 — investigate allocator churn.
+
+kimi_cli:
+  provider: sglang
+  provider_type: openai_legacy
+  thinking: true
+  yolo: true
+  ralph_iterations: -1
+  max_steps_per_turn: 500
+  max_retries_per_step: 15
+  reserved_context_size: 50000
+
+skills_dir: skills
+agent_config_dir: agent-config
+max_retries_per_stage: 3
+max_total_hours: 4
+supervisor: on
+nudge: on
