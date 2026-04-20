@@ -42,11 +42,24 @@ All major optimizations are already ON:
 - Precision-Aware Optimizer (bf16 states)
 - Activation Recompute (5 layers, full/block)
 
-## Prior Observations (Known Regressions)
+## Environment (inside container)
 
-- **Sync-Free MoE Stage 2**: REGRESSED throughput — do not enable
-- **turbo_parallel_linear**: REGRESSED throughput — do not enable
-- **TP=2 x EP=4**: ~9x slower due to TP all-reduce overhead — do not use
+| Package            | Version                           |
+| ------------------ | --------------------------------- |
+| PyTorch            | 2.9.0a0+git7bcbafe                |
+| ROCm (HIP)        | 7.0.51831                         |
+| Triton             | 3.4.0                             |
+| Transformer Engine | 2.4.0.dev0                        |
+| AITER              | 0.1.10.post4                      |
+| Primus-Turbo       | 0.2.0+3cd482d (built from source) |
+
+## Prior Observations
+
+- **mbs=4, gbs=256, seq=4096** (8 grad-accum steps): reaches ~400 TFLOP/s/GPU (~7.5s/iter). The higher per-GPU token count (16384 vs 8192) better saturates compute. However microbatching is not used in normal runs — the config keeps mbs=1.
+- **Sync-Free MoE Stage 2**: REGRESSED throughput to ~380 TFLOP/s — do not enable
+- **turbo_parallel_linear**: REGRESSED throughput to ~380 TFLOP/s — do not enable
+- **TP=2 x EP=4**: ~9x slower (~45 TFLOP/s/GPU) due to TP all-reduce overhead — do not use
+- Profiler traces are available for all configurations
 
 ## Benchmark Command
 
@@ -94,9 +107,9 @@ Trace saved under `output/amd/root/qwen3_30B_A3B-pretrain/tensorboard/`.
 
 ## Optimization Targets
 
-Focus on SOURCE-CODE-LEVEL changes (not config tuning):
-1. Profile the baseline to identify top bottlenecks
-2. Analyze why mbs=1/seq=8192 underutilizes compute vs mbs=4/seq=4096
-3. Optimize MoE GEMM kernel selection for small-batch expert shapes
-4. Investigate communication/compute overlap opportunities
-5. Router/top-k/permutation path optimization
+1. Analyze baseline profiler trace to identify top bottlenecks
+2. Investigate why mbs=1/seq=8192 underutilizes compute vs mbs=4/seq=4096
+3. Explore larger micro_batch_size with seq=8192 if memory allows
+4. Profile and optimize MoE GEMM kernel selection at this batch size
+5. Investigate communication/compute overlap opportunities
+6. Target: maximize TFLOP/s/GPU for this configuration

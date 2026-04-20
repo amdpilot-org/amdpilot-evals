@@ -85,6 +85,7 @@ kimi_cli:
   thinking: true
   yolo: true
   ralph_iterations: -1
+  tool_timeout: 900
 
 gpu_required: 8
 max_retries_per_stage: 5
