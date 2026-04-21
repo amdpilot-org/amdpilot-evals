@@ -1,9 +1,10 @@
 {
   "name": "sglang-qwen-vl-optimize",
-  "type": "optimize",
+  "category": "optimize",
   "difficulty": "hard",
   "repo": "https://github.com/Arist12/sglang.git",
   "description": "Optimize SGLang serving throughput for Qwen3-VL-8B-Instruct on AMD MI355X to match vLLM (1648 tok/s vs current 1235 tok/s)",
+  "requires_gpu": true,
   "gpu_count": 1,
   "source": "Qwen-VL regression: SGLang 33% slower than vLLM on bench_serving image workload (MI355X, ROCm 7.2.0)"
 }

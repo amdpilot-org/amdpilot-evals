@@ -119,6 +119,7 @@ def build_dockerfile(repo: str, base_image: str) -> str:
             FROM {base_image}
             WORKDIR /workspace
             RUN ln -sf /sgl-workspace/aiter /workspace/aiter
+            ENTRYPOINT []
             CMD ["sleep", "infinity"]
         """)
 
@@ -126,6 +127,7 @@ def build_dockerfile(repo: str, base_image: str) -> str:
         FROM {base_image}
         WORKDIR /workspace
         RUN git clone https://github.com/{repo}.git {workspace}
+        ENTRYPOINT []
         CMD ["sleep", "infinity"]
     """)
 

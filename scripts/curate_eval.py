@@ -168,6 +168,7 @@ def generate_dockerfile(repo: str, merge_commit: str | None, base_image: str) ->
             COPY test_harness.py /workspace/test_harness.py
             COPY task_description.md /workspace/task_description.md
             RUN ln -sf /sgl-workspace/aiter /workspace/aiter
+            ENTRYPOINT []
             CMD ["sleep", "infinity"]
         """)
 
@@ -180,6 +181,7 @@ def generate_dockerfile(repo: str, merge_commit: str | None, base_image: str) ->
             cd {workspace} && {checkout}
         COPY test_harness.py /workspace/test_harness.py
         COPY task_description.md /workspace/task_description.md
+        ENTRYPOINT []
         CMD ["sleep", "infinity"]
     """)
 
@@ -268,14 +270,23 @@ def generate_test_harness_stub(name: str, data: dict) -> str:
         Exit 0 = PASS, Exit 1 = FAIL.
         Output: SCORE: <0-100>
         \"\"\"
+        import json
         import sys
+        from pathlib import Path
 
         checks_passed = 0
         checks_total = 0
+        check_results = []
 
         def check(name, condition, detail=""):
             global checks_passed, checks_total
             checks_total += 1
+            detail = detail.strip()
+            check_results.append({
+                "name": name,
+                "passed": bool(condition),
+                "detail": detail,
+            })
             if condition:
                 checks_passed += 1
             status = "PASS" if condition else "FAIL"
@@ -295,6 +306,7 @@ def generate_test_harness_stub(name: str, data: dict) -> str:
         if __name__ == "__main__":
             run_checks()
             print()
+            Path("/workspace/check_results.json").write_text(json.dumps(check_results, indent=2))
             score = (checks_passed / checks_total * 100.0) if checks_total > 0 else 0.0
             print(f"Results: {{checks_passed}}/{{checks_total}} checks passed")
             print(f"SCORE: {{score:.1f}}")
