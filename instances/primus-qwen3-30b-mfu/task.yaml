@@ -2,7 +2,7 @@ name: primus-qwen3-30b-mfu
 type: optimize
 repo: https://github.com/amdpilot-org/Primus.git
 repo_branch: mfu-optimization
-base_image: ghcr.io/amdpilot-org/primus-mi355x-ready:v1
+base_image: primus-qwen3-30b-mfu-base:v1
 
 # Phase 1 + supervisor + nudge run on Opus via the AMD Gateway. The
 # executor (kimi-cli ralph mode) runs on the K2.6 sglang endpoint.
@@ -64,7 +64,7 @@ baseline_contract:
   tolerance: 0.07
   reproduce_command: "bash /workspace/bench_mfu.sh"
   gpu_shape: "8xMI355X"
-  base_image: "ghcr.io/amdpilot-org/primus-mi355x-ready:v1"
+  base_image: "primus-qwen3-30b-mfu-base:v1"
   immutable_artifacts:
     - /workspace/bench_mfu.sh
     - /workspace/test_harness.py

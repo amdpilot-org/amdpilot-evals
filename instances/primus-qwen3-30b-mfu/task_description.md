@@ -11,7 +11,7 @@ Primus framework. The current baseline is **~300 TFLOP/s/GPU**
 
 ## Environment
 
-- **Base image**: `ghcr.io/amdpilot-org/primus-mi355x-ready:v1` (pre-built with all dependencies)
+- **Base image**: `primus-qwen3-30b-mfu-base:v1` (built from `primus-mi355x-flat:v1` + uv)
 - **Primus source**: `/workspace/primus_train/Primus` (branch `mfu-optimization`, commit `e50a78b`)
 - **Primus-Turbo source**: `/workspace/primus_train/Primus-Turbo` (commit `3cd482d`)
 - **Hardware**: 8x MI355X GPUs (288 GB HBM each), single node
@@ -47,7 +47,7 @@ Primus framework. The current baseline is **~300 TFLOP/s/GPU**
 - **Reference throughput**: ~300 TFLOP/s/GPU (~740ms/iter)
 - **Memory usage**: ~145 GB / 288 GB (50%)
 - **Reference commit**: Primus `e50a78b`, Primus-Turbo `3cd482d`
-- **Image**: `ghcr.io/amdpilot-org/primus-mi355x-ready:v1`
+- **Image**: `primus-qwen3-30b-mfu-base:v1`
 - **GPU shape**: 8xMI355X
 - **Verified baseline from prior run (r36)**: 294.81 TFLOP/s/GPU
 

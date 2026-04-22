@@ -2,7 +2,7 @@ name: primus-qwen3-30b-mfu-nophase1
 type: optimize
 repo: https://github.com/amdpilot-org/Primus.git
 repo_branch: mfu-optimization
-base_image: ghcr.io/amdpilot-org/primus-mi355x-ready:v1
+base_image: primus-qwen3-30b-mfu-base:v1
 
 # A/B control: same as task.yaml but Phase 1 is disabled. The legacy
 # baseline_gate (only fires for score-100 bugfixes) still won't trigger
@@ -63,7 +63,7 @@ baseline_contract:
   tolerance: 0.07
   reproduce_command: "bash /workspace/bench_mfu.sh"
   gpu_shape: "8xMI355X"
-  base_image: "ghcr.io/amdpilot-org/primus-mi355x-ready:v1"
+  base_image: "primus-qwen3-30b-mfu-base:v1"
   immutable_artifacts:
     - /workspace/bench_mfu.sh
     - /workspace/test_harness.py
