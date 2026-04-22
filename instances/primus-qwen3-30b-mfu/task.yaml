@@ -31,8 +31,17 @@ container:
   shm_size: 128g
   devices: [/dev/kfd, /dev/dri]
   env:
+    # gfx950 (MI355X) requires these env knobs for torch HIP kernels to
+    # dispatch correctly. Without PYTORCH_ROCM_ARCH=gfx950 the runtime
+    # can't find compiled kernels and benchmarks fail with
+    # hipErrorInvalidDeviceFunction.
+    PYTORCH_ROCM_ARCH: "gfx950"
+    AITER_ROCM_ARCH: "gfx942;gfx950"
+    HSA_NO_SCRATCH_RECLAIM: "1"
+    HIP_FORCE_DEV_KERNARG: "1"
     HSA_FORCE_FINE_GRAIN_PCIE: "1"
     TOKENIZERS_PARALLELISM: "false"
+    LD_LIBRARY_PATH: "/opt/rocm/lib:/usr/local/lib:"
 
 workload:
   description: "Maximize Qwen3-30B-A3B MoE pretraining MFU on 8x MI355X (Megatron + Primus + Primus-Turbo)"

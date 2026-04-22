@@ -1,10 +1,19 @@
 #!/bin/bash
 set -euo pipefail
 
+# Auto-detect the host network interface for Gloo/NCCL sockets if the
+# bench_config.env doesn't already pin one. Without GLOO_SOCKET_IFNAME
+# the Megatron distributed init fails fast (3-5s) before training
+# starts and Phase 1 / executor trials can't get a real metric.
 if [ -f /workspace/bench_config.env ]; then
     echo '>>> Loading bench_config.env overrides'
     source /workspace/bench_config.env
 fi
+if [ -z "${GLOO_SOCKET_IFNAME:-}" ] && [ -x /workspace/detect_interface.sh ]; then
+    echo '>>> Auto-detecting GLOO_SOCKET_IFNAME via /workspace/detect_interface.sh'
+    eval "$(/workspace/detect_interface.sh)"
+fi
+echo ">>> GLOO_SOCKET_IFNAME=${GLOO_SOCKET_IFNAME:-<unset>} NCCL_SOCKET_IFNAME=${NCCL_SOCKET_IFNAME:-<unset>}"
 
 cd /workspace/primus_train/Primus
 
