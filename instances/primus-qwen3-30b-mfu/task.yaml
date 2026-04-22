@@ -8,8 +8,18 @@ base_image: primus-qwen3-30b-mfu-base:v1
 # executor (kimi-cli ralph mode) runs on the K2.6 sglang endpoint.
 frontier_model: true
 phase1_baseline: true
-phase1_max_turns: 30
+phase1_max_turns: 45
 phase1_budget_minutes: 90
+
+# Optional: tag + push the Phase 1 baseline image to a registry after
+# a successful commit so other nodes can docker pull it and skip
+# re-running Phase 1. Requires `docker login` on the running node.
+phase1_publish:
+  enabled: true
+  repository: "docker.io/jhinpan/primus-qwen3-30b-mfu-phase1"
+  tag_template: "{date}-{metric}"
+  also_tag_latest: true
+  timeout_s: 1800
 
 model_endpoint:
   model: "Kimi-K2.6"
@@ -31,17 +41,20 @@ container:
   shm_size: 128g
   devices: [/dev/kfd, /dev/dri]
   env:
-    # gfx950 (MI355X) requires these env knobs for torch HIP kernels to
-    # dispatch correctly. Without PYTORCH_ROCM_ARCH=gfx950 the runtime
-    # can't find compiled kernels and benchmarks fail with
-    # hipErrorInvalidDeviceFunction.
-    PYTORCH_ROCM_ARCH: "gfx950"
-    AITER_ROCM_ARCH: "gfx942;gfx950"
-    HSA_NO_SCRATCH_RECLAIM: "1"
-    HIP_FORCE_DEV_KERNARG: "1"
-    HSA_FORCE_FINE_GRAIN_PCIE: "1"
+    # Same env that r54 + r36 used to reach 300+ TFLOP/s/GPU on this
+    # node. The gfx950 knobs (PYTORCH_HIP_ALLOC_CONF, NVTE_ROCM_ARCH,
+    # HIP_FORCE_DEV_KERNARG, etc.) are baked into the base image and
+    # MUST NOT be overridden.
+    GLOO_SOCKET_IFNAME: "enp81s0f1"
+    NCCL_SOCKET_IFNAME: "enp81s0f1"
+    IP_INTERFACE: "enp81s0f1"
     TOKENIZERS_PARALLELISM: "false"
-    LD_LIBRARY_PATH: "/opt/rocm/lib:/usr/local/lib:"
+    GPU_COREDUMP_ENABLE: "0"
+    NVTE_CK_USES_BWD_V3: "1"
+    # Override amdpilot's default TMPDIR=/scratch/tmp which triggers
+    # torchrun / primus-cli HIP kernel-loading failures on this box
+    # (docker_manager.py:220). /tmp is safe and works.
+    TMPDIR: "/tmp"
 
 workload:
   description: "Maximize Qwen3-30B-A3B MoE pretraining MFU on 8x MI355X (Megatron + Primus + Primus-Turbo)"
@@ -85,7 +98,7 @@ task:
 stages: auto
 
 max_retries_per_stage: 5
-max_total_hours: 3
+max_total_hours: 4
 gpu_required: 8
 
 slack:
