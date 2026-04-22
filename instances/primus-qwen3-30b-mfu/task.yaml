@@ -11,15 +11,19 @@ phase1_baseline: true
 phase1_max_turns: 45
 phase1_budget_minutes: 90
 
-# Optional: tag + push the Phase 1 baseline image to a registry after
-# a successful commit so other nodes can docker pull it and skip
-# re-running Phase 1. Requires `docker login` on the running node.
+# Tag + push the Phase 1 baseline image to ghcr.io/amdpilot-org so
+# every other node can docker pull it and skip re-running Phase 1.
+# Requires the docker daemon to be `docker login ghcr.io` with a
+# classic PAT scoped to `write:packages` (and the user must be an
+# amdpilot-org member). The first push under amdpilot-org has to
+# upload the 42 GB base layer; subsequent pushes only upload the
+# Phase-1-commit delta (~500 MB - 1 GB) via cross-repo mount.
 phase1_publish:
   enabled: true
-  repository: "docker.io/jhinpan/primus-qwen3-30b-mfu-phase1"
+  repository: "ghcr.io/amdpilot-org/primus-qwen3-30b-mfu-phase1"
   tag_template: "{date}-{metric}"
   also_tag_latest: true
-  timeout_s: 1800
+  timeout_s: 9000  # 2.5h — covers the one-time 42 GB seed upload
 
 model_endpoint:
   model: "Kimi-K2.6"
