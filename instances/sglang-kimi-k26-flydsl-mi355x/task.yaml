@@ -1,0 +1,141 @@
+name: sglang-kimi-k26-flydsl-mi355x
+type: optimize
+# amdpilot-org fork keeps all amdpilot-driven SGLang work under one org.
+# PR #23381 on sgl-project/sglang (head: jhinpan/sglang-fork:feat/kimi-k26-mi355x-moe-tuning)
+# is the baseline-source-of-truth; its SGLang changes are already baked
+# into the jhinpan/sglang-k26-mi355x Docker image, so we diff against
+# amdpilot-org/sglang:main and the delivery layer pushes the final patch
+# to branch amdpilot/sglang-kimi-k26-flydsl-mi355x.
+repo: https://github.com/amdpilot-org/sglang.git
+repo_branch: main
+base_image: amdpilot-eval-sglang-kimi-k26-flydsl-mi355x
+
+# Phase 1 + supervisor + nudge run on Opus via the AMD Gateway. The
+# executor (kimi-cli ralph mode) runs on the K2.6 sglang endpoint.
+# The concurrency=40 throughput number is NOT published in PR #23381,
+# so phase1 measures it once, commits :phase1-baseline, and fills
+# baseline_contract.expected_metric for the rest of the trials.
+frontier_model: true
+phase1_baseline: true
+phase1_max_turns: 40
+phase1_budget_minutes: 90
+
+model_endpoint:
+  model: "Kimi-K2.6"
+  base_url: "http://10.235.24.154:30000/v1"
+  api_key: "EMPTY"
+  # Lock to K2.6 even if .env exports AMDPILOT_MODEL_URL / AMDPILOT_MODEL.
+  allow_env_base_url_override: false
+  allow_env_model_override: false
+
+kimi_cli:
+  thinking: true
+  max_steps_per_turn: 200
+  max_retries_per_step: 12
+  ralph_iterations: -1
+
+container:
+  name: amdpilot_kimi_k26_flydsl
+  gpu: "0,1,2,3"          # TP=4, matches PR #23381 HIP_VISIBLE_DEVICES
+  shm_size: 64g
+  devices: [/dev/kfd, /dev/dri]
+  env:
+    # Serving env from PR #23381 (must stay as defaults so the
+    # concurrency=40 baseline reproduces PR numbers).
+    SGLANG_USE_AITER: "1"
+    SGLANG_ROCM_FUSED_DECODE_MLA: "0"
+    SGLANG_DEEPSEEK_LOAD_MAX_WORKERS: "4"
+    GPU_COREDUMP_ENABLE: "0"
+    TOKENIZERS_PARALLELISM: "false"
+    # FlyDSL OFF at container start — the baseline must reproduce
+    # PR #23381 decode tok/s (38.05 @ input=8192) before any
+    # FlyDSL optimization is attempted. Agents flip these on inside
+    # /workspace/bench_config.env during trials.
+    AITER_USE_FLYDSL_MOE: "0"
+    AITER_USE_FLYDSL_MOE_STAGE1: "0"
+    AITER_USE_FLYDSL_MOE_STAGE2: "0"
+    AITER_ENFORCE_DSL: "0"
+    # FlyDSL container paths — set unconditionally so import succeeds
+    # even while the gating env vars are off. Safe no-op until
+    # AITER_USE_FLYDSL_MOE is flipped to 1 during a trial.
+    DSL2_ROOT: "/opt/FlyDSL"
+    MLIR_PATH: "/opt/mlir_install"
+    # Blog-recommended CK tile conversion mode; matches the exact env
+    # block from the K2.5 MI300X optimization blog and is harmless if
+    # FlyDSL is OFF at baseline time.
+    CK_TILE_FLOAT_TO_BFLOAT16_DEFAULT: "3"
+    # Blog-recommended MoE compiler cache ceiling (2 GiB); harmless if
+    # the optimize run never actually uses FlyDSL.
+    TRITON_MAX_CACHE_SIZE: "2147483648"
+  volumes:
+    # Kimi-K2.6 weights live on fast local ext4 (2.3 GB/s), NOT on NFS.
+    # Download the HF snapshot into /data/Kimi-K2.6 (mirrors the /data/Kimi-K2.5
+    # convention on this node) before `amdpilot run`. Docker will NOT create the
+    # source path if missing — it fails fast, which is what we want.
+    #
+    # Sized at ~595 GB per PR #23381; /data currently has ~1.5 TB free.
+    # Mounted read-only at the path PR #23381 expects inside the container.
+    - "/data/Kimi-K2.6:/sgl-workspace/models/Kimi-K2.6:ro"
+    # Ssh key for pushing patches to amdpilot-org/{sglang,aiter} forks.
+    - "/home/jinpan12/.ssh:/root/.ssh:ro"
+
+workload:
+  description: "Port the FlyDSL fused-MoE stack from AMD's Kimi-K2.5 MI300X blog to Kimi-K2.6 on MI355X; measure throughput at concurrency=40, guard BS=1 decode tok/s regression from PR #23381, verify accuracy with GSM8K."
+  function: "sglang.bench_serving"
+  framework: PyTorch
+
+benchmark:
+  command: "bash /workspace/bench_flydsl_k26.sh"
+  script: "evals/instances/sglang-kimi-k26-flydsl-mi355x/bench_flydsl_k26.sh"
+  metric_name: output_throughput_tok_s
+  metric_pattern: 'output_throughput_tok_s:\s+([\d.]+)'
+  metric_direction: higher
+  # Phase 1 typically runs for ~45 min (server startup 5-10m + bench_serving
+  # 5-7m + bench_one_batch_server 3-5m, plus a couple of retries). Allow
+  # 30 min for preflight so the dispatcher does not kill the first trial.
+  preflight_timeout: 1800
+  fixed_params:
+    model: /sgl-workspace/models/Kimi-K2.6
+    tp: 4
+    random_input: 10240
+    random_output: 512
+    num_prompts: 160
+    max_concurrency: 40
+  valid_context_pattern: "concurrency=40 in=10240 out=512"
+  output_format: "output_throughput_tok_s: <value> | concurrency=40 in=10240 out=512 decode_bs1_in8k=<guard>"
+
+# Minimum contract — phase1 fills in expected_metric after measuring the
+# concurrency=40 baseline once on this image. immutable_artifacts guard
+# the bench wrapper and accuracy harness from in-trial mutation.
+baseline_contract:
+  metric_name: output_throughput_tok_s
+  metric_direction: higher
+  tolerance: 0.05
+  reproduce_command: "bash /workspace/bench_flydsl_k26.sh"
+  gpu_shape: "4xMI355X"
+  base_image: "jhinpan/sglang-k26-mi355x:v0.5.10rc0-rocm720-20260420"
+  required_flags:
+    # PR #23381 launch config — these are the PR's immutables and the
+    # agent MUST NOT override them. Extra flags may be appended via
+    # EXTRA_SERVER_FLAGS in /workspace/bench_config.env.
+    tensor-parallel-size: "4"
+    decode-attention-backend: "triton"
+    prefill-attention-backend: "aiter"
+    mem-fraction-static: "0.85"
+    context-length: "128000"
+    disable-custom-all-reduce: true
+  immutable_artifacts:
+    - /workspace/bench_flydsl_k26.sh
+    - /workspace/test_harness.py
+
+task:
+  description_file: evals/instances/sglang-kimi-k26-flydsl-mi355x/task_description.md
+
+stages: auto
+
+max_retries_per_stage: 5
+max_total_hours: 6
+gpu_required: 4
+
+slack:
+  enabled: true
