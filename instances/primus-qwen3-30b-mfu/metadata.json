@@ -1,0 +1,15 @@
+{
+  "name": "primus-qwen3-30b-mfu",
+  "type": "optimize",
+  "issue_url": "https://github.com/amdpilot-org/Primus/issues/1",
+  "repo": "amdpilot-org/Primus",
+  "branch": "mfu-optimization",
+  "primus_commit": "e50a78b",
+  "primus_turbo_commit": "3cd482d",
+  "metric_name": "TFLOPS_PER_GPU",
+  "metric_direction": "higher",
+  "expected_baseline": 300.0,
+  "tolerance": 0.07,
+  "gpu_shape": "8xMI355X",
+  "purpose": "A/B target for the Phase 1 baseline reproduction agent (feat/phase1-baseline-opus)."
+}

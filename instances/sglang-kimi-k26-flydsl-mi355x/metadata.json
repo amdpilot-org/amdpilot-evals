@@ -1,0 +1,32 @@
+{
+  "name": "sglang-kimi-k26-flydsl-mi355x",
+  "type": "optimize",
+  "issue_url": "https://github.com/amdpilot-org/sglang/issues/2",
+  "repo": "amdpilot-org/sglang",
+  "branch": "main",
+  "delivery_branch": "amdpilot/sglang-kimi-k26-flydsl-mi355x",
+  "upstream_pr_baseline": "https://github.com/sgl-project/sglang/pull/23381",
+  "baseline_pr_source_branch": "jhinpan/sglang-fork:feat/kimi-k26-mi355x-moe-tuning",
+  "docker_base": "jhinpan/sglang-k26-mi355x:v0.5.10rc0-rocm720-20260420",
+  "reference_blog": "https://rocm.blogs.amd.com/artificial-intelligence/kimi-k2.5-optimize/README.html",
+  "aiter_branch": "dev/kimi-K2.5",
+  "flydsl_repo": "https://github.com/ROCm/FlyDSL",
+  "metric_name": "output_throughput_tok_s",
+  "metric_direction": "higher",
+  "expected_baseline": null,
+  "tolerance": 0.05,
+  "guard_metric": "decode_bs1_in8k",
+  "guard_metric_baseline_expected": 38.05,
+  "guard_metric_min_ratio": 0.98,
+  "accuracy_gate": {
+    "task": "gsm8k",
+    "metric": "exact_match,flexible-extract",
+    "limit": 50,
+    "num_fewshot": 10,
+    "threshold": 0.90
+  },
+  "gpu_shape": "4xMI355X",
+  "gpu_required": 4,
+  "tp_size": 4,
+  "purpose": "Port the FlyDSL fused-MoE kernel stack from AMD's Kimi-K2.5 MI300X blog to Kimi-K2.6 on 4xMI355X, on top of the baseline established by PR #23381. Primary metric is concurrency=40 throughput; BS=1 decode tok/s acts as a regression guard."
+}
