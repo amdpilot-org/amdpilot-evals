@@ -1,0 +1,27 @@
+{
+  "name": "openpi-issue-3-mi300x",
+  "category": "optimize",
+  "difficulty": "hard",
+  "repo": "https://github.com/amdpilot-org/openpi.git",
+  "issue_url": "https://github.com/amdpilot-org/openpi/issues/3",
+  "issue_repo": "amdpilot-org/openpi",
+  "issue_number": 3,
+  "description": "Optimize pi0 LIBERO inference throughput on a single AMD MI300X GPU using the canonical openpi#3 benchmark.",
+  "requires_gpu": true,
+  "gpu_count": 1,
+  "gpu_arch": "mi300x",
+  "base_image": "rocm/sgl-dev:v0.5.10rc0-rocm720-mi30x-20260420",
+  "test_harness_type": "runtime throughput benchmark",
+  "metric_name": "throughput_inf_per_sec",
+  "metric_direction": "higher",
+  "expected_baseline": 7.0,
+  "source": {
+    "repo": "amdpilot-org/openpi",
+    "issue": 3,
+    "target_commit": "e4429ad35ec380842dc72b4074735cf3e8a503c2"
+  },
+  "workflow_evidence": {
+    "failed_without_fix": "issue-openpi-3-r23 baseline_verification: no metric extracted",
+    "verified_with_fix": "issue-openpi-3-r24 completed; baseline=19.38 inf/s; total_trials=2; best_metric=23.00"
+  }
+}
