@@ -1,4 +1,4 @@
-name: openpi-issue-3-optimize-pi0-libero-mi300x
+name: openpi-issue-3-mi300x
 type: optimize
 repo: https://github.com/amdpilot-org/openpi.git
 repo_branch: main
