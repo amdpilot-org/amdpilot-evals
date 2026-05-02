@@ -1,0 +1,109 @@
+name: primus-qwen3-30b-mfu
+type: optimize
+repo: https://github.com/amdpilot-org/Primus.git
+repo_branch: mfu-optimization
+base_image: primus-qwen3-30b-mfu-base:v1
+
+# Phase 1 + supervisor + nudge run on Opus via the AMD Gateway. The
+# executor (kimi-cli ralph mode) runs on the K2.6 sglang endpoint.
+frontier_model: true
+phase1_baseline: true
+phase1_max_turns: 45
+phase1_budget_minutes: 90
+
+# Tag + push the Phase 1 baseline image to ghcr.io/amdpilot-org so
+# every other node can docker pull it and skip re-running Phase 1.
+# Requires the docker daemon to be `docker login ghcr.io` with a
+# classic PAT scoped to `write:packages` (and the user must be an
+# amdpilot-org member). The first push under amdpilot-org has to
+# upload the 42 GB base layer; subsequent pushes only upload the
+# Phase-1-commit delta (~500 MB - 1 GB) via cross-repo mount.
+phase1_publish:
+  enabled: true
+  repository: "ghcr.io/amdpilot-org/primus-qwen3-30b-mfu-phase1"
+  tag_template: "{date}-{metric}"
+  also_tag_latest: true
+  timeout_s: 9000  # 2.5h — covers the one-time 42 GB seed upload
+
+model_endpoint:
+  model: "Kimi-K2.6"
+  base_url: "http://10.235.24.154:30000/v1"
+  api_key: "EMPTY"
+  # Lock to K2.6 even if .env exports AMDPILOT_MODEL_URL/AMDPILOT_MODEL.
+  allow_env_base_url_override: false
+  allow_env_model_override: false
+
+kimi_cli:
+  thinking: true
+  max_steps_per_turn: 200
+  max_retries_per_step: 12
+  ralph_iterations: -1
+
+container:
+  name: amdpilot_primus_qwen3_mfu
+  gpu: "0,1,2,3,4,5,6,7"
+  shm_size: 128g
+  devices: [/dev/kfd, /dev/dri]
+  env:
+    # Same env that r54 + r36 used to reach 300+ TFLOP/s/GPU on this
+    # node. The gfx950 knobs (PYTORCH_HIP_ALLOC_CONF, NVTE_ROCM_ARCH,
+    # HIP_FORCE_DEV_KERNARG, etc.) are baked into the base image and
+    # MUST NOT be overridden.
+    GLOO_SOCKET_IFNAME: "enp81s0f1"
+    NCCL_SOCKET_IFNAME: "enp81s0f1"
+    IP_INTERFACE: "enp81s0f1"
+    TOKENIZERS_PARALLELISM: "false"
+    GPU_COREDUMP_ENABLE: "0"
+    NVTE_CK_USES_BWD_V3: "1"
+    # Override amdpilot's default TMPDIR=/scratch/tmp which triggers
+    # torchrun / primus-cli HIP kernel-loading failures on this box
+    # (docker_manager.py:220). /tmp is safe and works.
+    TMPDIR: "/tmp"
+
+workload:
+  description: "Maximize Qwen3-30B-A3B MoE pretraining MFU on 8x MI355X (Megatron + Primus + Primus-Turbo)"
+  function: "primus.train.pretrain"
+  framework: PyTorch
+
+benchmark:
+  command: "bash /workspace/bench_mfu.sh"
+  script: "evals/instances/primus-qwen3-30b-mfu/bench_mfu.sh"
+  metric_name: TFLOPS_PER_GPU
+  metric_pattern: 'TFLOPS_PER_GPU:\s+([\d.]+)'
+  metric_direction: higher
+  preflight_timeout: 1500
+  fixed_params:
+    model: Qwen3-30B-A3B
+    micro_batch_size: 1
+    global_batch_size: 8
+    seq_length: 8192
+    expert_model_parallel_size: 8
+    train_iters: 10
+  output_format: "TFLOPS_PER_GPU: <value> | mbs=1 gbs=8 seq=8192 ep=8"
+
+# Minimum contract — phase1 fills in expected_metric / required_flags /
+# active_backends. immutable_artifacts protect the bench wrapper and the
+# Primus baseline script from in-trial mutation.
+baseline_contract:
+  metric_name: TFLOPS_PER_GPU
+  metric_direction: higher
+  tolerance: 0.07
+  reproduce_command: "bash /workspace/bench_mfu.sh"
+  gpu_shape: "8xMI355X"
+  base_image: "primus-qwen3-30b-mfu-base:v1"
+  immutable_artifacts:
+    - /workspace/bench_mfu.sh
+    - /workspace/test_harness.py
+    - /workspace/primus_train/Primus/scripts/run_qwen3_30b_mfu_baseline.sh
+
+task:
+  description_file: evals/instances/primus-qwen3-30b-mfu/task_description.md
+
+stages: auto
+
+max_retries_per_stage: 5
+max_total_hours: 4
+gpu_required: 8
+
+slack:
+  enabled: true
