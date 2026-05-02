@@ -59,7 +59,7 @@ container:
     # even while the gating env vars are off. Safe no-op until
     # AITER_USE_FLYDSL_MOE is flipped to 1 during a trial.
     DSL2_ROOT: "/opt/FlyDSL"
-    MLIR_PATH: "/opt/mlir_install"
+    MLIR_PATH: "/opt/llvm-project/mlir_install"
     # Blog-recommended CK tile conversion mode; matches the exact env
     # block from the K2.5 MI300X optimization blog and is harmless if
     # FlyDSL is OFF at baseline time.

@@ -1,6 +1,7 @@
 {
   "name": "sglang-kimi-k26-flydsl-mi355x",
-  "type": "optimize",
+  "category": "optimize",
+  "difficulty": "hard",
   "issue_url": "https://github.com/amdpilot-org/sglang/issues/2",
   "repo": "amdpilot-org/sglang",
   "branch": "main",
@@ -26,7 +27,10 @@
     "threshold": 0.90
   },
   "gpu_shape": "4xMI355X",
+  "requires_gpu": true,
   "gpu_required": 4,
+  "gpu_count": 4,
+  "gpu_arch": "mi355x",
   "tp_size": 4,
   "purpose": "Port the FlyDSL fused-MoE kernel stack from AMD's Kimi-K2.5 MI300X blog to Kimi-K2.6 on 4xMI355X, on top of the baseline established by PR #23381. Primary metric is concurrency=40 throughput; BS=1 decode tok/s acts as a regression guard."
 }

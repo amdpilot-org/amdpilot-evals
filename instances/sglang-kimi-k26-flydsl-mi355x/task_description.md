@@ -25,7 +25,7 @@ starts from a verified-identical snapshot.
   `AITER_USE_FLYDSL_MOE_STAGE1`, `AITER_USE_FLYDSL_MOE_STAGE2`,
   `FLYDSL_W4A16_HYBRID`, `AITER_ENFORCE_DSL=1`.
 - **Container paths** (immutable): `DSL2_ROOT=/opt/FlyDSL`,
-  `MLIR_PATH=/opt/mlir_install`, AITER pinned to `dev/kimi-K2.5`.
+  `MLIR_PATH=/opt/llvm-project/mlir_install`, AITER pinned to `dev/kimi-K2.5`.
 - **Primary metric**: `output_throughput_tok_s` at concurrency=40,
   target **>= 1.30x** Phase 1 baseline.
 - **Guard metric**: `decode_bs1_in8k` at BS=1 input=8192, target
@@ -198,7 +198,7 @@ rejected regardless of throughput win.
 | `AITER_USE_FLYDSL_MOE_STAGE2`     | `1` to replace down projection    | Stage 2 of the two-stage MoE.                                       |
 | `AITER_ENFORCE_DSL`               | `1`                               | Error if FlyDSL is requested but unavailable (avoids silent fallback). |
 | `DSL2_ROOT`                       | `/opt/FlyDSL`                     | Where AITER adds FlyDSL to `sys.path`. Set in Dockerfile.           |
-| `MLIR_PATH`                       | `/opt/mlir_install`               | FlyDSL compiler dependency. Set in Dockerfile.                      |
+| `MLIR_PATH`                       | `/opt/llvm-project/mlir_install`  | FlyDSL compiler dependency. Set in Dockerfile.                      |
 | `FLYDSL_W4A16_HYBRID`             | unset or `w2_bf16`                | `w2_bf16` keeps Stage1 W4A16 and runs Stage2 in BF16.               |
 | `CK_TILE_FLOAT_TO_BFLOAT16_DEFAULT` | `3`                             | Blog-recommended CK tile conversion mode.                           |
 | `TRITON_MAX_CACHE_SIZE`           | `2147483648`                      | 2 GiB Triton kernel cache ceiling.                                  |
@@ -251,7 +251,7 @@ rejected regardless of throughput win.
 - SGLang editable install: `/sgl-workspace/sglang` (PR #23381 applied)
 - AITER editable install: `/sgl-workspace/aiter` (`dev/kimi-K2.5` branch)
 - FlyDSL: `/opt/FlyDSL` (`DSL2_ROOT`)
-- MLIR: `/opt/mlir_install` (`MLIR_PATH`)
+- MLIR: `/opt/llvm-project/mlir_install` (`MLIR_PATH`)
 - Benchmark wrapper: `/workspace/bench_flydsl_k26.sh`
 - Accuracy harness: `/workspace/test_harness.py`
 - Trial overrides: `/workspace/bench_config.env` (agent writes here)
