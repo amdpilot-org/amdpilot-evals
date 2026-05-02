@@ -46,15 +46,20 @@ amdpilot issue https://github.com/sgl-project/sglang/issues/12345
 
 ## Metadata Contract
 
-`shared/metadata.schema.json` is the canonical contract for `instances/*/metadata.json` and `test_instances/*/metadata.json`.
-The current runner still consumes the legacy execution-facing fields, so the new contract is additive rather than a loader break.
+Instance metadata is currently a lightweight JSON contract consumed by the
+runner and curation tooling. There is no checked-in JSON schema or standalone
+metadata validator in this repo; keep review checks focused on the fields used
+by `shared/eval_runner.py`, `shared/registry_tools.py`, and
+`shared/validation_tools.py`.
 
 - Keep `name`, `category`, `difficulty`, and `requires_gpu` populated for every instance.
 - New first-wave test instances should also set `test_harness_type`, `gpu_count`, `base_image`, `eval_track`, `estimated_runtime_min`, `gpu_requirements`, `harness_leak_risk`, and `validation_shape`.
 - `controlled_probe`, `controlled_signal`, `baseline_fail_mode`, and `harness_provenance` remain optional sidecar metadata for now. Keep them in the design note or task spec until a dedicated `test_instances` loader exists.
 - Prefer canonical keys over legacy aliases: `category` over `type`, `test_harness_type` over `harness_type`, and `requires_gpu` plus `gpu_count` over `gpu_required`.
-- Start from `shared/metadata.template.json`.
-- Validate with `python3 scripts/validate_metadata.py` before review.
+- For PR registry batches, enrich rows with `scripts/enrich_registry.py`, then
+  generate validation specs with `scripts/extract_validation_specs.py`.
+- Before review, run `PYTHONPATH=. python3 -m pytest tests -q` from this
+  directory to cover the registry and validation helpers.
 
 ## Test Harness Quality
 
