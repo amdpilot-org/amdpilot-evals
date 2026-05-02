@@ -1,0 +1,87 @@
+name: openpi-issue-3-mi300x
+type: optimize
+repo: https://github.com/amdpilot-org/openpi.git
+repo_branch: main
+source:
+  repo: amdpilot-org/openpi
+  issue_number: 3
+  url: https://github.com/amdpilot-org/openpi/issues/3
+  title: Optimize pi0 LIBERO inference on MI300X — sglang base image with full artifacts
+  target_branch: main
+  target_commit: e4429ad35ec380842dc72b4074735cf3e8a503c2
+model_endpoint:
+  model: Qwen/Qwen3.5-397B-A17B
+  base_url: http://localhost:30000/v1
+  api_key: EMPTY
+kimi_cli:
+  thinking: true
+runtime:
+  gpu_arch: mi300x
+  workspace_path: /workspace/openpi
+  target_node: banff-cyxtera-cx57-5.ctr.dcgpu
+container:
+  name: amdpilot_openpi_issue_3
+  gpu: '0'
+  shm_size: 128g
+  devices:
+  - /dev/kfd
+  - /dev/dri
+  env:
+    TOKENIZERS_PARALLELISM: 'false'
+    GPU_COREDUMP_ENABLE: '0'
+  volumes:
+  - /home/amd/openpi_cache:/root/.cache/openpi
+  - /home/yikzhang/huggingface:/root/.cache/huggingface
+  auto_mount_data: false
+workload:
+  description: "Optimize pi0 LIBERO inference throughput on MI300X (baseline 7.0 inf/s\
+    \ \u2192 target 23+ inf/s)"
+  framework: PyTorch
+benchmark:
+  command: bash /workspace/bench_openpi.sh
+  metric_name: throughput_inf_per_sec
+  metric_pattern: THROUGHPUT:\s+([\d.]+)\s+inf/s
+  metric_direction: higher
+  expected_baseline: 7.0
+  baseline_min_ratio: 0.8
+  fixed_params:
+    config: pi0_libero
+    backend: pytorch
+    num_warmup: 3
+    num_runs: 20
+    device: cuda:0
+    denoising_steps: 10
+baseline_contract:
+  expected_metric: 7.0
+  metric_name: throughput_inf_per_sec
+  metric_direction: higher
+  tolerance: 0.2
+  reproduce_command: bash /workspace/bench_pi0_libero.sh
+  required_flags:
+    config: pi0_libero
+    backend: pytorch
+    num_warmup: 3
+    num_runs: 20
+    device: cuda:0
+    denoising_steps: 10
+  gpu_shape: 1xMI300X
+  repo_commit: e4429ad35ec380842dc72b4074735cf3e8a503c2
+  repo_branch: main
+  base_image: rocm/sgl-dev:v0.5.10rc0-rocm720-mi30x-20260420
+  immutable_artifacts:
+  - benchmark_pi0_libero_rocm.py
+  - bench_openpi.sh
+  - src/openpi/models/model.py
+  - bench_pi0_libero.sh
+task:
+  description_file: /workspace/task_description.md
+stages: auto
+max_retries_per_stage: 3
+max_total_hours: 6
+supervisor: true
+nudge: true
+frontier_model: true
+base_image: rocm/sgl-dev:v0.5.10rc0-rocm720-mi30x-20260420
+repo_commit: e4429ad35ec380842dc72b4074735cf3e8a503c2
+routing:
+  target_node: banff-cyxtera-cx57-5.ctr.dcgpu
